@@ -20,6 +20,7 @@ public partial class ShellViewModel : ObservableObject
     private readonly IDialogService _dialogService;
     private readonly DockLiteHttpSession _httpSession;
     private readonly WslServiceHealthCache _healthCache;
+    private readonly AppShellActivityState _shellActivity;
     private readonly string _appBaseDirectory;
     private readonly IAppShutdownToken _shutdownToken;
 
@@ -41,6 +42,7 @@ public partial class ShellViewModel : ObservableObject
         IDialogService dialogService,
         DockLiteHttpSession httpSession,
         WslServiceHealthCache healthCache,
+        AppShellActivityState shellActivity,
         string appBaseDirectory,
         IAppShutdownToken shutdownToken)
     {
@@ -48,6 +50,7 @@ public partial class ShellViewModel : ObservableObject
         _dialogService = dialogService;
         _httpSession = httpSession;
         _healthCache = healthCache;
+        _shellActivity = shellActivity;
         _appBaseDirectory = appBaseDirectory;
         _shutdownToken = shutdownToken;
         _healthCache.Changed += OnHealthCacheChanged;
@@ -60,6 +63,12 @@ public partial class ShellViewModel : ObservableObject
         Settings = settings;
         AppDebugLog = appDebugLog;
         CurrentPage = dashboard;
+    }
+
+    partial void OnCurrentPageChanged(object? value)
+    {
+        _shellActivity.SetContainersPageVisible(ReferenceEquals(value, Containers));
+        _shellActivity.SetDashboardPageVisible(ReferenceEquals(value, Dashboard));
     }
 
     public DashboardViewModel Dashboard { get; }

@@ -27,6 +27,9 @@ public partial class SettingsViewModel : ObservableObject
     private readonly IAppShutdownToken _shutdownToken;
     private readonly WslServiceHealthCache _healthCache;
     private readonly AppUiDisplaySettings _uiDisplay;
+    private readonly INotificationService _notificationService;
+
+    private const int ToastMessageMaxChars = 520;
 
     public SettingsViewModel(
         IAppSettingsStore store,
@@ -36,7 +39,8 @@ public partial class SettingsViewModel : ObservableObject
         AppSettings initialSettings,
         IAppShutdownToken shutdownToken,
         WslServiceHealthCache healthCache,
-        AppUiDisplaySettings uiDisplay)
+        AppUiDisplaySettings uiDisplay,
+        INotificationService notificationService)
     {
         _store = store;
         _httpSession = httpSession;
@@ -45,12 +49,15 @@ public partial class SettingsViewModel : ObservableObject
         _shutdownToken = shutdownToken;
         _healthCache = healthCache;
         _uiDisplay = uiDisplay;
+        _notificationService = notificationService;
         _healthCache.Changed += (_, _) => NotifyWslServiceButtonStates();
         ServiceBaseUrl = initialSettings.ServiceBaseUrl;
+        ServiceBaseUrlSecurityHint = BuildNonLocalhostServiceUrlWarning(ServiceBaseUrl);
         int sec = initialSettings.HttpTimeoutSeconds >= 30 ? initialSettings.HttpTimeoutSeconds : 120;
         HttpTimeoutSecondsText = sec.ToString();
         AutoStartWslService = initialSettings.AutoStartWslService;
         WslDockerServiceWindowsPath = initialSettings.WslDockerServiceWindowsPath ?? string.Empty;
+        WslDockerServiceSyncSourceWindowsPath = initialSettings.WslDockerServiceSyncSourceWindowsPath ?? string.Empty;
         WslDistribution = initialSettings.WslDistribution ?? string.Empty;
         SelectedUiTimeZoneId = initialSettings.UiTimeZoneId ?? string.Empty;
         UiDateTimeFormat = string.IsNullOrWhiteSpace(initialSettings.UiDateTimeFormat)
@@ -60,6 +67,9 @@ public partial class SettingsViewModel : ObservableObject
         WslManualHealthWaitSecondsText = initialSettings.WslManualHealthWaitSeconds.ToString();
         HealthProbeSingleRequestSecondsText = initialSettings.HealthProbeSingleRequestSeconds.ToString();
         WslHealthPollIntervalMillisecondsText = initialSettings.WslHealthPollIntervalMilliseconds.ToString();
+        WslDockerServiceLinuxSyncPath = initialSettings.WslDockerServiceLinuxSyncPath ?? string.Empty;
+        WslDockerServiceSyncDeleteExtra = initialSettings.WslDockerServiceSyncDeleteExtra;
+        WslDockerServiceSyncEnforceVersionGe = initialSettings.WslDockerServiceSyncEnforceVersionGe;
         TimeZoneOptions.Add(new TimeZoneOptionItem { Id = "", DisplayName = "Giờ máy (Windows local)" });
         foreach (TimeZoneInfo z in TimeZoneInfo.GetSystemTimeZones().OrderBy(x => x.DisplayName))
         {
@@ -84,11 +94,23 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _serviceBaseUrl = string.Empty;
 
+    /// <summary>
+    /// Cảnh báo khi host base URL không phải localhost (HTTP không mã hóa trên LAN).
+    /// </summary>
+    [ObservableProperty]
+    private string _serviceBaseUrlSecurityHint = string.Empty;
+
     [ObservableProperty]
     private bool _autoStartWslService = true;
 
     [ObservableProperty]
     private string _wslDockerServiceWindowsPath = string.Empty;
+
+    /// <summary>
+    /// Thư mục wsl-docker-service trên ổ Windows dùng chỉ cho đồng bộ (để trống = cùng đường dẫn với ô dịch vụ phía trên).
+    /// </summary>
+    [ObservableProperty]
+    private string _wslDockerServiceSyncSourceWindowsPath = string.Empty;
 
     [ObservableProperty]
     private string _wslDistribution = string.Empty;
@@ -150,6 +172,24 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _wslHealthPollIntervalMillisecondsText = "500";
 
+    /// <summary>
+    /// Đường dẫn Unix đích khi đồng bộ mã wsl-docker-service từ Windows vào filesystem Linux (WSL).
+    /// </summary>
+    [ObservableProperty]
+    private string _wslDockerServiceLinuxSyncPath = string.Empty;
+
+    /// <summary>
+    /// Khi đồng bộ: rsync --delete (nếu có rsync trong WSL).
+    /// </summary>
+    [ObservableProperty]
+    private bool _wslDockerServiceSyncDeleteExtra;
+
+    /// <summary>
+    /// Chỉ đồng bộ khi version trong file VERSION (Windows) >= version trên đích (WSL).
+    /// </summary>
+    [ObservableProperty]
+    private bool _wslDockerServiceSyncEnforceVersionGe;
+
     [ObservableProperty]
     private string _dateFormatPreviewText = string.Empty;
 
@@ -167,6 +207,11 @@ public partial class SettingsViewModel : ObservableObject
         "dd/MM/yyyy",
         "HH:mm:ss",
     };
+
+    partial void OnServiceBaseUrlChanged(string value)
+    {
+        ServiceBaseUrlSecurityHint = BuildNonLocalhostServiceUrlWarning(value);
+    }
 
     partial void OnUiDateTimeFormatChanged(string value)
     {
@@ -270,23 +315,41 @@ public partial class SettingsViewModel : ObservableObject
             sb.Append("Distro WSL: ").AppendLine(WslDistribution.Trim());
         }
 
+        string? distro = string.IsNullOrWhiteSpace(WslDistribution) ? null : WslDistribution.Trim();
+
         string path = WslDockerServiceWindowsPath.Trim();
         if (string.IsNullOrEmpty(path))
         {
-            sb.AppendLine("Thư mục wsl-docker-service (Windows): (trống — DockLite tự tìm thư mục wsl-docker-service cạnh file chạy ứng dụng).");
+            sb.AppendLine("Thư mục dịch vụ (nhìn từ Windows): (trống — DockLite tự tìm wsl-docker-service cạnh file chạy ứng dụng).");
         }
         else
         {
-            string? distro = string.IsNullOrWhiteSpace(WslDistribution) ? null : WslDistribution.Trim();
             if (WslPathProbe.TryWindowsToUnix(path, distro, out string unix, out string? err))
             {
-                sb.Append("Thư mục service (Windows): ").AppendLine(path);
+                sb.Append("Thư mục dịch vụ (Windows): ").AppendLine(path);
                 sb.Append("→ trong WSL: ").AppendLine(unix);
             }
             else
             {
-                sb.Append("Thư mục service (Windows): ").AppendLine(path);
+                sb.Append("Thư mục dịch vụ (Windows): ").AppendLine(path);
                 sb.Append("→ wslpath: ").AppendLine(err ?? "lỗi");
+            }
+        }
+
+        string syncSrc = WslDockerServiceSyncSourceWindowsPath.Trim();
+        if (!string.IsNullOrEmpty(syncSrc))
+        {
+            sb.AppendLine();
+            sb.AppendLine("Nguồn đồng bộ (Windows):");
+            if (WslPathProbe.TryWindowsToUnix(syncSrc, distro, out string unixSrc, out string? errS))
+            {
+                sb.AppendLine(syncSrc);
+                sb.Append("→ Unix: ").AppendLine(unixSrc);
+            }
+            else
+            {
+                sb.AppendLine(syncSrc);
+                sb.Append("→ wslpath: ").AppendLine(errS ?? "lỗi");
             }
         }
 
@@ -356,6 +419,9 @@ public partial class SettingsViewModel : ObservableObject
             WslDockerServiceWindowsPath = string.IsNullOrWhiteSpace(WslDockerServiceWindowsPath)
                 ? null
                 : WslDockerServiceWindowsPath.Trim(),
+            WslDockerServiceSyncSourceWindowsPath = string.IsNullOrWhiteSpace(WslDockerServiceSyncSourceWindowsPath)
+                ? null
+                : WslDockerServiceSyncSourceWindowsPath.Trim(),
             WslDistribution = string.IsNullOrWhiteSpace(WslDistribution) ? null : WslDistribution.Trim(),
             UiTimeZoneId = string.IsNullOrWhiteSpace(SelectedUiTimeZoneId) ? null : SelectedUiTimeZoneId.Trim(),
             UiDateTimeFormat = UiDateTimeFormat.Trim(),
@@ -363,6 +429,11 @@ public partial class SettingsViewModel : ObservableObject
             WslManualHealthWaitSeconds = manW,
             HealthProbeSingleRequestSeconds = probe,
             WslHealthPollIntervalMilliseconds = pollMs,
+            WslDockerServiceLinuxSyncPath = string.IsNullOrWhiteSpace(WslDockerServiceLinuxSyncPath)
+                ? null
+                : WslDockerServiceLinuxSyncPath.Trim(),
+            WslDockerServiceSyncDeleteExtra = WslDockerServiceSyncDeleteExtra,
+            WslDockerServiceSyncEnforceVersionGe = WslDockerServiceSyncEnforceVersionGe,
         };
         AppSettingsDefaults.Normalize(settings);
         _store.Save(settings);
@@ -543,6 +614,9 @@ public partial class SettingsViewModel : ObservableObject
             WslDockerServiceWindowsPath = string.IsNullOrWhiteSpace(WslDockerServiceWindowsPath)
                 ? null
                 : WslDockerServiceWindowsPath.Trim(),
+            WslDockerServiceSyncSourceWindowsPath = string.IsNullOrWhiteSpace(WslDockerServiceSyncSourceWindowsPath)
+                ? null
+                : WslDockerServiceSyncSourceWindowsPath.Trim(),
             WslDistribution = string.IsNullOrWhiteSpace(WslDistribution) ? null : WslDistribution.Trim(),
             UiTimeZoneId = string.IsNullOrWhiteSpace(SelectedUiTimeZoneId) ? null : SelectedUiTimeZoneId.Trim(),
             UiDateTimeFormat = fmt,
@@ -550,9 +624,84 @@ public partial class SettingsViewModel : ObservableObject
             WslManualHealthWaitSeconds = manW,
             HealthProbeSingleRequestSeconds = probe,
             WslHealthPollIntervalMilliseconds = pollMs,
+            WslDockerServiceLinuxSyncPath = string.IsNullOrWhiteSpace(WslDockerServiceLinuxSyncPath)
+                ? null
+                : WslDockerServiceLinuxSyncPath.Trim(),
+            WslDockerServiceSyncDeleteExtra = WslDockerServiceSyncDeleteExtra,
+            WslDockerServiceSyncEnforceVersionGe = WslDockerServiceSyncEnforceVersionGe,
         };
         AppSettingsDefaults.Normalize(snapshot);
         return snapshot;
+    }
+
+    /// <summary>
+    /// Sao chép mã từ ô «Nguồn trong Windows» (hoặc cùng thư mục dịch vụ nếu để trống) sang đích Unix.
+    /// </summary>
+    [RelayCommand]
+    private async Task SyncServiceSourceToWslAsync()
+    {
+        IsBusy = true;
+        StatusMessage = "Đang đồng bộ mã nguồn vào WSL...";
+        try
+        {
+            AppSettings snapshot = CreateSettingsSnapshotForWsl();
+            (bool ok, string msg) = await WslDockerServiceAutoStart
+                .TrySyncWindowsSourceToLinuxDestinationAsync(snapshot, _appBaseDirectory, _shutdownToken.Token)
+                .ConfigureAwait(true);
+            StatusMessage = msg;
+            AppFileLog.Write("WSL đồng bộ mã", msg + (ok ? " [OK]" : ""));
+            if (!ok)
+            {
+                await _notificationService
+                    .ShowAsync(
+                        "DockLite — đồng bộ mã WSL",
+                        TruncateForToast(msg, ToastMessageMaxChars),
+                        NotificationDisplayKind.Warning,
+                        _shutdownToken.Token)
+                    .ConfigureAwait(true);
+            }
+            else
+            {
+                await _notificationService
+                    .ShowAsync(
+                        "DockLite — đồng bộ mã WSL",
+                        TruncateForToast(msg, ToastMessageMaxChars),
+                        NotificationDisplayKind.Success,
+                        _shutdownToken.Token)
+                    .ConfigureAwait(true);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Đã hủy (đóng ứng dụng).";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+            AppFileLog.Write("WSL đồng bộ mã", "Lỗi: " + ex);
+            await _notificationService
+                .ShowAsync(
+                    "DockLite — đồng bộ mã WSL",
+                    TruncateForToast(ex.Message, ToastMessageMaxChars),
+                    NotificationDisplayKind.Warning,
+                    _shutdownToken.Token)
+                .ConfigureAwait(true);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private static string TruncateForToast(string message, int max)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return string.Empty;
+        }
+
+        message = message.Trim();
+        return message.Length <= max ? message : message.Substring(0, max) + "…";
     }
 
     [RelayCommand]
@@ -600,6 +749,30 @@ public partial class SettingsViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    private static string BuildNonLocalhostServiceUrlWarning(string? serviceBaseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(serviceBaseUrl))
+        {
+            return string.Empty;
+        }
+
+        if (!Uri.TryCreate(serviceBaseUrl.Trim(), UriKind.Absolute, out Uri? u))
+        {
+            return string.Empty;
+        }
+
+        string host = u.Host;
+        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+            || host == "127.0.0.1"
+            || host == "::1"
+            || host.StartsWith("[::1]", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        return "Host không phải localhost (127.0.0.1 / ::1): HTTP trên mạng LAN có thể bị nghe lén (MITM). Chỉ dùng khi bạn tin cậy mạng hoặc có bảo vệ tương đương.";
     }
 }
 

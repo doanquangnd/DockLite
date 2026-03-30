@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using DockLite.Core;
 using DockLite.Core.Configuration;
 using DockLite.Core.Diagnostics;
 using DockLite.Infrastructure.Api;
@@ -98,7 +99,7 @@ public static class WslDockerServiceAutoStart
         }
 
         string? distro = ResolveEffectiveDistribution(settings);
-        if (!TryGetWslUnixPath(root, distro, out string wslPath))
+        if (!TryGetWslUnixPath(root, distro, out string wslPath, out string? _))
         {
             Debug.WriteLine("DockLite: wslpath thất bại cho " + root);
             return (false, WslEnsureFailureReason.WslPathConversionFailed);
@@ -120,6 +121,10 @@ public static class WslDockerServiceAutoStart
             {
                 return (true, WslEnsureFailureReason.None);
             }
+
+            // Backoff: tăng khoảng chờ giữa các lần thử khi service chưa sẵn sàng (giảm tải CPU so với cố định mỗi vòng).
+            double ms = Math.Min(5000.0, pollInterval.TotalMilliseconds * 1.5);
+            pollInterval = TimeSpan.FromMilliseconds(ms);
         }
 
         string hint = FormatHealthTimeoutUserHint(AppFileLog.LogDirectory);
@@ -200,10 +205,11 @@ public static class WslDockerServiceAutoStart
         }
 
         string? distro = ResolveEffectiveDistribution(settings);
-        if (!TryGetWslUnixPath(root, distro, out string wslPath))
+        if (!TryGetWslUnixPath(root, distro, out string wslPath, out string? wslpathErr))
         {
-            userMessage =
-                "Không chuyển được đường dẫn sang Unix (wslpath). Kiểm tra WSL và đường dẫn thư mục.";
+            userMessage = FormatWslpathUserMessage(
+                "Không chuyển được đường dẫn sang Unix (wslpath).",
+                wslpathErr);
             return false;
         }
 
@@ -244,10 +250,11 @@ public static class WslDockerServiceAutoStart
         }
 
         string? distro = ResolveEffectiveDistribution(settings);
-        if (!TryGetWslUnixPath(root, distro, out string wslPath))
+        if (!TryGetWslUnixPath(root, distro, out string wslPath, out string? wslpathErr))
         {
-            userMessage =
-                "Không chuyển được đường dẫn sang Unix (wslpath). Kiểm tra WSL và đường dẫn thư mục.";
+            userMessage = FormatWslpathUserMessage(
+                "Không chuyển được đường dẫn sang Unix (wslpath).",
+                wslpathErr);
             return false;
         }
 
@@ -287,10 +294,11 @@ public static class WslDockerServiceAutoStart
         }
 
         string? distro = ResolveEffectiveDistribution(settings);
-        if (!TryGetWslUnixPath(root, distro, out string wslPath))
+        if (!TryGetWslUnixPath(root, distro, out string wslPath, out string? wslpathErr))
         {
-            userMessage =
-                "Không chuyển được đường dẫn sang Unix (wslpath). Kiểm tra WSL và đường dẫn thư mục.";
+            userMessage = FormatWslpathUserMessage(
+                "Không chuyển được đường dẫn sang Unix (wslpath).",
+                wslpathErr);
             return false;
         }
 
@@ -307,6 +315,262 @@ public static class WslDockerServiceAutoStart
         userMessage =
             "Đã gửi lệnh build trong WSL (bash scripts/build-server.sh). Output ghi trong nhật ký ứng dụng; mở terminal WSL nếu cần xem trực tiếp.";
         return true;
+    }
+
+    /// <summary>
+    /// Đồng bộ thư mục mã nguồn từ Windows (wslpath) sang đường dẫn Unix trong WSL (rsync nếu có, không thì cp -a).
+    /// </summary>
+    public static async Task<(bool Ok, string Message)> TrySyncWindowsSourceToLinuxDestinationAsync(
+        AppSettings settings,
+        string appBaseDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        string? root = ResolveWindowsSyncSourceRoot(settings, appBaseDirectory);
+        if (string.IsNullOrEmpty(root))
+        {
+            bool hadExplicitSource = !string.IsNullOrWhiteSpace(settings.WslDockerServiceSyncSourceWindowsPath);
+            return (
+                false,
+                hadExplicitSource
+                    ? "Không tìm thấy thư mục nguồn đồng bộ (Windows). Kiểm tra ô «Nguồn trong Windows»."
+                    : "Không tìm thấy thư mục wsl-docker-service. Điền đường dẫn dịch vụ hoặc nguồn đồng bộ, hoặc đặt exe cùng cây thư mục với clone.");
+        }
+
+        string? dstRaw = settings.WslDockerServiceLinuxSyncPath?.Trim();
+        if (string.IsNullOrEmpty(dstRaw))
+        {
+            return (false, "Điền đường dẫn đích trong WSL (Unix, ví dụ /home/user/wsl-docker-service).");
+        }
+
+        if (!ValidateLinuxSyncDestination(dstRaw, out string? validationError))
+        {
+            return (false, validationError ?? "Đường dẫn đích không hợp lệ.");
+        }
+
+        string? distro = ResolveEffectiveDistribution(settings);
+        if (!TryGetWslUnixPath(root, distro, out string srcUnix, out string? wslpathErr))
+        {
+            return (
+                false,
+                FormatWslpathUserMessage(
+                    "Không chuyển được đường dẫn nguồn sang Unix (wslpath).",
+                    wslpathErr));
+        }
+
+        string srcN = NormalizeUnixDirPath(srcUnix);
+        string dstN = NormalizeUnixDirPath(dstRaw);
+        if (string.Equals(srcN, dstN, StringComparison.Ordinal))
+        {
+            return (true, "Nguồn và đích trùng đường dẫn Unix — không cần đồng bộ.");
+        }
+
+        if (settings.WslDockerServiceSyncEnforceVersionGe)
+        {
+            if (!DockLiteSourceVersion.TryReadFromWindowsDirectory(root, out Version? srcVer, out string? srcErr))
+            {
+                return (false, srcErr ?? "Không đọc được version nguồn.");
+            }
+
+            (bool verOk, Version destVer, string? verErr) = await TryReadWslDestinationVersionForSyncAsync(dstN, distro, cancellationToken)
+                .ConfigureAwait(false);
+            if (!verOk)
+            {
+                return (false, verErr ?? "Không đọc được version đích.");
+            }
+
+            if (srcVer!.CompareTo(destVer) < 0)
+            {
+                return (
+                    false,
+                    "Version nguồn (" + srcVer + ") nhỏ hơn version trên đích (" + destVer
+                    + "). Nâng file " + DockLiteSourceVersion.VersionFileName
+                    + " trên Windows, hoặc tắt tùy chọn chỉ đồng bộ khi version nguồn >= đích.");
+            }
+
+            AppFileLog.Write(
+                "WSL đồng bộ mã",
+                "Kiểm tra version: nguồn=" + srcVer + " đích=" + destVer);
+        }
+
+        bool deleteExtra = settings.WslDockerServiceSyncDeleteExtra;
+        string inner = BuildLinuxSyncBashScript(srcN, dstN, deleteExtra);
+
+        using var p = new Process();
+        p.StartInfo.FileName = "wsl.exe";
+        p.StartInfo.UseShellExecute = false;
+        p.StartInfo.RedirectStandardOutput = true;
+        p.StartInfo.RedirectStandardError = true;
+        p.StartInfo.CreateNoWindow = true;
+        p.StartInfo.StandardOutputEncoding = Encoding.UTF8;
+        p.StartInfo.StandardErrorEncoding = Encoding.UTF8;
+        if (!string.IsNullOrWhiteSpace(distro))
+        {
+            p.StartInfo.ArgumentList.Add("-d");
+            p.StartInfo.ArgumentList.Add(distro.Trim());
+        }
+
+        p.StartInfo.ArgumentList.Add("bash");
+        p.StartInfo.ArgumentList.Add("-lc");
+        p.StartInfo.ArgumentList.Add(inner);
+
+        AppFileLog.Write(
+            "WSL đồng bộ mã",
+            "src=" + srcN + " dst=" + dstN + " deleteExtra=" + deleteExtra);
+
+        try
+        {
+            p.Start();
+            string stdout = await p.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            string stderr = await p.StandardError.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            await p.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            if (p.ExitCode != 0)
+            {
+                string err = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
+                if (string.IsNullOrWhiteSpace(err))
+                {
+                    err = "Mã thoát " + p.ExitCode;
+                }
+
+                return (false, "Đồng bộ thất bại: " + err.Trim());
+            }
+
+            string tail = string.IsNullOrWhiteSpace(stdout) ? "" : " " + stdout.Trim();
+            return (
+                true,
+                "Đã đồng bộ mã nguồn tới " + dstN + "." + tail);
+        }
+        catch (Exception ex)
+        {
+            return (false, "Không chạy được wsl.exe: " + ex.Message);
+        }
+    }
+
+    private static string NormalizeUnixDirPath(string path)
+    {
+        string t = path.Trim().Replace('\\', '/');
+        while (t.Length > 1 && t.EndsWith('/'))
+        {
+            t = t[..^1];
+        }
+
+        return t;
+    }
+
+    private static bool ValidateLinuxSyncDestination(string path, out string? error)
+    {
+        error = null;
+        string t = path.Trim();
+        if (t.Length < 2 || !t.StartsWith('/'))
+        {
+            error = "Đường dẫn đích phải là Unix tuyệt đối (bắt đầu bằng /).";
+            return false;
+        }
+
+        if (t.Contains("..", StringComparison.Ordinal))
+        {
+            error = "Đường dẫn đích không được chứa ..";
+            return false;
+        }
+
+        foreach (char c in new[] { ';', '|', '&', '`', '$', '\r', '\n', '\t' })
+        {
+            if (t.Contains(c))
+            {
+                error = "Đường dẫn đích chứa ký tự không được phép.";
+                return false;
+            }
+        }
+
+        if (t == "/" || t == "/bin" || t == "/boot" || t == "/dev" || t == "/etc" || t == "/lib" || t == "/proc" || t == "/sys" || t == "/usr")
+        {
+            error = "Chọn thư mục con an toàn (không dùng thư mục hệ thống gốc).";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static string BashSingleQuoted(string s)
+    {
+        return "'" + s.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
+    }
+
+    /// <summary>
+    /// Đọc file VERSION trong thư mục đích trên WSL; không có file → coi như 0.0.0.
+    /// </summary>
+    private static async Task<(bool Ok, Version DestVersion, string? Error)> TryReadWslDestinationVersionForSyncAsync(
+        string dstDirUnix,
+        string? distro,
+        CancellationToken cancellationToken)
+    {
+        string baseDir = NormalizeUnixDirPath(dstDirUnix);
+        string verNested = baseDir + "/internal/appversion/" + DockLiteSourceVersion.VersionFileName;
+        string verRoot = baseDir + "/" + DockLiteSourceVersion.VersionFileName;
+        string inner = "if test -f " + BashSingleQuoted(verNested) + "; then cat " + BashSingleQuoted(verNested)
+            + "; elif test -f " + BashSingleQuoted(verRoot) + "; then cat " + BashSingleQuoted(verRoot) + "; fi";
+
+        using var p = new Process();
+        p.StartInfo.FileName = "wsl.exe";
+        p.StartInfo.UseShellExecute = false;
+        p.StartInfo.RedirectStandardOutput = true;
+        p.StartInfo.RedirectStandardError = true;
+        p.StartInfo.CreateNoWindow = true;
+        p.StartInfo.StandardOutputEncoding = Encoding.UTF8;
+        p.StartInfo.StandardErrorEncoding = Encoding.UTF8;
+        if (!string.IsNullOrWhiteSpace(distro))
+        {
+            p.StartInfo.ArgumentList.Add("-d");
+            p.StartInfo.ArgumentList.Add(distro.Trim());
+        }
+
+        p.StartInfo.ArgumentList.Add("bash");
+        p.StartInfo.ArgumentList.Add("-lc");
+        p.StartInfo.ArgumentList.Add(inner);
+
+        try
+        {
+            p.Start();
+            string stdout = await p.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            await p.StandardError.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
+            await p.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+            if (p.ExitCode != 0)
+            {
+                return (false, new Version(0, 0), "Không đọc được file VERSION trên đích (wsl, mã " + p.ExitCode + ").");
+            }
+
+            string t = stdout.Trim();
+            if (string.IsNullOrEmpty(t))
+            {
+                return (true, new Version(0, 0), null);
+            }
+
+            if (!DockLiteSourceVersion.TryParseVersionLine(t, out Version? v, out string? err))
+            {
+                return (false, new Version(0, 0), "File VERSION trên đích không hợp lệ: " + err);
+            }
+
+            return (true, v!, null);
+        }
+        catch (Exception ex)
+        {
+            return (false, new Version(0, 0), "Lỗi khi đọc VERSION trên đích: " + ex.Message);
+        }
+    }
+
+    private static string BuildLinuxSyncBashScript(string srcDir, string dstDir, bool deleteExtra)
+    {
+        string s = BashSingleQuoted(srcDir);
+        string d = BashSingleQuoted(dstDir);
+        string deleteFlag = deleteExtra ? "--delete " : "";
+        return "set -eu; "
+            + "mkdir -p " + d + "; "
+            + "if command -v rsync >/dev/null 2>&1; then "
+            + "rsync -a " + deleteFlag + s + "/ " + d + "/; "
+            + "else "
+            + "mkdir -p " + d + "; "
+            + "cp -a " + s + "/. " + d + "/; "
+            + "fi; "
+            + "echo OK";
     }
 
     /// <summary>
@@ -331,10 +595,11 @@ public static class WslDockerServiceAutoStart
         }
 
         string? distro = ResolveEffectiveDistribution(settings);
-        if (!TryGetWslUnixPath(root, distro, out string wslPath))
+        if (!TryGetWslUnixPath(root, distro, out string wslPath, out string? wslpathErr))
         {
-            userMessage =
-                "Không chuyển được đường dẫn sang Unix (wslpath). Kiểm tra WSL và đường dẫn thư mục.";
+            userMessage = FormatWslpathUserMessage(
+                "Không chuyển được đường dẫn sang Unix (wslpath).",
+                wslpathErr);
             return false;
         }
 
@@ -460,6 +725,33 @@ public static class WslDockerServiceAutoStart
     }
 
     /// <summary>
+    /// Thư mục Windows dùng làm nguồn khi đồng bộ: ô «Nguồn trong Windows» nếu có; không thì giống <see cref="ResolveWindowsRoot"/>.
+    /// </summary>
+    private static string? ResolveWindowsSyncSourceRoot(AppSettings settings, string appBaseDirectory)
+    {
+        string? raw = settings.WslDockerServiceSyncSourceWindowsPath?.Trim();
+        if (string.IsNullOrEmpty(raw))
+        {
+            return ResolveWindowsRoot(settings, appBaseDirectory);
+        }
+
+        if (WslPathNormalizer.IsWslNetworkUncPath(raw))
+        {
+            return WslPathNormalizer.NormalizeForWslpathArgument(raw);
+        }
+
+        try
+        {
+            string p = Path.GetFullPath(raw);
+            return Directory.Exists(p) ? p : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Ưu tiên tên trong cài đặt; nếu trống mà đường dẫn là UNC \\wsl.localhost\Distro\... thì lấy Distro (tránh wsl.exe dùng distro mặc định khác máy chứa mã).
     /// </summary>
     private static string? ResolveEffectiveDistribution(AppSettings settings)
@@ -508,49 +800,27 @@ public static class WslDockerServiceAutoStart
         return null;
     }
 
-    private static bool TryGetWslUnixPath(string windowsDirectory, string? wslDistribution, out string wslPath)
+    /// <summary>
+    /// Chuẩn hóa thông báo lỗi wslpath cho UI (kèm stderr từ wsl.exe nếu có).
+    /// </summary>
+    private static string FormatWslpathUserMessage(string leadSentence, string? probeError)
     {
-        wslPath = "";
-        string full = WslPathNormalizer.NormalizeForWslpathArgument(windowsDirectory);
-
-        // UNC \\wsl.localhost\Distro\... : không dùng wslpath (thường trả /mnt/c/wsl.localhost/... không tồn tại).
-        if (WslPathNormalizer.IsWslNetworkUncPath(full))
+        if (string.IsNullOrWhiteSpace(probeError))
         {
-            return WslPathNormalizer.TryUnixPathFromWslUnc(full, wslDistribution, out wslPath, out _);
+            return leadSentence
+                + " Kiểm tra WSL đang chạy, tên distro trong Cài đặt, và thư mục Windows tồn tại.";
         }
 
-        using var p = new Process();
-        p.StartInfo.FileName = "wsl.exe";
-        p.StartInfo.UseShellExecute = false;
-        p.StartInfo.RedirectStandardOutput = true;
-        p.StartInfo.RedirectStandardError = true;
-        p.StartInfo.CreateNoWindow = true;
-        if (!string.IsNullOrWhiteSpace(wslDistribution))
-        {
-            p.StartInfo.ArgumentList.Add("-d");
-            p.StartInfo.ArgumentList.Add(wslDistribution.Trim());
-        }
+        return leadSentence.TrimEnd() + " " + probeError.Trim();
+    }
 
-        p.StartInfo.ArgumentList.Add("wslpath");
-        p.StartInfo.ArgumentList.Add("-a");
-        p.StartInfo.ArgumentList.Add(full);
-        try
-        {
-            p.Start();
-            string? line = p.StandardOutput.ReadLine()?.Trim();
-            p.WaitForExit(15000);
-            if (p.ExitCode != 0 || string.IsNullOrEmpty(line))
-            {
-                return false;
-            }
-
-            wslPath = line;
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+    private static bool TryGetWslUnixPath(
+        string windowsDirectory,
+        string? wslDistribution,
+        out string wslPath,
+        out string? wslpathError)
+    {
+        return WslPathProbe.TryWindowsToUnix(windowsDirectory, wslDistribution, out wslPath, out wslpathError);
     }
 
     /// <param name="scriptRelativeFromRoot">Ví dụ scripts/run-server.sh, scripts/stop-server.sh, scripts/restart-server.sh.</param>

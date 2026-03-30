@@ -21,14 +21,34 @@ public sealed class AppSettings
     public bool AutoStartWslService { get; set; } = true;
 
     /// <summary>
-    /// Đường dẫn Windows tới thư mục wsl-docker-service. Để trống để tự tìm từ thư mục exe.
+    /// Đường dẫn Windows tới thư mục wsl-docker-service dùng cho script (run/build/stop). Để trống để tự tìm từ thư mục exe.
     /// </summary>
     public string? WslDockerServiceWindowsPath { get; set; }
+
+    /// <summary>
+    /// Đường dẫn Windows tới thư mục nguồn khi đồng bộ (thường là clone trên ổ C:). Để trống thì đồng bộ dùng cùng đường dẫn với <see cref="WslDockerServiceWindowsPath"/> (hoặc tự tìm).
+    /// </summary>
+    public string? WslDockerServiceSyncSourceWindowsPath { get; set; }
 
     /// <summary>
     /// Tên distro WSL (ví dụ Ubuntu). Để trống dùng mặc định của wsl.exe.
     /// </summary>
     public string? WslDistribution { get; set; }
+
+    /// <summary>
+    /// Đường dẫn Unix trong WSL làm đích khi đồng bộ (ví dụ /home/user/wsl-docker-service). Để trống nếu không dùng đồng bộ từ GUI.
+    /// </summary>
+    public string? WslDockerServiceLinuxSyncPath { get; set; }
+
+    /// <summary>
+    /// Khi đồng bộ: xóa file ở đích không còn ở nguồn (chỉ khi có rsync trong WSL).
+    /// </summary>
+    public bool WslDockerServiceSyncDeleteExtra { get; set; }
+
+    /// <summary>
+    /// Chỉ cho phép đồng bộ khi version trong file VERSION ở nguồn (Windows) >= version ở đích (WSL); cần file VERSION ở cả hai phía khi bật.
+    /// </summary>
+    public bool WslDockerServiceSyncEnforceVersionGe { get; set; }
 
     /// <summary>
     /// Múi giờ hiển thị (Windows <see cref="TimeZoneInfo.Id"/>). Để trống hoặc null = <see cref="TimeZoneInfo.Local"/>.

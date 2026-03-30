@@ -4,6 +4,26 @@
 
 ## [Chưa phát hành]
 
+### Thêm / đổi (Đồng bộ mã nguồn Go vào WSL)
+
+- `AppSettings`: `WslDockerServiceLinuxSyncPath` (đích Unix trong WSL), `WslDockerServiceSyncSourceWindowsPath` (nguồn Windows riêng cho đồng bộ; để trống = cùng thư mục với ô dịch vụ), `WslDockerServiceSyncDeleteExtra` (rsync `--delete` khi có rsync), `WslDockerServiceSyncEnforceVersionGe` (chỉ đồng bộ khi `VERSION` nguồn >= đích).
+- `wsl-docker-service/internal/appversion/VERSION` + Go `internal/appversion` (embed); `/api/health` lấy version từ file này.
+- `DockLite.Core.DockLiteSourceVersion`: đọc/so sánh `System.Version` từ file VERSION.
+- Cài đặt, tab **WSL và service**: ô đích Unix, tùy chọn xóa file thừa, tùy chọn kiểm tra version, nút **Đồng bộ mã nguồn vào WSL**; hàng nút dưới cùng **Đồng bộ mã → WSL**.
+- `WslDockerServiceAutoStart.TrySyncWindowsSourceToLinuxDestinationAsync`: tùy chọn đọc VERSION trên WSL trước khi `rsync`/`cp`; gọi `wsl` + `bash -lc` cho đồng bộ.
+
+### Thêm / đổi (Tối ưu theo `docs/docklite-optimization-and-extensions.md`)
+
+- `AppShellActivityState` (singleton DI): biết cửa sổ chính có đang foreground và không thu nhỏ hay không, và sidebar có đang mở trang **Container** hay không. `MainWindow` cập nhật khi `Activated` / `Deactivated` / `StateChanged`; `ShellViewModel` cập nhật khi `CurrentPage` đổi. `ContainersViewModel` chỉ chạy timer **stats realtime** (polling API) khi cả hai điều kiện cho phép, để giảm tải khi chuyển tab hoặc sang app khác.
+- Trang **Tổng quan**: làm mới định kỳ khi tab đang mở và cửa sổ tương tác — chu kỳ ngắn hơn khi lần làm mới trước lỗi, dài hơn khi ổn định (`DashboardViewModel` + `DispatcherTimer`).
+- Trang **Container**: bộ đếm số lần gọi API stats (realtime); khối **Inspect (tóm tắt)** (`ContainerInspectSummaryFormatter`) đọc các trường thường gặp từ JSON inspect; khối JSON thô và Stats giữ như trước.
+- **Cài đặt**: cảnh báo khi base URL có host không phải localhost (HTTP trên LAN).
+- `WslDockerServiceAutoStart`: backoff khoảng chờ giữa các lần thử `/api/health` sau khi spawn WSL (thay vì cố định từng vòng).
+- Service Go: `GET /api/metrics` (text/plain, bộ đếm request HTTP đơn giản); middleware tăng bộ đếm.
+- `DockLiteApiClient`: ghi chú XML về `using` response và đọc body một lần.
+- `DockLite.Tests`: test deserialize `ApiEnvelope` JSON thành công / lỗi.
+- README: làm rõ `scripts/build-server.sh` (build Go) so với `scripts/run-server.sh` (chỉ chạy binary); gỡ lỗi `go mod` / `go build` gắn với bước build, không phải với `run-server.sh` khi đã có `bin/docklite-wsl`; thêm `GET /api/metrics`.
+
 ### Thêm / đổi (Hướng mở rộng gần đây — stats, compose exec, settings, log UI)
 
 - `WslDistroProbe`: **Thử distro** (`uname -a` qua `wsl.exe`). Cài đặt: **Cập nhật tóm tắt** đường dẫn WSL (distro, thư mục service, base URL).

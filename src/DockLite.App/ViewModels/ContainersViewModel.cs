@@ -24,15 +24,22 @@ public partial class ContainersViewModel : ObservableObject
     private readonly IDockLiteApiClient _apiClient;
     private readonly IDialogService _dialogService;
     private readonly IAppShutdownToken _shutdownToken;
+    private readonly AppShellActivityState _shellActivity;
     private List<ContainerSummaryDto> _allItems = new();
     private DispatcherTimer? _statsRealtimeTimer;
     private readonly SemaphoreSlim _statsRealtimeGate = new(1, 1);
 
-    public ContainersViewModel(IDockLiteApiClient apiClient, IDialogService dialogService, IAppShutdownToken shutdownToken)
+    public ContainersViewModel(
+        IDockLiteApiClient apiClient,
+        IDialogService dialogService,
+        IAppShutdownToken shutdownToken,
+        AppShellActivityState shellActivity)
     {
         _apiClient = apiClient;
         _dialogService = dialogService;
         _shutdownToken = shutdownToken;
+        _shellActivity = shellActivity;
+        _shellActivity.Changed += OnShellActivityChanged;
         UpdateToolbarState();
     }
 
@@ -92,6 +99,12 @@ public partial class ContainersViewModel : ObservableObject
     [ObservableProperty]
     private string _detailInspectJson = string.Empty;
 
+    /// <summary>
+    /// Các trường chính từ inspect (đọc từ JSON Engine), hiển thị trước khối JSON thô.
+    /// </summary>
+    [ObservableProperty]
+    private string _detailInspectSummaryText = string.Empty;
+
     [ObservableProperty]
     private string _detailStatsText = string.Empty;
 
@@ -119,6 +132,12 @@ public partial class ContainersViewModel : ObservableObject
     [ObservableProperty]
     private int _statsRealtimeIntervalSeconds = 1;
 
+    /// <summary>
+    /// Số lần gọi API stats thành công kể từ khi chọn container hiện tại (realtime).
+    /// </summary>
+    [ObservableProperty]
+    private int _statsRealtimePollCount;
+
     public ObservableCollection<SelectableContainerRow> FilteredItems { get; } = new();
 
     /// <summary>
@@ -134,7 +153,9 @@ public partial class ContainersViewModel : ObservableObject
     partial void OnSelectedContainerRowChanged(SelectableContainerRow? value)
     {
         DetailInspectJson = string.Empty;
+        DetailInspectSummaryText = string.Empty;
         DetailStatsText = string.Empty;
+        StatsRealtimePollCount = 0;
         if (value is null)
         {
             IsStatsRealtimeEnabled = false;
@@ -376,6 +397,7 @@ public partial class ContainersViewModel : ObservableObject
 
         IsDetailLoading = true;
         DetailInspectJson = string.Empty;
+        DetailInspectSummaryText = string.Empty;
         DetailStatsText = string.Empty;
         StatusMessage = string.Empty;
         try
@@ -398,6 +420,7 @@ public partial class ContainersViewModel : ObservableObject
                 return;
             }
 
+            DetailInspectSummaryText = ContainerInspectSummaryFormatter.Format(rInsp.Data!.Inspect);
             DetailInspectJson = JsonSerializer.Serialize(
                 rInsp.Data!.Inspect,
                 new JsonSerializerOptions { WriteIndented = true });
@@ -763,10 +786,20 @@ public partial class ContainersViewModel : ObservableObject
         CanBatchRemove = anySelected;
     }
 
+    private void OnShellActivityChanged(object? sender, EventArgs e)
+    {
+        RestartStatsRealtimeTimerIfNeeded();
+    }
+
     private void RestartStatsRealtimeTimerIfNeeded()
     {
         StopStatsRealtimeTimer();
         if (!IsStatsRealtimeEnabled || SelectedContainerRow is null)
+        {
+            return;
+        }
+
+        if (!_shellActivity.ShouldPollContainerStats)
         {
             return;
         }
@@ -794,6 +827,11 @@ public partial class ContainersViewModel : ObservableObject
 
     private async void StatsRealtimeTimerOnTick(object? sender, EventArgs e)
     {
+        if (!_shellActivity.ShouldPollContainerStats)
+        {
+            return;
+        }
+
         await FetchStatsSnapshotOnceAsync().ConfigureAwait(true);
     }
 
@@ -817,6 +855,7 @@ public partial class ContainersViewModel : ObservableObject
             if (r.Success && r.Data is not null)
             {
                 DetailStatsText = FormatStatsSnapshot(r.Data, true);
+                StatsRealtimePollCount++;
             }
         }
         catch

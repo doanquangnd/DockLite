@@ -55,6 +55,11 @@
                                     Command="{Binding ApplyWslIpCommand}"
                                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
                         </Grid>
+                        <TextBlock Margin="0,0,0,10"
+                                   TextWrapping="Wrap"
+                                   Foreground="#B45309"
+                                   FontSize="12"
+                                   Text="{Binding ServiceBaseUrlSecurityHint}" />
                         <TextBlock Text="Timeout HTTP (giây, 30–600)"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
@@ -81,13 +86,13 @@
                             <TextBlock Text="Khi mở DockLite, nếu chưa có phản hồi thì chạy wsl-docker-service (bash scripts/run-server.sh, không cần chmod +x file .sh)"
                                        TextWrapping="Wrap" />
                         </CheckBox>
-                        <TextBlock Text="Thư mục wsl-docker-service (Windows, tùy chọn)"
+                        <TextBlock Text="Thư mục wsl-docker-service trong WSL"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding WslDockerServiceWindowsPath, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,8"
-                                 ToolTip="Để trống: tự tìm thư mục wsl-docker-service cùng cây thư mục với DockLite.App.exe." />
+                                 ToolTip="Thư mục chứa scripts (run/build): UNC \\wsl.localhost\… nếu mã chỉ nằm trong WSL, hoặc C:\…\wsl-docker-service nếu clone trên ổ đĩa. Để trống: tự tìm cạnh DockLite.App.exe." />
                         <TextBlock Text="Distro WSL (tùy chọn)"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
@@ -95,6 +100,48 @@
                                  Padding="8"
                                  Margin="0,0,0,12"
                                  ToolTip="Ví dụ: Ubuntu. Để trống dùng distro mặc định của wsl.exe." />
+                        <TextBlock Text="Đồng bộ mã nguồn Go sang WSL (Linux)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,6" />
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="#64748B"
+                                   FontSize="12"
+                                   Margin="0,0,0,8"
+                                   Text="Sao chép từ ô «Nguồn trong Windows» (hoặc cùng thư mục với ô dịch vụ nếu để trống) sang «Đích trong WSL». Dùng rsync nếu có trong distro; không thì cp -a." />
+                        <TextBlock Text="Nguồn trong Windows"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding WslDockerServiceSyncSourceWindowsPath, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,8"
+                                 ToolTip="Thư mục wsl-docker-service trên ổ Windows (ví dụ C:\...\DockLite\wsl-docker-service). Để trống: dùng cùng đường dẫn với ô «Thư mục wsl-docker-service trong WSL» phía trên (sau khi quy ra wslpath)." />
+                        <TextBlock Text="Đích trong WSL (đường dẫn Unix)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding WslDockerServiceLinuxSyncPath, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,8"
+                                 FontFamily="Consolas"
+                                 ToolTip="Ví dụ: /home/user/wsl-docker-service — đường tuyệt đối trong Linux (không dùng C:\ hay /mnt/c/...). Điền trước khi Đồng bộ; Lưu để ghi cài đặt." />
+                        <CheckBox IsChecked="{Binding WslDockerServiceSyncDeleteExtra, Mode=TwoWay}"
+                                  Margin="0,0,0,10">
+                            <TextBlock TextWrapping="Wrap"
+                                       Text="Xóa file ở đích không còn ở nguồn (rsync --delete; chỉ khi rsync có trong WSL)" />
+                        </CheckBox>
+                        <CheckBox IsChecked="{Binding WslDockerServiceSyncEnforceVersionGe, Mode=TwoWay}"
+                                  Margin="0,0,0,10">
+                            <TextBlock TextWrapping="Wrap"
+                                       Text="Chỉ đồng bộ khi version nguồn (file VERSION trên Windows) lớn hơn hoặc bằng version trên đích (WSL); cần file VERSION một dòng (ví dụ 0.1.0) ở thư mục nguồn" />
+                        </CheckBox>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,12">
+                            <Button Content="Đồng bộ mã nguồn vào WSL"
+                                    Padding="12,6"
+                                    MinWidth="220"
+                                    Command="{Binding SyncServiceSourceToWslCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
+                                    ToolTip="Chạy rsync hoặc cp trong WSL từ «Nguồn trong Windows» (wslpath) tới «Đích trong WSL». Dùng ô hiện tại (không bắt buộc Lưu trước)." />
+                        </StackPanel>
                         <TextBlock Text="Thử distro (uname -a)"
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,6" />
@@ -271,6 +318,14 @@
                     Margin="0,0,8,0"
                     Command="{Binding SaveCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Đồng bộ mã → WSL"
+                    Padding="16,6"
+                    MinWidth="168"
+                    Margin="0,0,8,0"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Command="{Binding SyncServiceSourceToWslCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
+                    ToolTip="Sao chép từ «Nguồn trong Windows» sang «Đích trong WSL» (tab WSL và service; không bắt buộc Lưu trước)." />
             <Button Content="Build service WSL"
                     Padding="16,6"
                     MinWidth="158"

@@ -16,17 +16,20 @@ public sealed class AppShellFactory : IAppShellFactory
     private readonly INotificationService _notificationService;
     private readonly IAppShutdownToken _shutdownToken;
     private readonly AppUiDisplaySettings _uiDisplay;
+    private readonly AppShellActivityState _shellActivity;
 
     public AppShellFactory(
         IDialogService dialogService,
         INotificationService notificationService,
         IAppShutdownToken shutdownToken,
-        AppUiDisplaySettings uiDisplay)
+        AppUiDisplaySettings uiDisplay,
+        AppShellActivityState shellActivity)
     {
         _dialogService = dialogService;
         _notificationService = notificationService;
         _shutdownToken = shutdownToken;
         _uiDisplay = uiDisplay;
+        _shellActivity = shellActivity;
     }
 
     /// <summary>
@@ -44,13 +47,13 @@ public sealed class AppShellFactory : IAppShellFactory
         ILogStreamClient logStream = new LogStreamClient(httpSession);
         IDialogService dialogService = _dialogService;
         var healthCache = new WslServiceHealthCache();
-        var dashboardVm = new DashboardViewModel(apiClient, _notificationService);
-        var containersVm = new ContainersViewModel(apiClient, dialogService, _shutdownToken);
+        var dashboardVm = new DashboardViewModel(apiClient, _notificationService, _shellActivity, _shutdownToken);
+        var containersVm = new ContainersViewModel(apiClient, dialogService, _shutdownToken, _shellActivity);
         var logsVm = new LogsViewModel(apiClient, logStream, _shutdownToken);
         var composeVm = new ComposeViewModel(apiClient, _notificationService, _shutdownToken);
         var imagesVm = new ImagesViewModel(apiClient, dialogService, _notificationService, _shutdownToken);
         var cleanupVm = new CleanupViewModel(apiClient, dialogService, _shutdownToken);
-        var settingsVm = new SettingsViewModel(store, httpSession, apiClient, appBaseDirectory, loaded, _shutdownToken, healthCache, _uiDisplay);
+        var settingsVm = new SettingsViewModel(store, httpSession, apiClient, appBaseDirectory, loaded, _shutdownToken, healthCache, _uiDisplay, _notificationService);
         var appDebugLogVm = new AppDebugLogViewModel(_uiDisplay);
         var shellVm = new ShellViewModel(
             dashboardVm,
@@ -65,6 +68,7 @@ public sealed class AppShellFactory : IAppShellFactory
             dialogService,
             httpSession,
             healthCache,
+            _shellActivity,
             appBaseDirectory,
             _shutdownToken);
 

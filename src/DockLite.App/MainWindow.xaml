@@ -28,7 +28,7 @@
         <!-- Header chung: trạng thái service WSL (góc phải) -->
         <Border Grid.Row="0"
                 Grid.ColumnSpan="2"
-                Background="{StaticResource CardBackgroundBrush}"
+                Background="{StaticResource SidebarBackgroundBrush}"
                 BorderBrush="{StaticResource CardBorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="20,10,24,10">

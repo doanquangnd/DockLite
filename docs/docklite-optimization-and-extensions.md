@@ -144,4 +144,77 @@ Tài liệu mô tả các hướng **cải thiện hiệu năng**, **kiến trú
 - `docs/docklite-improvement-plan.md` — checklist trạng thái đã làm / một phần.
 - `docs/docklite_updated_review.md` — đối chiếu đánh giá cũ với code hiện tại.
 - `CHANGELOG.md` — nhật ký thay đổi theo phiên bản.
+- Mục 9 trong tài liệu này: checklist tiến độ tối ưu và mở rộng (chi tiết theo từng mục 1–6 và bảng mục 7).
+
+---
+
+## 9. Checklist tiến độ triển khai
+
+Cách đọc:
+
+- `[x]` đã triển khai trong codebase (đủ cho mục tiêu đề).
+- `[~]` một phần: có phần liên quan nhưng chưa đủ phạm vi gốc trong tài liệu.
+- `[ ]` chưa làm hoặc backlog.
+
+Cập nhật checklist này khi hoàn thành thêm hạng mục (cùng thư mục `docs/` hoặc `CHANGELOG.md`).
+
+### 1. Ứng dụng WPF
+
+- [x] **1.1** Tạm dừng / giảm polling stats khi **không ở trang Container** hoặc **cửa sổ không active** / **thu nhỏ** (`AppShellActivityState`, `MainWindow`, `ShellViewModel`, `ContainersViewModel`).
+- [ ] **1.1** Gộp một lần gọi stats khi API có batch (phụ thuộc backend).
+- [x] **1.1** Chỉ báo tải theo polling: **số lần gọi API stats** (realtime) trong phiên chọn container; chưa có «request/phút» toàn cục.
+- [ ] **1.2** Giới hạn độ sâu / regex khi highlight log dòng rất dài.
+- [ ] **1.2** Giảm tần suất follow log khi FPS thấp hoặc buffer vượt ngưỡng.
+- [ ] **1.2** Thay / bổ sung control ảo hóa (ví dụ ItemsRepeater) cho log cực lớn.
+- [x] **1.3** Dashboard: tần suất refresh gắn với trạng thái kết nối (poll nhanh khi lỗi, chậm khi ổn; `DashboardViewModel` + `AppShellActivityState.SetDashboardPageVisible`).
+- [x] **1.4** Rà soát `DockLiteApiClient`: đã ghi chú XML; mọi `HttpResponseMessage` dùng `using`; body đọc buffer một lần trong `ReadEnvelopeAsync`.
+
+### 2. Kiến trúc client và kiểm thử
+
+- [ ] **2.1** Tách dịch vụ trung gian (ví dụ coordinator stats) hoặc partial class cho `ContainersViewModel` và VM lớn khác.
+- [~] **2.2** Unit test: có contract/health + **deserialize envelope JSON** (`ApiEnvelopeJsonTests`); chưa test formatter chuỗi inspect (ở `DockLite.App`).
+- [ ] **2.3** Lazy load tab hoặc giải phóng tài nguyên khi rời tab (timer, subscription).
+
+### 3. Service Go (`wsl-docker-service`)
+
+- [~] **3.1** Một client Docker tái sử dụng (`dockerengine`); cần xác nhận không còn chỗ tạo client tạm mỗi request.
+- [ ] **3.1** Timeout HTTP / giới hạn body theo loại handler (stats, inspect lớn).
+- [ ] **3.2** WebSocket hoặc SSE stats cho **một** container đang xem (giảm polling REST).
+- [ ] **3.3** Cache danh sách project / path compose (có invalidation).
+- [ ] **3.3** Tùy chọn compose file `-f` khi nhiều file trong thư mục.
+- [x] **3.4** `GET /api/metrics` nhẹ (text/plain, bộ đếm request HTTP; middleware tăng đếm).
+- [ ] **3.4** Structured logging (level, request id) phía Go.
+
+### 4. Tích hợp WSL và độ tin cậy
+
+- [x] **4.1** Backoff sau khi spawn WSL (tăng khoảng chờ giữa các lần thử health; tối đa 5 s mỗi vòng).
+- [~] **4.1** UI tiến trình / thời gian chờ health (có `WslStartupProgress` và toast; có thể tinh chỉnh thêm).
+- [x] **4.2** README đồng bộ script: `build-server.sh` (build) và `run-server.sh` (chỉ chạy binary), tránh nhầm lỗi `go build` khi chỉ chạy script run.
+
+### 5. Mở rộng theo module
+
+- [~] **5.1** Inspect: có **tóm tắt** văn bản (`ContainerInspectSummaryFormatter`); chưa **bảng** đầy đủ (mount/env/port/network dạng grid).
+- [ ] **5.1** Attach / gợi ý lệnh terminal ngoài.
+- [ ] **5.1** Nhãn (labels) và lọc theo label.
+- [ ] **5.2** Inspect image, history layer, pull có tiến trình.
+- [ ] **5.2** Export/import image qua job nền.
+- [ ] **5.3** Trang hoặc API liệt kê network, volume (Go + Docker API).
+- [ ] **5.4** Compose terminal tương tác (ConPTY / nhúng).
+- [ ] **5.5** Theme sáng/tối, ngôn ngữ resource, cổng service mặc định khi trùng.
+
+### 6. Bảo mật và thực hành tốt
+
+- [~] **6** Exec compose: validate lệnh (chặn shell injection); rà whitelist khi mở rộng.
+- [x] **6** Cảnh báo Base URL không phải localhost (rủi ro MITM LAN) — ô gợi ý dưới URL trong Cài đặt.
+- [ ] **6** TLS / reverse proxy khi expose service ngoài máy.
+
+### 7. Bảng ưu tiên gợi ý (đối chiếu)
+
+| Ưu tiên | Hạng mục | Trạng thái | Ghi chú |
+| ------- | -------- | ---------- | ------- |
+| Cao | Đồng bộ README với script build/run | Đã | README và mục **4.2** checklist. |
+| Cao | Tạm dừng/giảm polling khi tab ẩn hoặc app không foreground / thu nhỏ | Đã | Mục **1.1** checklist đầu tiên. |
+| Trung bình | WebSocket stats cho một container đang xem | Chưa | Mục **3.2**. |
+| Trung bình | Parse inspect JSON thành bảng | Một phần | Mục **5.1**; tóm tắt văn bản đã có, bảng chưa. |
+| Thấp | Networks/volumes, image pull/export | Chưa | Mục **5.2**, **5.3**. |
 

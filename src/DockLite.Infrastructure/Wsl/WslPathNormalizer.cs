@@ -106,6 +106,26 @@ public static class WslPathNormalizer
             return withBackslashes;
         }
 
-        return Path.GetFullPath(withBackslashes);
+        string full = Path.GetFullPath(withBackslashes);
+
+        // Đường dẫn ổ ký tự (C:\...): đổi \ thành / trước khi truyền cho wsl.exe wslpath.
+        // Một số bản wsl.exe làm hỏng chuỗi có nhiều dấu \ (stderr wslpath kiểu C:Users... thay vì C:\Users\...).
+        if (IsSimpleWindowsDriveAbsolutePath(full))
+        {
+            return full.Replace('\\', '/');
+        }
+
+        return full;
+    }
+
+    /// <summary>
+    /// Ổ ký tự tuyệt đối kiểu C:\... (không phải UNC, không xử lý \\?\ ở đây).
+    /// </summary>
+    private static bool IsSimpleWindowsDriveAbsolutePath(string fullPath)
+    {
+        return fullPath.Length >= 3
+            && char.IsLetter(fullPath[0])
+            && fullPath[1] == ':'
+            && (fullPath[2] == '\\' || fullPath[2] == '/');
     }
 }

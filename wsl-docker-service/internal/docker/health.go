@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"docklite-wsl/internal/appversion"
 	"docklite-wsl/internal/apiresponse"
 	"docklite-wsl/internal/dockerengine"
 )
@@ -21,7 +22,7 @@ func Health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	resp := healthResponse{Status: "ok", Service: "docklite-wsl", Version: "0.1.0"}
+	resp := healthResponse{Status: "ok", Service: "docklite-wsl", Version: appversion.String()}
 	_ = json.NewEncoder(w).Encode(resp)
 }
 

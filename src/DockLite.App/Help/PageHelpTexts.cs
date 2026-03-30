@@ -64,7 +64,7 @@ internal static class PageHelpTexts
         + "Đường dẫn thư mục log chỉ để xem (read-only).";
 
     private const string SettingsBody =
-        "Trang Cài đặt chia tab: Kết nối (base URL, timeout HTTP), WSL và service (tự khởi động, đường dẫn, distro, thử uname/wslpath), Hiển thị (múi giờ, định dạng ngày giờ, xem trước), Chờ và health (thời gian chờ sau khi spawn WSL, chờ Start/Restart thủ công, timeout từng lần poll, khoảng cách poll).\n\n"
+        "Trang Cài đặt chia tab: Kết nối (base URL, timeout HTTP), WSL và service (tự khởi động, thư mục dịch vụ, distro, nguồn Windows và đích Unix khi đồng bộ mã Go, tùy chọn version VERSION, thử uname/wslpath), Hiển thị (múi giờ, định dạng ngày giờ, xem trước), Chờ và health (thời gian chờ sau khi spawn WSL, chờ Start/Restart thủ công, timeout từng lần poll, khoảng cách poll).\n\n"
         + "Lưu ghi toàn bộ vào file cài đặt. Hàng nút dưới cùng: Build service (go build trong WSL), Start / Dừng / Restart, Kiểm tra kết nối.\n\n"
         + "Điền IP WSL khi localhost không forward được sang WSL2. Thời gian chờ health không còn cố định: chỉnh trong tab Chờ và health rồi Lưu.";
 }

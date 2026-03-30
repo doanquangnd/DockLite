@@ -8,6 +8,8 @@ namespace DockLite.Infrastructure.Api;
 
 /// <summary>
 /// Triển khai HTTP client gọi API DockLite (WSL), đọc envelope JSON thống nhất.
+/// Mọi lệnh gọi dùng <c>using</c> trên <see cref="HttpResponseMessage"/>; thân phản hồi đọc qua
+/// <see cref="HttpContent.ReadAsStringAsync(System.Threading.CancellationToken)"/> trong <see cref="ReadEnvelopeAsync{T}"/> (buffer một lần, không giữ stream mở).
 /// </summary>
 public sealed class DockLiteApiClient : IDockLiteApiClient
 {

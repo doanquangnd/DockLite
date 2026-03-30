@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace DockLite.Infrastructure.Wsl;
 
@@ -65,9 +66,37 @@ public static class WslPathProbe
         try
         {
             p.Start();
-            string? line = p.StandardOutput.ReadLine()?.Trim();
-            string err = p.StandardError.ReadToEnd().Trim();
-            p.WaitForExit(15000);
+            // Đọc song song stdout/stderr để tránh deadlock khi pipe đầy (wslpath in thường ngắn nhưng an toàn hơn).
+            Task<string> stdoutTask = Task.Run(() => p.StandardOutput.ReadToEnd());
+            Task<string> stderrTask = Task.Run(() => p.StandardError.ReadToEnd());
+            if (!p.WaitForExit(15000))
+            {
+                try
+                {
+                    p.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                    // Bỏ qua: tiến trình có thể đã thoát.
+                }
+
+                errorMessage = "wslpath timeout sau 15 giây.";
+                return false;
+            }
+
+            string stdout = stdoutTask.GetAwaiter().GetResult();
+            string err = stderrTask.GetAwaiter().GetResult().Trim();
+            string? line = null;
+            foreach (string part in stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string t = part.Trim();
+                if (t.Length > 0)
+                {
+                    line = t;
+                    break;
+                }
+            }
+
             if (p.ExitCode != 0 || string.IsNullOrEmpty(line))
             {
                 errorMessage = string.IsNullOrEmpty(err) ? "wslpath thất bại (mã " + p.ExitCode + ")." : err;

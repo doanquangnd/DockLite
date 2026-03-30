@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DockLite.Contracts\DockLite.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\DockLite.Core\DockLite.Core.csproj" />
     <ProjectReference Include="..\..\src\DockLite.Infrastructure\DockLite.Infrastructure.csproj" />
   </ItemGroup>
 

@@ -155,6 +155,11 @@
                         <CheckBox VerticalAlignment="Center"
                                   Content="Stats realtime (polling API)"
                                   IsChecked="{Binding IsStatsRealtimeEnabled}" />
+                        <TextBlock Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="#64748B"
+                                   FontSize="12"
+                                   Text="{Binding StatsRealtimePollCount, StringFormat='Đã gọi stats: {0} lần'}" />
                         <TextBlock Margin="16,0,8,0"
                                    VerticalAlignment="Center"
                                    Text="Chu kỳ (giây):" />
@@ -172,6 +177,28 @@
                         </Border>
                     </StackPanel>
                     <TextBlock FontWeight="SemiBold"
+                               Text="Inspect (tóm tắt)" />
+                    <TextBox MinHeight="100"
+                             Margin="0,4,0,0"
+                             Padding="8"
+                             FontFamily="Segoe UI"
+                             IsReadOnly="True"
+                             Text="{Binding DetailInspectSummaryText}"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Margin="0,12,0,0"
+                               FontWeight="SemiBold"
+                               Text="Inspect (JSON thô)" />
+                    <TextBox MinHeight="120"
+                             Margin="0,4,0,0"
+                             Padding="8"
+                             FontFamily="Consolas"
+                             IsReadOnly="True"
+                             Text="{Binding DetailInspectJson}"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Margin="0,12,0,0"
+                               FontWeight="SemiBold"
                                Text="Stats" />
                     <TextBox MinHeight="72"
                              Margin="0,4,0,0"
@@ -179,17 +206,6 @@
                              FontFamily="Segoe UI"
                              IsReadOnly="True"
                              Text="{Binding DetailStatsText}"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto" />
-                    <TextBlock Margin="0,12,0,0"
-                               FontWeight="SemiBold"
-                               Text="Inspect (JSON)" />
-                    <TextBox MinHeight="140"
-                             Margin="0,4,0,0"
-                             Padding="8"
-                             FontFamily="Consolas"
-                             IsReadOnly="True"
-                             Text="{Binding DetailInspectJson}"
                              TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto" />
                 </StackPanel>

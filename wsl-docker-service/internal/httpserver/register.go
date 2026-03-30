@@ -16,6 +16,7 @@ const ReadHeaderTimeout = 5 * time.Second
 
 // Register gắn mọi handler REST + WebSocket vào mux.
 func Register(mux *http.ServeMux) {
+	mux.HandleFunc("/api/metrics", Metrics)
 	mux.HandleFunc("/api/health", docker.Health)
 	mux.HandleFunc("/api/docker/info", docker.DockerInfo)
 	mux.HandleFunc("/api/containers/top-by-memory", docker.TopContainersByMemory)
@@ -33,6 +34,7 @@ func Register(mux *http.ServeMux) {
 // LogRequests middleware ghi method + path.
 func LogRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		IncRequestCount()
 		log.Printf("%s %s", r.Method, r.URL.Path)
 		next.ServeHTTP(w, r)
 	})

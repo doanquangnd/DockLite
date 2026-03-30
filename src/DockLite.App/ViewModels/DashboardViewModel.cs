@@ -1,3 +1,4 @@
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Services;
@@ -8,22 +9,92 @@ using DockLite.Core.Services;
 namespace DockLite.App.ViewModels;
 
 /// <summary>
-/// Trang tổng quan: trạng thái service WSL và Docker Engine.
+/// Trang tổng quan: trạng thái service WSL và Docker Engine; làm mới định kỳ khi tab đang mở (nhanh khi lỗi, chậm khi ổn).
 /// </summary>
 public partial class DashboardViewModel : ObservableObject
 {
+    private static readonly TimeSpan AutoRefreshIntervalWhenOk = TimeSpan.FromSeconds(55);
+    private static readonly TimeSpan AutoRefreshIntervalWhenError = TimeSpan.FromSeconds(14);
+
     private readonly IDockLiteApiClient _apiClient;
     private readonly INotificationService _notificationService;
+    private readonly AppShellActivityState _shellActivity;
+    private readonly IAppShutdownToken _shutdownToken;
 
     /// <summary>
     /// Trạng thái kết nối lần trước: null = chưa có lần làm mới thành công.
     /// </summary>
     private bool? _previousConnectivityOk;
 
-    public DashboardViewModel(IDockLiteApiClient apiClient, INotificationService notificationService)
+    /// <summary>
+    /// Lần làm mới gần nhất có health + Docker ok hay không (điều chỉnh chu kỳ tự làm mới).
+    /// </summary>
+    private bool _lastRefreshOk = true;
+
+    private DispatcherTimer? _autoRefreshTimer;
+
+    public DashboardViewModel(
+        IDockLiteApiClient apiClient,
+        INotificationService notificationService,
+        AppShellActivityState shellActivity,
+        IAppShutdownToken shutdownToken)
     {
         _apiClient = apiClient;
         _notificationService = notificationService;
+        _shellActivity = shellActivity;
+        _shutdownToken = shutdownToken;
+        _shellActivity.Changed += OnShellActivityChanged;
+        RestartAutoRefreshTimer();
+    }
+
+    private void OnShellActivityChanged(object? sender, EventArgs e)
+    {
+        RestartAutoRefreshTimer();
+    }
+
+    private void StopAutoRefreshTimer()
+    {
+        if (_autoRefreshTimer is null)
+        {
+            return;
+        }
+
+        _autoRefreshTimer.Tick -= AutoRefreshTimerOnTick;
+        _autoRefreshTimer.Stop();
+        _autoRefreshTimer = null;
+    }
+
+    private void RestartAutoRefreshTimer()
+    {
+        StopAutoRefreshTimer();
+        if (!_shellActivity.ShouldAutoRefreshDashboard)
+        {
+            return;
+        }
+
+        _autoRefreshTimer = new DispatcherTimer
+        {
+            Interval = _lastRefreshOk ? AutoRefreshIntervalWhenOk : AutoRefreshIntervalWhenError,
+        };
+        _autoRefreshTimer.Tick += AutoRefreshTimerOnTick;
+        _autoRefreshTimer.Start();
+    }
+
+    private async void AutoRefreshTimerOnTick(object? sender, EventArgs e)
+    {
+        if (!_shellActivity.ShouldAutoRefreshDashboard || IsBusy || _shutdownToken.Token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            await RefreshAsync().ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // Đóng app.
+        }
     }
 
     [ObservableProperty]
@@ -43,6 +114,7 @@ public partial class DashboardViewModel : ObservableObject
     {
         IsBusy = true;
         DockerInfoText = string.Empty;
+        bool refreshOk = false;
         try
         {
             Task<HealthResponse?> healthTask = _apiClient.GetHealthAsync();
@@ -63,6 +135,7 @@ public partial class DashboardViewModel : ObservableObject
 
             DockerInfoText = FormatDockerInfo(docker);
             bool ok = IsConnectivityOk(health, docker);
+            refreshOk = ok;
             await NotifyConnectivityChangeAsync(ok, health, docker).ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -76,6 +149,8 @@ public partial class DashboardViewModel : ObservableObject
         finally
         {
             IsBusy = false;
+            _lastRefreshOk = refreshOk;
+            RestartAutoRefreshTimer();
         }
     }
 
