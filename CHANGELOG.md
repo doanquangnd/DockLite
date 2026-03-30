@@ -81,6 +81,7 @@
 
 ### Sửa (kỹ thuật)
 
+- `ShellViewModel` / `WslServiceHealthCache`: đồng bộ dòng trạng thái service trên header với cache health (khi `LastHealthy` đổi, ví dụ sau «Kiểm tra kết nối» hoặc khi `SetFromHealthResponse` từ Cài đặt); tránh trường hợp header vẫn hiển thị trạng thái ổn trong khi không kết nối được tới service WSL. `WslServiceHealthCache` chỉ raise `Changed` khi giá trị healthy thực sự thay đổi; `RefreshServiceHeaderFromApiAsync` bọc cập nhật cache bằng cờ nội bộ để không kích hoạt handler lặp vô hạn.
 - `LogsViewModel`: thêm `using DockLite.App.Services` để resolve `IAppShutdownToken` sau khi inject token shutdown.
 
 ### Tài liệu
