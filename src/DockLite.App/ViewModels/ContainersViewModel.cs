@@ -1,6 +1,14 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DockLite.App.Models;
+using DockLite.App.Services;
 using DockLite.Contracts.Api;
 using DockLite.Core;
 using DockLite.Core.Services;
@@ -13,11 +21,17 @@ namespace DockLite.App.ViewModels;
 public partial class ContainersViewModel : ObservableObject
 {
     private readonly IDockLiteApiClient _apiClient;
+    private readonly IDialogService _dialogService;
+    private readonly IAppShutdownToken _shutdownToken;
     private List<ContainerSummaryDto> _allItems = new();
+    private DispatcherTimer? _statsRealtimeTimer;
+    private readonly SemaphoreSlim _statsRealtimeGate = new(1, 1);
 
-    public ContainersViewModel(IDockLiteApiClient apiClient)
+    public ContainersViewModel(IDockLiteApiClient apiClient, IDialogService dialogService, IAppShutdownToken shutdownToken)
     {
         _apiClient = apiClient;
+        _dialogService = dialogService;
+        _shutdownToken = shutdownToken;
         UpdateToolbarState();
     }
 
@@ -28,7 +42,7 @@ public partial class ContainersViewModel : ObservableObject
     private string _searchText = string.Empty;
 
     [ObservableProperty]
-    private ContainerSummaryDto? _selectedContainer;
+    private SelectableContainerRow? _selectedContainerRow;
 
     [ObservableProperty]
     private string _statusMessage = string.Empty;
@@ -48,15 +62,64 @@ public partial class ContainersViewModel : ObservableObject
     [ObservableProperty]
     private bool _canRemove;
 
-    public ObservableCollection<ContainerSummaryDto> FilteredItems { get; } = new();
+    [ObservableProperty]
+    private bool _canLoadDetail;
+
+    [ObservableProperty]
+    private bool _isDetailLoading;
+
+    [ObservableProperty]
+    private string _detailInspectJson = string.Empty;
+
+    [ObservableProperty]
+    private string _detailStatsText = string.Empty;
+
+    /// <summary>
+    /// Dòng text top container theo RAM (API snapshot).
+    /// </summary>
+    [ObservableProperty]
+    private string _topMemorySummaryText = string.Empty;
+
+    /// <summary>
+    /// Top container theo CPU % (snapshot).
+    /// </summary>
+    [ObservableProperty]
+    private string _topCpuSummaryText = string.Empty;
+
+    /// <summary>
+    /// Khi bật, gọi lại API stats theo chu kỳ (realtime qua polling).
+    /// </summary>
+    [ObservableProperty]
+    private bool _isStatsRealtimeEnabled;
+
+    /// <summary>
+    /// Chu kỳ làm mới stats (giây), tối thiểu 1, tối đa 10.
+    /// </summary>
+    [ObservableProperty]
+    private int _statsRealtimeIntervalSeconds = 1;
+
+    public ObservableCollection<SelectableContainerRow> FilteredItems { get; } = new();
+
+    /// <summary>
+    /// Lựa chọn khoảng thời gian làm mới stats (giây).
+    /// </summary>
+    public IReadOnlyList<int> StatsRealtimeIntervalChoices { get; } = new[] { 1, 2, 3, 5, 10 };
 
     /// <summary>
     /// Giá trị cho ComboBox lọc (khớp <see cref="FilterKind"/>).
     /// </summary>
     public IReadOnlyList<string> FilterKinds { get; } = new[] { "Tất cả", "Đang chạy", "Đã dừng" };
 
-    partial void OnSelectedContainerChanged(ContainerSummaryDto? value)
+    partial void OnSelectedContainerRowChanged(SelectableContainerRow? value)
     {
+        DetailInspectJson = string.Empty;
+        DetailStatsText = string.Empty;
+        if (value is null)
+        {
+            IsStatsRealtimeEnabled = false;
+        }
+
+        RestartStatsRealtimeTimerIfNeeded();
         UpdateToolbarState();
     }
 
@@ -75,6 +138,31 @@ public partial class ContainersViewModel : ObservableObject
         UpdateToolbarState();
     }
 
+    partial void OnIsDetailLoadingChanged(bool value)
+    {
+        UpdateToolbarState();
+    }
+
+    partial void OnIsStatsRealtimeEnabledChanged(bool value)
+    {
+        if (value)
+        {
+            RestartStatsRealtimeTimerIfNeeded();
+        }
+        else
+        {
+            StopStatsRealtimeTimer();
+            _ = RefreshStatsTextWithoutRealtimeHintAsync();
+        }
+
+        UpdateToolbarState();
+    }
+
+    partial void OnStatsRealtimeIntervalSecondsChanged(int value)
+    {
+        RestartStatsRealtimeTimerIfNeeded();
+    }
+
     /// <summary>
     /// Tải lại từ API và áp dụng lọc/tìm.
     /// </summary>
@@ -85,26 +173,18 @@ public partial class ContainersViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            ContainerListResponse? list = await _apiClient.GetContainersAsync().ConfigureAwait(true);
-            if (list is null)
+            ApiResult<ContainerListData> list = await _apiClient.GetContainersAsync(_shutdownToken.Token).ConfigureAwait(true);
+            if (!list.Success)
             {
-                StatusMessage = "Không đọc được danh sách.";
+                StatusMessage = list.Error?.Message ?? "Không đọc được danh sách.";
                 _allItems = new List<ContainerSummaryDto>();
                 ApplyFilter();
                 return;
             }
 
-            if (!string.IsNullOrEmpty(list.Error))
-            {
-                StatusMessage = list.Error;
-            }
-
-            _allItems = list.Items ?? new List<ContainerSummaryDto>();
+            _allItems = list.Data?.Items ?? new List<ContainerSummaryDto>();
             ApplyFilter();
-            if (string.IsNullOrEmpty(list.Error))
-            {
-                StatusMessage = $"Đã tải {_allItems.Count} container.";
-            }
+            StatusMessage = $"Đã tải {_allItems.Count} container.";
         }
         catch (Exception ex)
         {
@@ -119,77 +199,404 @@ public partial class ContainersViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Top 5 container đang chạy theo dùng RAM (một lần chụp stats trên server).
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshTopMemoryAsync()
+    {
+        IsBusy = true;
+        TopMemorySummaryText = string.Empty;
+        try
+        {
+            ApiResult<ContainerTopMemoryData> res = await _apiClient.GetContainersTopByMemoryAsync(5, _shutdownToken.Token).ConfigureAwait(true);
+            if (!res.Success)
+            {
+                TopMemorySummaryText = res.Error?.Message ?? "Không đọc được bảng top RAM.";
+                return;
+            }
+
+            List<ContainerTopMemoryRowDto> items = res.Data?.Items ?? new List<ContainerTopMemoryRowDto>();
+            if (items.Count == 0)
+            {
+                TopMemorySummaryText = "Không có container đang chạy hoặc không có dữ liệu stats.";
+                return;
+            }
+
+            var sb = new StringBuilder();
+            for (int i = 0; i < items.Count; i++)
+            {
+                ContainerTopMemoryRowDto x = items[i];
+                double mib = x.MemoryUsageBytes / (1024.0 * 1024.0);
+                sb.Append(i + 1)
+                    .Append(". ")
+                    .Append(string.IsNullOrEmpty(x.Name) ? x.ShortId : x.Name)
+                    .Append(" (")
+                    .Append(x.ShortId)
+                    .Append(") — RAM ~")
+                    .Append(mib.ToString("F1", CultureInfo.InvariantCulture))
+                    .Append(" MiB, CPU ")
+                    .Append(x.CpuUsagePercent.ToString("F1", CultureInfo.InvariantCulture))
+                    .Append("% — ")
+                    .Append(x.Image)
+                    .AppendLine();
+            }
+
+            TopMemorySummaryText = sb.ToString().TrimEnd();
+        }
+        catch (Exception ex)
+        {
+            TopMemorySummaryText = ExceptionMessages.FormatForUser(ex);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Top 5 container đang chạy theo CPU % (một lần chụp stats trên server).
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshTopCpuAsync()
+    {
+        IsBusy = true;
+        TopCpuSummaryText = string.Empty;
+        try
+        {
+            ApiResult<ContainerTopMemoryData> res = await _apiClient.GetContainersTopByCpuAsync(5, _shutdownToken.Token).ConfigureAwait(true);
+            if (!res.Success)
+            {
+                TopCpuSummaryText = res.Error?.Message ?? "Không đọc được bảng top CPU.";
+                return;
+            }
+
+            List<ContainerTopMemoryRowDto> items = res.Data?.Items ?? new List<ContainerTopMemoryRowDto>();
+            if (items.Count == 0)
+            {
+                TopCpuSummaryText = "Không có container đang chạy hoặc không có dữ liệu stats.";
+                return;
+            }
+
+            var sb = new StringBuilder();
+            for (int i = 0; i < items.Count; i++)
+            {
+                ContainerTopMemoryRowDto x = items[i];
+                double mib = x.MemoryUsageBytes / (1024.0 * 1024.0);
+                sb.Append(i + 1)
+                    .Append(". ")
+                    .Append(string.IsNullOrEmpty(x.Name) ? x.ShortId : x.Name)
+                    .Append(" (")
+                    .Append(x.ShortId)
+                    .Append(") — CPU ")
+                    .Append(x.CpuUsagePercent.ToString("F1", CultureInfo.InvariantCulture))
+                    .Append(" %, RAM ~")
+                    .Append(mib.ToString("F1", CultureInfo.InvariantCulture))
+                    .Append(" MiB — ")
+                    .Append(x.Image)
+                    .AppendLine();
+            }
+
+            TopCpuSummaryText = sb.ToString().TrimEnd();
+        }
+        catch (Exception ex)
+        {
+            TopCpuSummaryText = ExceptionMessages.FormatForUser(ex);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     [RelayCommand]
     private async Task StartSelectedAsync()
     {
-        if (SelectedContainer is null)
+        if (SelectedContainerRow is null)
         {
             return;
         }
 
-        await RunActionAsync(() => _apiClient.StartContainerAsync(SelectedContainer.Id));
+        await RunActionAsync(() => _apiClient.StartContainerAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token));
     }
 
     [RelayCommand]
     private async Task StopSelectedAsync()
     {
-        if (SelectedContainer is null)
+        if (SelectedContainerRow is null)
         {
             return;
         }
 
-        await RunActionAsync(() => _apiClient.StopContainerAsync(SelectedContainer.Id));
+        await RunActionAsync(() => _apiClient.StopContainerAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token));
     }
 
     [RelayCommand]
     private async Task RestartSelectedAsync()
     {
-        if (SelectedContainer is null)
+        if (SelectedContainerRow is null)
         {
             return;
         }
 
-        await RunActionAsync(() => _apiClient.RestartContainerAsync(SelectedContainer.Id));
+        await RunActionAsync(() => _apiClient.RestartContainerAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token));
+    }
+
+    /// <summary>
+    /// Tải inspect + một snapshot stats cho container đang chọn (mở rộng mục 1–2 kế hoạch).
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadDetailAsync()
+    {
+        if (SelectedContainerRow is null)
+        {
+            return;
+        }
+
+        IsDetailLoading = true;
+        DetailInspectJson = string.Empty;
+        DetailStatsText = string.Empty;
+        StatusMessage = string.Empty;
+        try
+        {
+            string id = SelectedContainerRow.Model.Id;
+            Task<ApiResult<ContainerInspectData>> tInspect = _apiClient.GetContainerInspectAsync(id, _shutdownToken.Token);
+            Task<ApiResult<ContainerStatsSnapshotData>> tStats = _apiClient.GetContainerStatsAsync(id, _shutdownToken.Token);
+            await Task.WhenAll(tInspect, tStats).ConfigureAwait(true);
+            ApiResult<ContainerInspectData> rInsp = await tInspect.ConfigureAwait(true);
+            ApiResult<ContainerStatsSnapshotData> rStats = await tStats.ConfigureAwait(true);
+            if (!rInsp.Success)
+            {
+                StatusMessage = rInsp.Error?.Message ?? "Không đọc được inspect.";
+                return;
+            }
+
+            if (!rStats.Success)
+            {
+                StatusMessage = rStats.Error?.Message ?? "Không đọc được stats.";
+                return;
+            }
+
+            DetailInspectJson = JsonSerializer.Serialize(
+                rInsp.Data!.Inspect,
+                new JsonSerializerOptions { WriteIndented = true });
+            DetailStatsText = FormatStatsSnapshot(rStats.Data!, IsStatsRealtimeEnabled);
+            StatusMessage = "Đã tải chi tiết (inspect + stats).";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ExceptionMessages.FormatForUser(ex);
+        }
+        finally
+        {
+            IsDetailLoading = false;
+            UpdateToolbarState();
+        }
+    }
+
+    [RelayCommand]
+    private void SelectAllFiltered()
+    {
+        foreach (SelectableContainerRow row in FilteredItems)
+        {
+            row.IsSelected = true;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearRowSelectionChecks()
+    {
+        foreach (SelectableContainerRow row in FilteredItems)
+        {
+            row.IsSelected = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task BatchStartAsync()
+    {
+        List<SelectableContainerRow> targets = FilteredItems
+            .Where(r => r.IsSelected && !IsRunning(r.Model.Status))
+            .ToList();
+        if (targets.Count == 0)
+        {
+            StatusMessage = "Không có dòng đã chọn cần start (hoặc đang chạy).";
+            return;
+        }
+
+        bool ok = await _dialogService
+            .ConfirmAsync(
+                $"Start {targets.Count} container đã chọn?",
+                "DockLite",
+                DialogConfirmKind.Question)
+            .ConfigureAwait(true);
+        if (!ok)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        try
+        {
+            foreach (SelectableContainerRow t in targets)
+            {
+                ApiResult<EmptyApiPayload> res = await _apiClient.StartContainerAsync(t.Model.Id, _shutdownToken.Token).ConfigureAwait(true);
+                if (!res.Success)
+                {
+                    StatusMessage = res.Error?.Message ?? "Start thất bại.";
+                    return;
+                }
+            }
+
+            await RefreshAsync().ConfigureAwait(true);
+            StatusMessage = $"Đã start {targets.Count} container.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ExceptionMessages.FormatForUser(ex);
+        }
+        finally
+        {
+            IsBusy = false;
+            UpdateToolbarState();
+        }
+    }
+
+    [RelayCommand]
+    private async Task BatchStopAsync()
+    {
+        List<SelectableContainerRow> targets = FilteredItems
+            .Where(r => r.IsSelected && IsRunning(r.Model.Status))
+            .ToList();
+        if (targets.Count == 0)
+        {
+            StatusMessage = "Không có dòng đã chọn đang chạy để stop.";
+            return;
+        }
+
+        bool ok = await _dialogService
+            .ConfirmAsync(
+                $"Stop {targets.Count} container đã chọn?",
+                "DockLite",
+                DialogConfirmKind.Question)
+            .ConfigureAwait(true);
+        if (!ok)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        try
+        {
+            foreach (SelectableContainerRow t in targets)
+            {
+                ApiResult<EmptyApiPayload> res = await _apiClient.StopContainerAsync(t.Model.Id, _shutdownToken.Token).ConfigureAwait(true);
+                if (!res.Success)
+                {
+                    StatusMessage = res.Error?.Message ?? "Stop thất bại.";
+                    return;
+                }
+            }
+
+            await RefreshAsync().ConfigureAwait(true);
+            StatusMessage = $"Đã stop {targets.Count} container.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ExceptionMessages.FormatForUser(ex);
+        }
+        finally
+        {
+            IsBusy = false;
+            UpdateToolbarState();
+        }
+    }
+
+    [RelayCommand]
+    private async Task BatchRemoveCheckedAsync()
+    {
+        List<SelectableContainerRow> targets = FilteredItems.Where(r => r.IsSelected).ToList();
+        if (targets.Count == 0)
+        {
+            StatusMessage = "Chọn ít nhất một container (ô chọn).";
+            return;
+        }
+
+        bool ok = await _dialogService
+            .ConfirmAsync(
+                $"Xóa {targets.Count} container đã chọn?",
+                "DockLite",
+                DialogConfirmKind.Question)
+            .ConfigureAwait(true);
+        if (!ok)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        try
+        {
+            foreach (SelectableContainerRow t in targets)
+            {
+                bool force = IsRunning(t.Model.Status);
+                ApiResult<EmptyApiPayload> res = await _apiClient.RemoveContainerAsync(t.Model.Id, force, _shutdownToken.Token).ConfigureAwait(true);
+                if (!res.Success)
+                {
+                    StatusMessage = res.Error?.Message ?? "Xóa thất bại.";
+                    return;
+                }
+            }
+
+            await RefreshAsync().ConfigureAwait(true);
+            StatusMessage = $"Đã xóa {targets.Count} container.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ExceptionMessages.FormatForUser(ex);
+        }
+        finally
+        {
+            IsBusy = false;
+            UpdateToolbarState();
+        }
     }
 
     [RelayCommand]
     private async Task RemoveSelectedAsync()
     {
-        if (SelectedContainer is null)
+        if (SelectedContainerRow is null)
         {
             return;
         }
 
-        var confirm = System.Windows.MessageBox.Show(
-            $"Xóa container \"{SelectedContainer.Name}\" ({SelectedContainer.ShortId})?",
-            "DockLite",
-            System.Windows.MessageBoxButton.YesNo,
-            System.Windows.MessageBoxImage.Question);
-        if (confirm != System.Windows.MessageBoxResult.Yes)
+        bool ok = await _dialogService
+            .ConfirmAsync(
+                $"Xóa container \"{SelectedContainerRow.Model.Name}\" ({SelectedContainerRow.Model.ShortId})?",
+                "DockLite",
+                DialogConfirmKind.Question)
+            .ConfigureAwait(true);
+        if (!ok)
         {
             return;
         }
 
-        bool force = IsRunning(SelectedContainer.Status);
-        await RunActionAsync(() => _apiClient.RemoveContainerAsync(SelectedContainer.Id, force));
+        bool force = IsRunning(SelectedContainerRow.Model.Status);
+        await RunActionAsync(() => _apiClient.RemoveContainerAsync(SelectedContainerRow.Model.Id, force, _shutdownToken.Token));
     }
 
-    private async Task RunActionAsync(Func<Task<ApiActionResponse?>> call)
+    private async Task RunActionAsync(Func<Task<ApiResult<EmptyApiPayload>>> call)
     {
         IsBusy = true;
         StatusMessage = string.Empty;
         try
         {
-            ApiActionResponse? res = await call().ConfigureAwait(true);
-            if (res is null)
+            ApiResult<EmptyApiPayload> res = await call().ConfigureAwait(true);
+            if (!res.Success)
             {
-                StatusMessage = "Không có phản hồi.";
-                return;
-            }
-
-            if (!res.Ok)
-            {
-                StatusMessage = string.IsNullOrWhiteSpace(res.Error) ? "Thao tác thất bại." : res.Error;
+                StatusMessage = string.IsNullOrWhiteSpace(res.Error?.Message) ? "Thao tác thất bại." : res.Error!.Message;
                 return;
             }
 
@@ -222,7 +629,7 @@ public partial class ContainersViewModel : ObservableObject
                 continue;
             }
 
-            FilteredItems.Add(item);
+            FilteredItems.Add(new SelectableContainerRow(item));
         }
     }
 
@@ -260,13 +667,14 @@ public partial class ContainersViewModel : ObservableObject
 
     private void UpdateToolbarState()
     {
-        ContainerSummaryDto? s = SelectedContainer;
+        ContainerSummaryDto? s = SelectedContainerRow?.Model;
         if (s is null || IsBusy)
         {
             CanStart = false;
             CanStop = false;
             CanRestart = false;
             CanRemove = false;
+            CanLoadDetail = false;
             return;
         }
 
@@ -275,5 +683,143 @@ public partial class ContainersViewModel : ObservableObject
         CanStop = running;
         CanRestart = true;
         CanRemove = true;
+        CanLoadDetail = !IsDetailLoading;
+    }
+
+    private void RestartStatsRealtimeTimerIfNeeded()
+    {
+        StopStatsRealtimeTimer();
+        if (!IsStatsRealtimeEnabled || SelectedContainerRow is null)
+        {
+            return;
+        }
+
+        _statsRealtimeTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(Math.Clamp(StatsRealtimeIntervalSeconds, 1, 10)),
+        };
+        _statsRealtimeTimer.Tick += StatsRealtimeTimerOnTick;
+        _statsRealtimeTimer.Start();
+        _ = FetchStatsSnapshotOnceAsync();
+    }
+
+    private void StopStatsRealtimeTimer()
+    {
+        if (_statsRealtimeTimer is null)
+        {
+            return;
+        }
+
+        _statsRealtimeTimer.Tick -= StatsRealtimeTimerOnTick;
+        _statsRealtimeTimer.Stop();
+        _statsRealtimeTimer = null;
+    }
+
+    private async void StatsRealtimeTimerOnTick(object? sender, EventArgs e)
+    {
+        await FetchStatsSnapshotOnceAsync().ConfigureAwait(true);
+    }
+
+    private async Task FetchStatsSnapshotOnceAsync()
+    {
+        if (SelectedContainerRow is null || !IsStatsRealtimeEnabled)
+        {
+            return;
+        }
+
+        if (!await _statsRealtimeGate.WaitAsync(0).ConfigureAwait(true))
+        {
+            return;
+        }
+
+        try
+        {
+            ApiResult<ContainerStatsSnapshotData> r = await _apiClient
+                .GetContainerStatsAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token)
+                .ConfigureAwait(true);
+            if (r.Success && r.Data is not null)
+            {
+                DetailStatsText = FormatStatsSnapshot(r.Data, true);
+            }
+        }
+        catch
+        {
+            // Giữ giá trị stats trước đó; không làm đứng timer.
+        }
+        finally
+        {
+            _statsRealtimeGate.Release();
+        }
+    }
+
+    private async Task RefreshStatsTextWithoutRealtimeHintAsync()
+    {
+        if (SelectedContainerRow is null)
+        {
+            return;
+        }
+
+        if (!await _statsRealtimeGate.WaitAsync(0).ConfigureAwait(true))
+        {
+            return;
+        }
+
+        try
+        {
+            ApiResult<ContainerStatsSnapshotData> r = await _apiClient
+                .GetContainerStatsAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token)
+                .ConfigureAwait(true);
+            if (r.Success && r.Data is not null)
+            {
+                DetailStatsText = FormatStatsSnapshot(r.Data, false);
+            }
+        }
+        catch
+        {
+            // Bỏ qua khi tắt realtime.
+        }
+        finally
+        {
+            _statsRealtimeGate.Release();
+        }
+    }
+
+    private string FormatStatsSnapshot(ContainerStatsSnapshotData d, bool includeRealtimeHint)
+    {
+        var lines = new List<string>
+        {
+            $"Thời điểm: {d.ReadAt}",
+            $"CPU: {d.CpuUsagePercent:F1} %",
+            $"RAM: {FormatBytes(d.MemoryUsageBytes)} / {FormatBytes(d.MemoryLimitBytes)}",
+            $"Mạng RX: {FormatBytes(d.NetworkRxBytes)}  TX: {FormatBytes(d.NetworkTxBytes)}",
+            $"Ổ (blkio) đọc: {FormatBytes(d.BlockReadBytes)}  ghi: {FormatBytes(d.BlockWriteBytes)}",
+        };
+        if (includeRealtimeHint)
+        {
+            lines.Add(string.Empty);
+            lines.Add("(Realtime: làm mới qua API định kỳ)");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string FormatBytes(ulong bytes)
+    {
+        const ulong k = 1024;
+        if (bytes < k)
+        {
+            return $"{bytes} B";
+        }
+
+        double v = bytes;
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        int i = 0;
+        while (v >= k && i < units.Length - 1)
+        {
+            v /= k;
+            i++;
+        }
+
+        return $"{v:0.##} {units[i]}";
     }
 }

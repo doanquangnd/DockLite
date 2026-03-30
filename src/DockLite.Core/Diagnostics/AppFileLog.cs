@@ -17,6 +17,22 @@ public static class AppFileLog
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DockLite", "logs");
 
     /// <summary>
+    /// Ghi nhiều dòng (mỗi dòng một bản ghi cùng category).
+    /// </summary>
+    public static void WriteMultiline(string category, string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return;
+        }
+
+        foreach (string line in message.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
+        {
+            Write(category, line);
+        }
+    }
+
+    /// <summary>
     /// Ghi một dòng log (UTC ISO 8601, tab phân tách).
     /// </summary>
     public static void Write(string category, string message)

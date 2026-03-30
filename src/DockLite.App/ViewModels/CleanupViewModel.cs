@@ -1,6 +1,6 @@
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DockLite.App.Services;
 using DockLite.Contracts.Api;
 using DockLite.Core;
 using DockLite.Core.Services;
@@ -13,10 +13,14 @@ namespace DockLite.App.ViewModels;
 public partial class CleanupViewModel : ObservableObject
 {
     private readonly IDockLiteApiClient _apiClient;
+    private readonly IDialogService _dialogService;
+    private readonly IAppShutdownToken _shutdownToken;
 
-    public CleanupViewModel(IDockLiteApiClient apiClient)
+    public CleanupViewModel(IDockLiteApiClient apiClient, IDialogService dialogService, IAppShutdownToken shutdownToken)
     {
         _apiClient = apiClient;
+        _dialogService = dialogService;
+        _shutdownToken = shutdownToken;
     }
 
     [ObservableProperty]
@@ -36,12 +40,7 @@ public partial class CleanupViewModel : ObservableObject
 
     private async Task RunSystemPruneAsync(string kind, string confirmText, string title)
     {
-        MessageBoxResult confirm = MessageBox.Show(
-            confirmText,
-            title,
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        if (confirm != MessageBoxResult.Yes)
+        if (!await _dialogService.ConfirmAsync(confirmText, title, DialogConfirmKind.Warning).ConfigureAwait(true))
         {
             return;
         }
@@ -55,7 +54,7 @@ public partial class CleanupViewModel : ObservableObject
                 Kind = kind,
                 WithVolumes = kind == "system" && SystemPruneIncludeVolumes,
             };
-            ComposeCommandResponse? res = await _apiClient.SystemPruneAsync(req).ConfigureAwait(true);
+            ApiResult<ComposeCommandData> res = await _apiClient.SystemPruneAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             ApplyResult(res, kind);
         }
         catch (Exception ex)
@@ -69,22 +68,16 @@ public partial class CleanupViewModel : ObservableObject
         }
     }
 
-    private void ApplyResult(ComposeCommandResponse? res, string label)
+    private void ApplyResult(ApiResult<ComposeCommandData> res, string label)
     {
-        if (res is null)
+        if (!res.Success)
         {
-            StatusMessage = $"{label}: không có phản hồi.";
-            CommandOutput = string.Empty;
+            CommandOutput = res.Error?.Details ?? string.Empty;
+            StatusMessage = $"{label}: {res.Error?.Message ?? "lỗi"}";
             return;
         }
 
-        CommandOutput = res.Output ?? string.Empty;
-        if (!res.Ok)
-        {
-            StatusMessage = $"{label}: {res.Error ?? "lỗi"}";
-            return;
-        }
-
+        CommandOutput = res.Data?.Output ?? string.Empty;
         StatusMessage = $"{label}: hoàn tất.";
     }
 

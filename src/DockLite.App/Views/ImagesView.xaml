@@ -48,34 +48,63 @@
                   ItemsSource="{Binding FilteredItems}"
                   SelectedItem="{Binding SelectedImage}"
                   AutoGenerateColumns="False"
-                  IsReadOnly="True"
+                  IsReadOnly="False"
                   CanUserAddRows="False"
                   SelectionMode="Single"
                   HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal"
                   AlternatingRowBackground="#FAFAFA">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Repository"
-                                    Binding="{Binding Repository}"
-                                    Width="*" />
-                <DataGridTextColumn Header="Tag"
-                                    Binding="{Binding Tag}"
-                                    Width="100" />
-                <DataGridTextColumn Header="Id"
-                                    Binding="{Binding Id}"
-                                    Width="160" />
-                <DataGridTextColumn Header="Kích thước"
-                                    Binding="{Binding Size}"
-                                    Width="90" />
-                <DataGridTextColumn Header="Tạo"
-                                    Binding="{Binding CreatedAt}"
-                                    Width="140" />
+                <DataGridTemplateColumn Width="48"
+                                        Header="Chọn">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox HorizontalAlignment="Center"
+                                      IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Width="*"
+                                    Binding="{Binding Model.Repository}"
+                                    Header="Repository"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Width="100"
+                                    Binding="{Binding Model.Tag}"
+                                    Header="Tag"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Width="160"
+                                    Binding="{Binding Model.Id}"
+                                    Header="Id"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Width="90"
+                                    Binding="{Binding Model.Size}"
+                                    Header="Kích thước"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Width="140"
+                                    Binding="{Binding Model.CreatedAt}"
+                                    Header="Tạo"
+                                    IsReadOnly="True" />
             </DataGrid.Columns>
         </DataGrid>
 
         <WrapPanel Grid.Row="3"
                    Margin="0,10,0,8">
-            <Button Content="Xóa image đã chọn"
+            <Button Content="Chọn tất cả"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding SelectAllFilteredCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Bỏ chọn"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding ClearRowSelectionChecksCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Xóa các dòng đã chọn"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding BatchRemoveCheckedCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Xóa image (dòng highlight)"
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding RemoveSelectedCommand}"

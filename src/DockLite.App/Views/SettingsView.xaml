@@ -3,11 +3,21 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             d:DesignHeight="520"
+             d:DesignHeight="620"
              d:DesignWidth="640"
              mc:Ignorable="d">
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -90,10 +100,83 @@
         <TextBox Grid.Row="10"
                  Text="{Binding WslDistribution, UpdateSourceTrigger=PropertyChanged}"
                  Padding="8"
-                 Margin="0,0,0,12"
+                 Margin="0,0,0,8"
                  ToolTip="Ví dụ: Ubuntu. Để trống dùng distro mặc định của wsl.exe." />
 
-        <StackPanel Grid.Row="11"
+        <TextBlock Grid.Row="11"
+                   Text="Thử distro (uname -a)"
+                   FontWeight="SemiBold"
+                   Margin="0,8,0,6" />
+        <StackPanel Grid.Row="12"
+                    Orientation="Horizontal"
+                    Margin="0,0,0,8">
+            <Button Content="Chạy uname -a trong distro"
+                    Padding="12,6"
+                    MinWidth="200"
+                    VerticalAlignment="Top"
+                    Command="{Binding TestDistroCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+        </StackPanel>
+        <TextBlock Grid.Row="13"
+                   Text="{Binding DistroTestResult}"
+                   TextWrapping="Wrap"
+                   FontFamily="Consolas"
+                   FontSize="12"
+                   Foreground="#333"
+                   Margin="0,0,0,12" />
+
+        <TextBlock Grid.Row="14"
+                   Text="Tóm tắt đường dẫn WSL hiệu dụng"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,6" />
+        <Button Grid.Row="15"
+                Content="Cập nhật tóm tắt"
+                Padding="12,6"
+                HorizontalAlignment="Left"
+                MinWidth="160"
+                Margin="0,0,0,8"
+                Command="{Binding RefreshEffectiveWslPathSummaryCommand}"
+                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+        <TextBlock Grid.Row="16"
+                   Text="{Binding EffectiveWslPathSummary}"
+                   TextWrapping="Wrap"
+                   FontFamily="Consolas"
+                   FontSize="12"
+                   Foreground="#222"
+                   Margin="0,0,0,12" />
+
+        <TextBlock Grid.Row="17"
+                   Text="Thử wslpath (Windows → Unix)"
+                   FontWeight="SemiBold"
+                   Margin="0,8,0,6" />
+        <Grid Grid.Row="18"
+              Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0"
+                     Text="{Binding WslpathProbeWindowsPath, UpdateSourceTrigger=PropertyChanged}"
+                     Padding="8"
+                     Margin="0,0,8,0"
+                     ToolTip="Đường dẫn Windows (file hoặc thư mục). Dùng Distro WSL ở trên nếu cần." />
+            <Button Grid.Column="1"
+                    Padding="12,6"
+                    MinWidth="120"
+                    VerticalAlignment="Center"
+                    Content="Chạy wslpath"
+                    Command="{Binding ProbeWslpathCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+        </Grid>
+        <TextBlock Grid.Row="19"
+                   Text="{Binding WslpathProbeResult}"
+                   TextWrapping="Wrap"
+                   FontFamily="Consolas"
+                   FontSize="12"
+                   Foreground="#333"
+                   Margin="0,0,0,12" />
+
+        <StackPanel Grid.Row="20"
                     Orientation="Horizontal"
                     Margin="0,0,0,12">
             <Button Content="Lưu"
@@ -116,7 +199,7 @@
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
         </StackPanel>
 
-        <Border Grid.Row="12"
+        <Border Grid.Row="21"
                 BorderBrush="#DDD"
                 BorderThickness="1"
                 Padding="12"

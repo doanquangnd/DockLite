@@ -16,6 +16,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="220" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -34,12 +35,20 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBox Grid.Column="0"
                          Text="{Binding NewProjectPath, UpdateSourceTrigger=PropertyChanged}"
                          Padding="6,4"
                          Margin="0,0,8,0" />
                 <Button Grid.Column="1"
+                        Content="Chọn thư mục"
+                        Padding="12,6"
+                        MinWidth="110"
+                        Margin="0,0,8,0"
+                        Command="{Binding BrowseProjectFolderCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                <Button Grid.Column="2"
                         Content="Thêm"
                         Padding="12,6"
                         MinWidth="80"
@@ -71,7 +80,86 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <WrapPanel Grid.Row="3"
+        <Border Grid.Row="3"
+                Margin="0,8,0,0"
+                BorderBrush="#DDD"
+                BorderThickness="1"
+                Padding="10"
+                CornerRadius="4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <DockPanel Grid.Column="0">
+                    <TextBlock DockPanel.Dock="Top"
+                               FontWeight="SemiBold"
+                               Text="Service (theo compose file)"
+                               Margin="0,0,0,6" />
+                    <ListBox MinHeight="140"
+                             MaxHeight="200"
+                             ItemsSource="{Binding Services}"
+                             SelectedItem="{Binding SelectedService}" />
+                </DockPanel>
+                <StackPanel Grid.Column="2"
+                            VerticalAlignment="Top">
+                    <Button Content="Tải danh sách service"
+                            Margin="0,0,0,8"
+                            Padding="12,6"
+                            HorizontalAlignment="Left"
+                            Command="{Binding LoadComposeServicesCommand}"
+                            IsEnabled="{Binding CanLoadComposeServices}" />
+                    <WrapPanel Margin="0,0,0,8">
+                        <Button Content="Start service"
+                                Margin="0,0,8,4"
+                                Padding="12,6"
+                                Command="{Binding ComposeServiceStartCommand}"
+                                IsEnabled="{Binding CanComposeServiceAction}" />
+                        <Button Content="Stop service"
+                                Margin="0,0,8,4"
+                                Padding="12,6"
+                                Command="{Binding ComposeServiceStopCommand}"
+                                IsEnabled="{Binding CanComposeServiceAction}" />
+                    </WrapPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Logs service"
+                                Padding="12,6"
+                                VerticalAlignment="Bottom"
+                                Command="{Binding ComposeServiceLogsCommand}"
+                                IsEnabled="{Binding CanComposeServiceAction}" />
+                        <TextBlock Text="tail:"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,8,0" />
+                        <TextBox MinWidth="56"
+                                 Padding="6,4"
+                                 Text="{Binding ComposeServiceLogsTail, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                    <TextBlock Margin="0,10,0,4"
+                               FontWeight="SemiBold"
+                               Text="Exec không TTY (docker compose exec -T)" />
+                    <TextBlock Margin="0,0,0,4"
+                               TextWrapping="Wrap"
+                               Foreground="#666"
+                               FontSize="11"
+                               Text="Nhập lệnh: các từ cách nhau bằng khoảng trắng (ví dụ: uname -a). Shell tương tác (-it) cần terminal bên ngoài." />
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,0,0,8">
+                        <TextBox MinWidth="220"
+                                 Padding="6,4"
+                                 Margin="0,0,8,0"
+                                 Text="{Binding ComposeExecCommandLine, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Content="Chạy exec"
+                                Padding="12,6"
+                                VerticalAlignment="Center"
+                                Command="{Binding ComposeServiceExecCommand}"
+                                IsEnabled="{Binding CanComposeServiceAction}" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <WrapPanel Grid.Row="4"
                    Margin="0,10,0,8">
             <Button Content="Làm mới danh sách"
                     Margin="0,0,8,4"
@@ -100,7 +188,7 @@
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
         </WrapPanel>
 
-        <DockPanel Grid.Row="4"
+        <DockPanel Grid.Row="5"
                    Margin="0,4,0,8"
                    LastChildFill="True">
             <TextBlock DockPanel.Dock="Top"
@@ -119,7 +207,7 @@
             </Border>
         </DockPanel>
 
-        <Border Grid.Row="5"
+        <Border Grid.Row="6"
                 BorderBrush="#EEE"
                 BorderThickness="0,1,0,0"
                 Padding="0,8,0,0">

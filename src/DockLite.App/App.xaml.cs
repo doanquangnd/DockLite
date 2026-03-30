@@ -1,12 +1,16 @@
 using System.Windows;
 using System.Windows.Threading;
+using DockLite.App.Services;
 using DockLite.Core;
 using DockLite.Core.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DockLite.App;
 
 public partial class App : Application
 {
+    private ServiceProvider? _serviceProvider;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -18,6 +22,19 @@ public partial class App : Application
                 System.Diagnostics.Debug.WriteLine(ex);
             }
         };
+
+        var services = new ServiceCollection();
+        services.AddDockLiteUi(AppContext.BaseDirectory);
+        _serviceProvider = services.BuildServiceProvider();
+        MainWindow mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+        MainWindow = mainWindow;
+        mainWindow.Show();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _serviceProvider?.Dispose();
+        base.OnExit(e);
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

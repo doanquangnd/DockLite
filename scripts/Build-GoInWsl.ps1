@@ -22,9 +22,9 @@ if (-not [string]::IsNullOrWhiteSpace($WslUnixPath)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($WslDistribution)) {
-    wsl.exe bash -c "cd '$wslPath' && mkdir -p bin && go mod tidy && go build -o bin/docklite-wsl ./cmd/server && echo Build OK: bin/docklite-wsl"
+    wsl.exe bash -lc "cd '$wslPath' && bash scripts/build-server.sh"
 } else {
-    wsl.exe -d $WslDistribution bash -c "cd '$wslPath' && mkdir -p bin && go mod tidy && go build -o bin/docklite-wsl ./cmd/server && echo Build OK: bin/docklite-wsl"
+    wsl.exe -d $WslDistribution bash -lc "cd '$wslPath' && bash scripts/build-server.sh"
 }
 
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

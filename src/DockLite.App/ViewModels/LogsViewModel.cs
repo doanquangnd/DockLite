@@ -1,11 +1,13 @@
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Models;
+using DockLite.App.Services;
 using DockLite.Contracts.Api;
 using DockLite.Core;
 using DockLite.Core.Services;
@@ -13,23 +15,29 @@ using DockLite.Core.Services;
 namespace DockLite.App.ViewModels;
 
 /// <summary>
-/// Xem log container: tải tail, tìm kiếm, tô mào mức log, theo dõi qua WebSocket.
+/// Xem log container: tải tail, tìm kiếm, tô màu mức log, theo dõi qua WebSocket.
 /// </summary>
 public partial class LogsViewModel : ObservableObject
 {
     private const int MaxBufferedLines = 5000;
+    private static readonly TimeSpan FollowFlushInterval = TimeSpan.FromMilliseconds(150);
 
     private readonly IDockLiteApiClient _apiClient;
     private readonly ILogStreamClient _logStream;
+    private readonly IAppShutdownToken _shutdownToken;
     private readonly Dispatcher _dispatcher;
     private readonly List<LogLineViewModel> _buffer = new();
     private readonly StringBuilder _streamPending = new();
+    private readonly StringBuilder _incomingStreamChunks = new();
+    private readonly object _streamChunkLock = new();
+    private DispatcherTimer? _followFlushTimer;
     private CancellationTokenSource? _followCts;
 
-    public LogsViewModel(IDockLiteApiClient apiClient, ILogStreamClient logStream)
+    public LogsViewModel(IDockLiteApiClient apiClient, ILogStreamClient logStream, IAppShutdownToken shutdownToken)
     {
         _apiClient = apiClient;
         _logStream = logStream;
+        _shutdownToken = shutdownToken;
         _dispatcher = Application.Current.Dispatcher;
     }
 
@@ -78,19 +86,20 @@ public partial class LogsViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            ContainerListResponse? list = await _apiClient.GetContainersAsync().ConfigureAwait(true);
+            ApiResult<ContainerListData> list = await _apiClient.GetContainersAsync(_shutdownToken.Token).ConfigureAwait(true);
             ContainerOptions.Clear();
-            if (list?.Items is not null)
+            if (!list.Success)
             {
-                foreach (ContainerSummaryDto c in list.Items)
+                StatusMessage = list.Error?.Message ?? "Không đọc được danh sách.";
+            }
+            else if (list.Data?.Items is not null)
+            {
+                foreach (ContainerSummaryDto c in list.Data.Items)
                 {
                     ContainerOptions.Add(c);
                 }
-            }
 
-            if (!string.IsNullOrEmpty(list?.Error))
-            {
-                StatusMessage = list.Error;
+                StatusMessage = $"Đã tải {ContainerOptions.Count} container.";
             }
             else
             {
@@ -121,22 +130,16 @@ public partial class LogsViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            ContainerLogsResponse? res = await _apiClient
-                .GetContainerLogsAsync(SelectedContainer.Id, tail)
+            ApiResult<ContainerLogsData> res = await _apiClient
+                .GetContainerLogsAsync(SelectedContainer.Id, tail, _shutdownToken.Token)
                 .ConfigureAwait(true);
-            if (res is null)
+            if (!res.Success)
             {
-                StatusMessage = "Không có phản hồi.";
+                StatusMessage = res.Error?.Message ?? "Không có phản hồi.";
                 return;
             }
 
-            if (!string.IsNullOrEmpty(res.Error))
-            {
-                StatusMessage = res.Error;
-                return;
-            }
-
-            ReplaceBufferWithText(res.Content ?? string.Empty);
+            ReplaceBufferWithText(res.Data?.Content ?? string.Empty);
             StatusMessage = "Đã tải log (tail).";
         }
         catch (Exception ex)
@@ -166,33 +169,67 @@ public partial class LogsViewModel : ObservableObject
 
         IsFollowing = true;
         _followCts = new CancellationTokenSource();
-        CancellationToken token = _followCts.Token;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_followCts.Token, _shutdownToken.Token);
+        CancellationToken token = linked.Token;
         StatusMessage = "Đang theo dõi log (WebSocket)...";
+
+        _followFlushTimer = new DispatcherTimer { Interval = FollowFlushInterval };
+        _followFlushTimer.Tick += OnFollowFlushTick;
+        _followFlushTimer.Start();
+
         try
         {
             await _logStream.StreamLogsAsync(
                 SelectedContainer.Id,
-                chunk => _dispatcher.Invoke(() => AppendStreamChunk(chunk)),
+                chunk =>
+                {
+                    lock (_streamChunkLock)
+                    {
+                        _incomingStreamChunks.Append(chunk);
+                    }
+                },
                 token).ConfigureAwait(false);
             if (!token.IsCancellationRequested)
             {
-                _dispatcher.Invoke(() => StatusMessage = "Luồng log đã kết thúc.");
+                _ = _dispatcher.BeginInvoke(
+                    () => StatusMessage = "Luồng log đã kết thúc.",
+                    DispatcherPriority.Background);
             }
         }
         catch (OperationCanceledException)
         {
-            _dispatcher.Invoke(() => StatusMessage = "Đã dừng theo dõi.");
+            _ = _dispatcher.BeginInvoke(
+                () => StatusMessage = "Đã dừng theo dõi.",
+                DispatcherPriority.Background);
         }
         catch (Exception ex)
         {
             string msg = ExceptionMessages.FormatForUser(ex);
-            _dispatcher.Invoke(() => StatusMessage = "WebSocket: " + msg);
+            _ = _dispatcher.BeginInvoke(
+                () => StatusMessage = "WebSocket: " + msg,
+                DispatcherPriority.Background);
         }
         finally
         {
-            _followCts?.Dispose();
-            _followCts = null;
-            _dispatcher.Invoke(() => IsFollowing = false);
+            StopFollowFlushTimer();
+            string tail;
+            lock (_streamChunkLock)
+            {
+                tail = _incomingStreamChunks.ToString();
+                _incomingStreamChunks.Clear();
+            }
+
+            _dispatcher.Invoke(() =>
+            {
+                if (tail.Length > 0)
+                {
+                    AppendStreamChunk(tail);
+                }
+
+                _followCts?.Dispose();
+                _followCts = null;
+                IsFollowing = false;
+            });
         }
     }
 
@@ -201,8 +238,42 @@ public partial class LogsViewModel : ObservableObject
     {
         _buffer.Clear();
         _streamPending.Clear();
+        lock (_streamChunkLock)
+        {
+            _incomingStreamChunks.Clear();
+        }
+
         Lines.Clear();
         StatusMessage = "Đã xóa nội dung hiển thị.";
+    }
+
+    private void OnFollowFlushTick(object? sender, EventArgs e)
+    {
+        string batch;
+        lock (_streamChunkLock)
+        {
+            batch = _incomingStreamChunks.ToString();
+            _incomingStreamChunks.Clear();
+        }
+
+        if (batch.Length == 0)
+        {
+            return;
+        }
+
+        AppendStreamChunk(batch);
+    }
+
+    private void StopFollowFlushTimer()
+    {
+        if (_followFlushTimer is null)
+        {
+            return;
+        }
+
+        _followFlushTimer.Stop();
+        _followFlushTimer.Tick -= OnFollowFlushTick;
+        _followFlushTimer = null;
     }
 
     private void StopFollow()
@@ -221,12 +292,11 @@ public partial class LogsViewModel : ObservableObject
     {
         _buffer.Clear();
         _streamPending.Clear();
+        Lines.Clear();
         foreach (string line in SplitLines(text))
         {
             AddLineToBuffer(line);
         }
-
-        ApplySearchFilter();
     }
 
     private void AppendStreamChunk(string chunk)
@@ -255,17 +325,34 @@ public partial class LogsViewModel : ObservableObject
 
             AddLineToBuffer(line);
         }
-
-        ApplySearchFilter();
     }
 
     private void AddLineToBuffer(string line)
     {
         var vm = new LogLineViewModel(line, LogLineClassifier.Classify(line));
         _buffer.Add(vm);
+        string q = SearchText.Trim();
+
         while (_buffer.Count > MaxBufferedLines)
         {
+            LogLineViewModel removed = _buffer[0];
             _buffer.RemoveAt(0);
+            int idx = Lines.IndexOf(removed);
+            if (idx >= 0)
+            {
+                Lines.RemoveAt(idx);
+            }
+        }
+
+        if (string.IsNullOrEmpty(q))
+        {
+            Lines.Add(vm);
+            return;
+        }
+
+        if (vm.Text.Contains(q, StringComparison.OrdinalIgnoreCase))
+        {
+            Lines.Add(vm);
         }
     }
 

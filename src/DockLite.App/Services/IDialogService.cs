@@ -1,0 +1,17 @@
+namespace DockLite.App.Services;
+
+/// <summary>
+/// Hộp thoại xác nhận (tách khỏi ViewModel để dễ test).
+/// </summary>
+public interface IDialogService
+{
+    /// <summary>
+    /// Hiển thị Yes/No; trả về true nếu người dùng chọn Yes.
+    /// </summary>
+    Task<bool> ConfirmAsync(string message, string title, DialogConfirmKind kind = DialogConfirmKind.Question);
+
+    /// <summary>
+    /// Hộp thoại chỉ có nút OK (thông tin).
+    /// </summary>
+    Task ShowInfoAsync(string message, string title);
+}

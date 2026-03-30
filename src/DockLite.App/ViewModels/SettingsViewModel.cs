@@ -1,9 +1,12 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DockLite.App.Services;
+using DockLite.Contracts.Api;
 using DockLite.Core;
 using DockLite.Core.Configuration;
 using DockLite.Core.Diagnostics;
 using DockLite.Core.Services;
+using System.Text;
 using DockLite.Infrastructure.Api;
 using DockLite.Infrastructure.Configuration;
 using DockLite.Infrastructure.Wsl;
@@ -19,24 +22,28 @@ public partial class SettingsViewModel : ObservableObject
     private readonly DockLiteHttpSession _httpSession;
     private readonly IDockLiteApiClient _apiClient;
     private readonly string _appBaseDirectory;
+    private readonly IAppShutdownToken _shutdownToken;
 
     public SettingsViewModel(
         IAppSettingsStore store,
         DockLiteHttpSession httpSession,
         IDockLiteApiClient apiClient,
-        string appBaseDirectory)
+        string appBaseDirectory,
+        AppSettings initialSettings,
+        IAppShutdownToken shutdownToken)
     {
         _store = store;
         _httpSession = httpSession;
         _apiClient = apiClient;
         _appBaseDirectory = appBaseDirectory;
-        AppSettings loaded = _store.Load();
-        ServiceBaseUrl = loaded.ServiceBaseUrl;
-        int sec = loaded.HttpTimeoutSeconds >= 30 ? loaded.HttpTimeoutSeconds : 120;
+        _shutdownToken = shutdownToken;
+        ServiceBaseUrl = initialSettings.ServiceBaseUrl;
+        int sec = initialSettings.HttpTimeoutSeconds >= 30 ? initialSettings.HttpTimeoutSeconds : 120;
         HttpTimeoutSecondsText = sec.ToString();
-        AutoStartWslService = loaded.AutoStartWslService;
-        WslDockerServiceWindowsPath = loaded.WslDockerServiceWindowsPath ?? string.Empty;
-        WslDistribution = loaded.WslDistribution ?? string.Empty;
+        AutoStartWslService = initialSettings.AutoStartWslService;
+        WslDockerServiceWindowsPath = initialSettings.WslDockerServiceWindowsPath ?? string.Empty;
+        WslDistribution = initialSettings.WslDistribution ?? string.Empty;
+        EffectiveWslPathSummary = BuildEffectiveWslPathSummary();
     }
 
     [ObservableProperty]
@@ -62,6 +69,117 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isBusy;
+
+    /// <summary>
+    /// Đường dẫn Windows để thử lệnh wslpath (mục 5 kế hoạch).
+    /// </summary>
+    [ObservableProperty]
+    private string _wslpathProbeWindowsPath = string.Empty;
+
+    /// <summary>
+    /// Kết quả wslpath hoặc thông báo lỗi.
+    /// </summary>
+    [ObservableProperty]
+    private string _wslpathProbeResult = string.Empty;
+
+    /// <summary>
+    /// Kết quả chạy <c>uname -a</c> trong distro (nút Thử distro).
+    /// </summary>
+    [ObservableProperty]
+    private string _distroTestResult = string.Empty;
+
+    /// <summary>
+    /// Tóm tắt distro, đường dẫn service Windows→WSL, base URL.
+    /// </summary>
+    [ObservableProperty]
+    private string _effectiveWslPathSummary = string.Empty;
+
+    [RelayCommand]
+    private void ProbeWslpath()
+    {
+        WslpathProbeResult = string.Empty;
+        string? distro = string.IsNullOrWhiteSpace(WslDistribution) ? null : WslDistribution.Trim();
+        if (!WslPathProbe.TryWindowsToUnix(WslpathProbeWindowsPath, distro, out string unix, out string? err))
+        {
+            WslpathProbeResult = err ?? "Lỗi wslpath.";
+            EffectiveWslPathSummary = BuildEffectiveWslPathSummary();
+            return;
+        }
+
+        WslpathProbeResult = unix;
+        EffectiveWslPathSummary = BuildEffectiveWslPathSummary();
+    }
+
+    /// <summary>
+    /// Chạy <c>uname -a</c> trong distro đã nhập (hoặc distro mặc định).
+    /// </summary>
+    [RelayCommand]
+    private async Task TestDistroAsync()
+    {
+        IsBusy = true;
+        DistroTestResult = string.Empty;
+        try
+        {
+            string? distro = string.IsNullOrWhiteSpace(WslDistribution) ? null : WslDistribution.Trim();
+            (bool ok, string stdout, string? err) = await Task.Run(() =>
+            {
+                if (WslDistroProbe.TryRunUname(distro, out string so, out string? e))
+                {
+                    return (true, so, (string?)null);
+                }
+
+                return (false, string.Empty, e);
+            }).ConfigureAwait(true);
+
+            DistroTestResult = ok ? stdout : (err ?? "Không chạy được uname trong WSL.");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void RefreshEffectiveWslPathSummary()
+    {
+        EffectiveWslPathSummary = BuildEffectiveWslPathSummary();
+    }
+
+    private string BuildEffectiveWslPathSummary()
+    {
+        var sb = new StringBuilder();
+        if (string.IsNullOrWhiteSpace(WslDistribution))
+        {
+            sb.AppendLine("Distro WSL: (để trống — wsl.exe dùng distro mặc định).");
+        }
+        else
+        {
+            sb.Append("Distro WSL: ").AppendLine(WslDistribution.Trim());
+        }
+
+        string path = WslDockerServiceWindowsPath.Trim();
+        if (string.IsNullOrEmpty(path))
+        {
+            sb.AppendLine("Thư mục wsl-docker-service (Windows): (trống — DockLite tự tìm thư mục wsl-docker-service cạnh file chạy ứng dụng).");
+        }
+        else
+        {
+            string? distro = string.IsNullOrWhiteSpace(WslDistribution) ? null : WslDistribution.Trim();
+            if (WslPathProbe.TryWindowsToUnix(path, distro, out string unix, out string? err))
+            {
+                sb.Append("Thư mục service (Windows): ").AppendLine(path);
+                sb.Append("→ trong WSL: ").AppendLine(unix);
+            }
+            else
+            {
+                sb.Append("Thư mục service (Windows): ").AppendLine(path);
+                sb.Append("→ wslpath: ").AppendLine(err ?? "lỗi");
+            }
+        }
+
+        sb.Append("Base URL (ô phía trên): ").Append(ServiceBaseUrl.Trim());
+        return sb.ToString();
+    }
 
     [RelayCommand]
     private void ApplyWslIp()
@@ -114,6 +232,7 @@ public partial class SettingsViewModel : ObservableObject
             "Cài đặt",
             "Đã lưu. Đích: " + hostSummary + ", timeout=" + sec + "s, tự khởi động WSL=" + settings.AutoStartWslService);
         StatusMessage = "Đã lưu. Địa chỉ và timeout đã áp dụng cho các lần gọi tiếp theo.";
+        EffectiveWslPathSummary = BuildEffectiveWslPathSummary();
     }
 
     [RelayCommand]
@@ -127,10 +246,14 @@ public partial class SettingsViewModel : ObservableObject
             // HttpClient phải trùng URL trong ô khi chờ health (không bắt buộc đã Lưu ra file).
             _httpSession.Reconfigure(snapshot);
             (bool sent, bool healthOk, string msg) = await WslDockerServiceAutoStart
-                .TryStartServiceManuallyAndWaitForHealthAsync(_httpSession, snapshot, _appBaseDirectory, CancellationToken.None)
+                .TryStartServiceManuallyAndWaitForHealthAsync(_httpSession, snapshot, _appBaseDirectory, _shutdownToken.Token)
                 .ConfigureAwait(true);
             StatusMessage = msg;
             AppFileLog.Write("WSL thủ công", msg + (sent && healthOk ? " [health OK]" : ""));
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Đã hủy (đóng ứng dụng).";
         }
         finally
         {
@@ -168,11 +291,26 @@ public partial class SettingsViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            var health = await _apiClient.GetHealthAsync().ConfigureAwait(true);
-            var docker = await _apiClient.GetDockerInfoAsync().ConfigureAwait(true);
+            var health = await _apiClient.GetHealthAsync(_shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<DockerInfoData> docker = await _apiClient.GetDockerInfoAsync(_shutdownToken.Token).ConfigureAwait(true);
             string h = health is null ? "—" : $"{health.Service} ({health.Status})";
-            string d = docker is null ? "—" : (docker.Ok ? "Docker OK" : docker.Error ?? "Lỗi Docker");
+            string d;
+            if (docker.Success && docker.Data is not null)
+            {
+                string ver = docker.Data.ServerVersion ?? "?";
+                string os = docker.Data.OperatingSystem ?? docker.Data.OsType ?? "?";
+                d = $"Docker Engine: {ver} ({os})";
+            }
+            else
+            {
+                d = docker.Error?.Message ?? "Lỗi Docker";
+            }
+
             StatusMessage = $"Service: {h} | {d}";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "Đã hủy (đóng ứng dụng).";
         }
         catch (Exception ex)
         {

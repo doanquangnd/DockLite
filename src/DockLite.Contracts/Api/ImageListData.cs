@@ -3,13 +3,10 @@ using System.Text.Json.Serialization;
 namespace DockLite.Contracts.Api;
 
 /// <summary>
-/// Phản hồi GET /api/images.
+/// Nội dung data của GET /api/images khi thành công.
 /// </summary>
-public sealed class ImageListResponse
+public sealed class ImageListData
 {
     [JsonPropertyName("items")]
     public List<ImageSummaryDto> Items { get; init; } = new();
-
-    [JsonPropertyName("error")]
-    public string? Error { get; init; }
 }

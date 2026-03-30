@@ -1,27 +1,32 @@
-package main
+// Package ws phục vụ WebSocket (log container theo luồng).
+package ws
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
-	"os/exec"
 	"strings"
 	"sync"
 
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/gorilla/websocket"
+
+	"docklite-wsl/internal/dockerengine"
 )
 
-var wsUpgrader = websocket.Upgrader{
+var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-type wsTextWriter struct {
+type textWriter struct {
 	conn *websocket.Conn
 	mu   sync.Mutex
 }
 
-func (w *wsTextWriter) Write(p []byte) (int, error) {
+func (w *textWriter) Write(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
@@ -34,7 +39,8 @@ func (w *wsTextWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func wsLogsHandler(w http.ResponseWriter, r *http.Request) {
+// HandleLogs nâng cấp WebSocket và stream log container qua Docker Engine API (không spawn docker logs).
+func HandleLogs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -45,13 +51,12 @@ func wsLogsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rest := strings.TrimPrefix(r.URL.Path, prefix)
-	id := strings.TrimSuffix(rest, "/logs")
-	id = strings.TrimSpace(id)
+	id := strings.TrimSpace(strings.TrimSuffix(rest, "/logs"))
 	if id == "" {
 		http.NotFound(w, r)
 		return
 	}
-	conn, err := wsUpgrader.Upgrade(w, r, nil)
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("websocket upgrade: %v", err)
 		return
@@ -71,25 +76,25 @@ func wsLogsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	cmd := exec.CommandContext(ctx, "docker", "logs", "-f", id)
-	stdout, err := cmd.StdoutPipe()
+	dc, err := dockerengine.Client()
 	if err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("lỗi: "+err.Error()))
 		return
 	}
-	stderr, err := cmd.StderrPipe()
+	reader, err := dc.ContainerLogs(ctx, id, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+	})
 	if err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte("lỗi: "+err.Error()))
 		return
 	}
-	if err := cmd.Start(); err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("lỗi: "+err.Error()))
-		return
+	defer reader.Close()
+
+	wr := &textWriter{conn: conn}
+	_, err = stdcopy.StdCopy(wr, wr, reader)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte("lỗi stream: "+err.Error()))
 	}
-
-	wr := &wsTextWriter{conn: conn}
-	go func() { _, _ = io.Copy(wr, stdout) }()
-	go func() { _, _ = io.Copy(wr, stderr) }()
-
-	_ = cmd.Wait()
 }

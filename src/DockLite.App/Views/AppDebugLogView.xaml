@@ -23,7 +23,7 @@
                    TextWrapping="Wrap"
                    Margin="0,0,0,12"
                    Foreground="#444">
-            File log theo ngày trong thư mục bên dưới (UTF-8). Dùng khi gỡ lỗi kết nối WSL, lưu cài đặt, lỗi UI.
+            File log theo ngày trong thư mục bên dưới (UTF-8), định dạng: thời gian UTC, category, nội dung (tab). Lọc theo category và mức (suy đoán từ chữ trong dòng). Xuất file: có bộ lọc thì ghi phần đang xem; không thì ghi toàn bộ đuôi đã đọc.
         </TextBlock>
 
         <TextBox Grid.Row="2"
@@ -36,6 +36,8 @@
 
         <Grid Grid.Row="3">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
@@ -51,18 +53,88 @@
                         Padding="12,6"
                         MinWidth="100"
                         Command="{Binding OpenLogFolderCommand}" />
+                <Button Content="Sao chép chẩn đoán"
+                        Margin="0,0,8,4"
+                        Padding="12,6"
+                        MinWidth="120"
+                        Command="{Binding CopyDiagnosticsCommand}" />
+                <Button Content="Xuất log ra file"
+                        Margin="0,0,8,4"
+                        Padding="12,6"
+                        MinWidth="120"
+                        Command="{Binding ExportLogCommand}" />
             </WrapPanel>
-            <TextBox Grid.Row="1"
-                     Text="{Binding LogText, Mode=OneWay}"
-                     IsReadOnly="True"
-                     TextWrapping="Wrap"
-                     VerticalScrollBarVisibility="Auto"
-                     HorizontalScrollBarVisibility="Auto"
+            <TextBlock Grid.Row="1"
+                       Text="{Binding StatusMessage}"
+                       Foreground="#2E7D32"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8" />
+            <Grid Grid.Row="2"
+                  Margin="0,0,0,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0"
+                      Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="Category:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0" />
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding CategoryOptions}"
+                              SelectedItem="{Binding SelectedCategory}"
+                              Padding="6,4"
+                              Margin="0,0,16,0"
+                              MinWidth="160" />
+                    <TextBlock Grid.Column="2"
+                               Text="Mức:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0" />
+                    <ComboBox Grid.Column="3"
+                              ItemsSource="{Binding LevelOptions}"
+                              SelectedItem="{Binding SelectedLevelOption}"
+                              Padding="6,4"
+                              MinWidth="140" />
+                </Grid>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                               Text="Lọc chuỗi:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0" />
+                    <TextBox Grid.Column="1"
+                             Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="6,4"
+                             ToolTip="Chỉ hiện các dòng chứa chuỗi này (không phân biệt hoa thường). Để trống để không lọc theo chuỗi." />
+                </Grid>
+            </Grid>
+            <ListBox Grid.Row="3"
+                     ItemsSource="{Binding VisibleLines}"
                      FontFamily="Consolas"
                      FontSize="12"
                      BorderBrush="#DDD"
                      BorderThickness="1"
-                     Padding="8" />
+                     Padding="4"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling">
+                <ListBox.Resources>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="2,1" />
+                    </Style>
+                </ListBox.Resources>
+            </ListBox>
         </Grid>
     </Grid>
 </UserControl>

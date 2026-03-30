@@ -1,5 +1,8 @@
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 using DockLite.Core.Configuration;
+using DockLite.Core.Diagnostics;
 using DockLite.Infrastructure.Api;
 
 namespace DockLite.Infrastructure.Wsl;
@@ -9,6 +12,25 @@ namespace DockLite.Infrastructure.Wsl;
 /// </summary>
 public static class WslDockerServiceAutoStart
 {
+    private const int MaxRecentWslLines = 48;
+
+    /// <summary>
+    /// Dòng stdout/stderr gần nhất (sau lần spawn WSL cuối) để gợi ý khi health timeout.
+    /// </summary>
+    private static readonly object WslRecentOutputLock = new();
+
+    private static readonly List<string> RecentWslLines = new();
+
+    private static string? _lastWslLaunchInfo;
+    private static string? _lastWslCommandSummary;
+
+    /// <summary>
+    /// Giữ tham chiếu Process để tiếp tục nhận sự kiện stdout/stderr (tránh GC làm mất đọc bất đồng bộ).
+    /// </summary>
+    private static readonly object WslProcessLock = new();
+
+    private static readonly List<Process> WslRunServerProcesses = new();
+
     private static readonly TimeSpan HealthPollInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan HealthPollTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan ManualStartHealthWait = TimeSpan.FromSeconds(90);
@@ -17,8 +39,8 @@ public static class WslDockerServiceAutoStart
     /// <summary>
     /// Kiểm tra GET api/health; nếu lỗi và bật tự khởi động thì chạy WSL và chờ service sẵn sàng.
     /// </summary>
-    /// <returns>true nếu cuối cùng health OK; false nếu bỏ qua hoặc thất bại.</returns>
-    public static async Task<bool> TryEnsureRunningAsync(
+    /// <returns>Ok nếu cuối cùng health OK; Reason mô tả khi không đạt.</returns>
+    public static async Task<(bool Ok, WslEnsureFailureReason Reason)> TryEnsureRunningAsync(
         DockLiteHttpSession httpSession,
         AppSettings settings,
         string appBaseDirectory,
@@ -26,33 +48,36 @@ public static class WslDockerServiceAutoStart
     {
         if (!settings.AutoStartWslService)
         {
-            return await IsHealthOkAsync(httpSession, cancellationToken).ConfigureAwait(false);
+            bool healthOk = await IsHealthOkWithRetryAsync(httpSession, cancellationToken).ConfigureAwait(false);
+            return (
+                healthOk,
+                healthOk ? WslEnsureFailureReason.None : WslEnsureFailureReason.HealthUnavailableWhenAutoStartOff);
         }
 
-        if (await IsHealthOkAsync(httpSession, cancellationToken).ConfigureAwait(false))
+        if (await IsHealthOkWithRetryAsync(httpSession, cancellationToken).ConfigureAwait(false))
         {
-            return true;
+            return (true, WslEnsureFailureReason.None);
         }
 
         string? root = ResolveWindowsRoot(settings, appBaseDirectory);
         if (string.IsNullOrEmpty(root))
         {
             Debug.WriteLine("DockLite: không xác định được thư mục wsl-docker-service (cấu hình hoặc tìm tự động).");
-            return false;
+            return (false, WslEnsureFailureReason.MissingServiceRoot);
         }
 
         string runScript = Path.Combine(root, "scripts", "run-server.sh");
         if (!File.Exists(runScript))
         {
             Debug.WriteLine("DockLite: thiếu scripts/run-server.sh tại " + root);
-            return false;
+            return (false, WslEnsureFailureReason.MissingRunScript);
         }
 
         string? distro = ResolveEffectiveDistribution(settings);
         if (!TryGetWslUnixPath(root, distro, out string wslPath))
         {
             Debug.WriteLine("DockLite: wslpath thất bại cho " + root);
-            return false;
+            return (false, WslEnsureFailureReason.WslPathConversionFailed);
         }
 
         StartWslRunServer(wslPath, distro);
@@ -62,13 +87,65 @@ public static class WslDockerServiceAutoStart
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(HealthPollInterval, cancellationToken).ConfigureAwait(false);
-            if (await IsHealthOkAsync(httpSession, cancellationToken).ConfigureAwait(false))
+            if (await IsHealthOkOnceAsync(httpSession, cancellationToken).ConfigureAwait(false))
             {
-                return true;
+                return (true, WslEnsureFailureReason.None);
             }
         }
 
-        return false;
+        string hint = FormatHealthTimeoutUserHint(AppFileLog.LogDirectory);
+        AppFileLog.WriteMultiline("WSL health timeout", hint);
+        return (false, WslEnsureFailureReason.HealthTimeoutAfterWslStart);
+    }
+
+    /// <summary>
+    /// Gợi ý hiển thị cho người dùng khi đã spawn WSL nhưng /api/health không kịp (lệnh, distro/path, vài dòng output gần nhất).
+    /// </summary>
+    /// <param name="includeLeadSummary">false khi đã có đoạn mở đầu riêng (ví dụ chờ health thủ công 90 giây).</param>
+    public static string FormatHealthTimeoutUserHint(string logDirectory, bool includeLeadSummary = true)
+    {
+        lock (WslRecentOutputLock)
+        {
+            var sb = new StringBuilder();
+            if (includeLeadSummary)
+            {
+                sb.AppendLine("Không nhận /api/health trong thời gian chờ sau khi gọi WSL.");
+                sb.AppendLine();
+            }
+            if (!string.IsNullOrEmpty(_lastWslCommandSummary))
+            {
+                sb.AppendLine("Lệnh (tham khảo):");
+                sb.AppendLine(_lastWslCommandSummary);
+                sb.AppendLine();
+            }
+
+            if (!string.IsNullOrEmpty(_lastWslLaunchInfo))
+            {
+                sb.AppendLine(_lastWslLaunchInfo);
+                sb.AppendLine();
+            }
+
+            if (RecentWslLines.Count > 0)
+            {
+                sb.AppendLine("Output gần đây (stdout/stderr):");
+                foreach (string ln in RecentWslLines)
+                {
+                    sb.AppendLine(ln);
+                }
+
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.AppendLine(
+                    "(Chưa thu được dòng stdout/stderr nào — tiến trình có thể chưa kịp in hoặc lỗi trước khi spawn.)");
+                sb.AppendLine();
+            }
+
+            sb.Append("Thư mục log ứng dụng: ");
+            sb.Append(logDirectory);
+            return sb.ToString();
+        }
     }
 
     /// <summary>
@@ -135,7 +212,7 @@ public static class WslDockerServiceAutoStart
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(HealthPollInterval, cancellationToken).ConfigureAwait(false);
-            if (await IsHealthOkAsync(httpSession, cancellationToken).ConfigureAwait(false))
+            if (await IsHealthOkOnceAsync(httpSession, cancellationToken).ConfigureAwait(false))
             {
                 return (
                     true,
@@ -144,12 +221,18 @@ public static class WslDockerServiceAutoStart
             }
         }
 
+        string hintForLog = FormatHealthTimeoutUserHint(AppFileLog.LogDirectory, includeLeadSummary: true);
+        AppFileLog.WriteMultiline("WSL health timeout", hintForLog);
+        string hintUi = FormatHealthTimeoutUserHint(AppFileLog.LogDirectory, includeLeadSummary: false);
         return (
             true,
             false,
             "Đã gửi lệnh tới WSL nhưng sau khoảng 90 giây vẫn không kết nối được health. "
                 + "Trong WSL chạy tay: bash scripts/run-server.sh và xem có lỗi go build hay không; chạy go version nếu nghi PATH. "
-                + "Đảm bảo Địa chỉ base URL trỏ đúng máy (127.0.0.1 hoặc IP WSL) và đã nhấn Lưu nếu vừa sửa ô địa chỉ.");
+                + "Đảm bảo Địa chỉ base URL trỏ đúng máy (127.0.0.1 hoặc IP WSL) và đã nhấn Lưu nếu vừa sửa ô địa chỉ."
+                + Environment.NewLine
+                + Environment.NewLine
+                + hintUi);
     }
 
     private static string? ResolveWindowsRoot(AppSettings settings, string appBaseDirectory)
@@ -279,6 +362,10 @@ public static class WslDockerServiceAutoStart
             FileName = "wsl.exe",
             UseShellExecute = false,
             CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
         };
 
         if (string.IsNullOrWhiteSpace(distribution))
@@ -296,10 +383,101 @@ public static class WslDockerServiceAutoStart
             psi.ArgumentList.Add(inner);
         }
 
-        Process.Start(psi);
+        string distroLabel = string.IsNullOrWhiteSpace(distribution) ? "(mặc định)" : distribution.Trim();
+        string cmdSummary = string.IsNullOrWhiteSpace(distribution)
+            ? $"wsl.exe bash -lc \"cd '{wslUnixPath}' && exec bash scripts/run-server.sh\""
+            : $"wsl.exe -d {distribution.Trim()} bash -lc \"cd '{wslUnixPath}' && exec bash scripts/run-server.sh\"";
+
+        lock (WslRecentOutputLock)
+        {
+            RecentWslLines.Clear();
+            _lastWslCommandSummary = cmdSummary;
+            _lastWslLaunchInfo = "Distro: " + distroLabel + ", thư mục WSL: " + wslUnixPath;
+        }
+
+        AppFileLog.Write(
+            "WSL",
+            "Khởi chạy: distro=" + distroLabel + " unixPath=" + wslUnixPath);
+
+        try
+        {
+            var p = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            p.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data is null)
+                {
+                    return;
+                }
+
+                AppFileLog.Write("WSL stdout", e.Data);
+                lock (WslRecentOutputLock)
+                {
+                    RecentWslLines.Add("[stdout] " + e.Data);
+                    while (RecentWslLines.Count > MaxRecentWslLines)
+                    {
+                        RecentWslLines.RemoveAt(0);
+                    }
+                }
+            };
+            p.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data is null)
+                {
+                    return;
+                }
+
+                AppFileLog.Write("WSL stderr", e.Data);
+                lock (WslRecentOutputLock)
+                {
+                    RecentWslLines.Add("[stderr] " + e.Data);
+                    while (RecentWslLines.Count > MaxRecentWslLines)
+                    {
+                        RecentWslLines.RemoveAt(0);
+                    }
+                }
+            };
+
+            p.Start();
+            lock (WslProcessLock)
+            {
+                WslRunServerProcesses.Add(p);
+            }
+
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.WriteException("WSL", ex);
+        }
     }
 
-    private static async Task<bool> IsHealthOkAsync(DockLiteHttpSession httpSession, CancellationToken cancellationToken)
+    /// <summary>
+    /// Vài lần GET /api/health cách nhau (dùng trước khi spawn WSL, không dùng mỗi vòng chờ dài).
+    /// </summary>
+    private static async Task<bool> IsHealthOkWithRetryAsync(
+        DockLiteHttpSession httpSession,
+        CancellationToken cancellationToken)
+    {
+        const int attempts = 3;
+        var between = TimeSpan.FromMilliseconds(250);
+        for (int i = 0; i < attempts; i++)
+        {
+            if (await IsHealthOkOnceAsync(httpSession, cancellationToken).ConfigureAwait(false))
+            {
+                return true;
+            }
+
+            if (i < attempts - 1)
+            {
+                await Task.Delay(between, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return false;
+    }
+
+    private static async Task<bool> IsHealthOkOnceAsync(DockLiteHttpSession httpSession, CancellationToken cancellationToken)
     {
         HttpClient httpClient = httpSession.Client;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

@@ -48,9 +48,9 @@ Cần Docker Engine, `docker` và `docker compose` trong PATH của WSL.
 
 ```bash
 cd wsl-docker-service
-go mod tidy
-go build -o bin/docklite-wsl ./cmd/server
-./bin/docklite-wsl
+bash scripts/build-server.sh   # lần đầu hoặc sau khi đổi mã (go mod tidy + go build)
+bash scripts/run-server.sh     # chỉ chạy binary; thiếu binary thì báo lỗi và thoát
+# Hoặc: ./bin/docklite-wsl
 ```
 
 Biến môi trường tùy chọn: `DOCKLITE_ADDR` (ví dụ `127.0.0.1:17890`).

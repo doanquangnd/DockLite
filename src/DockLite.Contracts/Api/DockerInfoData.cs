@@ -3,16 +3,10 @@ using System.Text.Json.Serialization;
 namespace DockLite.Contracts.Api;
 
 /// <summary>
-/// Phản hồi GET /api/docker/info (thông tin Docker Engine trong WSL).
+/// Nội dung data của GET /api/docker/info khi thành công.
 /// </summary>
-public sealed class DockerInfoResponse
+public sealed class DockerInfoData
 {
-    [JsonPropertyName("ok")]
-    public bool Ok { get; init; }
-
-    [JsonPropertyName("error")]
-    public string? Error { get; init; }
-
     [JsonPropertyName("serverVersion")]
     public string? ServerVersion { get; init; }
 

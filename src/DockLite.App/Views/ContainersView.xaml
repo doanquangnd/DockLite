@@ -10,7 +10,9 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -46,36 +48,134 @@
                      Padding="6,4" />
         </Grid>
 
-        <DataGrid Grid.Row="2"
+        <Border Grid.Row="2"
+                Margin="0,0,0,8"
+                BorderBrush="#E0E0E0"
+                BorderThickness="1"
+                Padding="10"
+                CornerRadius="4">
+            <StackPanel>
+                <WrapPanel Margin="0,0,0,8">
+                    <Button Content="Top 5 RAM (snapshot)"
+                            Padding="12,6"
+                            MinWidth="160"
+                            Margin="0,0,8,4"
+                            Command="{Binding RefreshTopMemoryCommand}"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    <Button Content="Top 5 CPU (snapshot)"
+                            Padding="12,6"
+                            MinWidth="160"
+                            Margin="0,0,8,4"
+                            Command="{Binding RefreshTopCpuCommand}"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                </WrapPanel>
+                <TextBlock Margin="0,0,0,4"
+                           FontWeight="SemiBold"
+                           Text="Theo RAM" />
+                <TextBlock Text="{Binding TopMemorySummaryText}"
+                           TextWrapping="Wrap"
+                           FontFamily="Consolas"
+                           FontSize="12"
+                           Foreground="#333" />
+                <TextBlock Margin="0,12,0,4"
+                           FontWeight="SemiBold"
+                           Text="Theo CPU %" />
+                <TextBlock Text="{Binding TopCpuSummaryText}"
+                           TextWrapping="Wrap"
+                           FontFamily="Consolas"
+                           FontSize="12"
+                           Foreground="#333" />
+            </StackPanel>
+        </Border>
+
+        <DataGrid Grid.Row="3"
                   ItemsSource="{Binding FilteredItems}"
-                  SelectedItem="{Binding SelectedContainer}"
+                  SelectedItem="{Binding SelectedContainerRow}"
                   AutoGenerateColumns="False"
-                  IsReadOnly="True"
+                  IsReadOnly="False"
                   CanUserAddRows="False"
                   SelectionMode="Single"
                   HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal"
                   AlternatingRowBackground="#FAFAFA">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="ID"
-                                    Binding="{Binding ShortId}"
-                                    Width="90" />
-                <DataGridTextColumn Header="Tên"
-                                    Binding="{Binding Name}"
-                                    Width="*" />
-                <DataGridTextColumn Header="Image"
-                                    Binding="{Binding Image}"
-                                    Width="160" />
-                <DataGridTextColumn Header="Trạng thái"
-                                    Binding="{Binding Status}"
-                                    Width="200" />
-                <DataGridTextColumn Header="Cổng"
-                                    Binding="{Binding Ports}"
-                                    Width="120" />
+                <DataGridTemplateColumn Width="48"
+                                        Header="Chọn">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <CheckBox HorizontalAlignment="Center"
+                                      IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Width="90"
+                                    Binding="{Binding Model.ShortId}"
+                                    Header="ID"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Width="*"
+                                    Binding="{Binding Model.Name}"
+                                    Header="Tên"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Width="160"
+                                    Binding="{Binding Model.Image}"
+                                    Header="Image"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Width="200"
+                                    Binding="{Binding Model.Status}"
+                                    Header="Trạng thái"
+                                    IsReadOnly="True" />
+                <DataGridTextColumn Width="120"
+                                    Binding="{Binding Model.Ports}"
+                                    Header="Cổng"
+                                    IsReadOnly="True" />
             </DataGrid.Columns>
         </DataGrid>
 
-        <WrapPanel Grid.Row="3"
+        <Expander Grid.Row="4"
+                  Margin="0,8,0,0"
+                  Header="Chi tiết container (inspect + stats)">
+            <ScrollViewer MaxHeight="420"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="0,8,0,0">
+                    <StackPanel Margin="0,0,0,8"
+                                Orientation="Horizontal">
+                        <CheckBox VerticalAlignment="Center"
+                                  Content="Stats realtime (polling API)"
+                                  IsChecked="{Binding IsStatsRealtimeEnabled}" />
+                        <TextBlock Margin="16,0,8,0"
+                                   VerticalAlignment="Center"
+                                   Text="Chu kỳ (giây):" />
+                        <ComboBox MinWidth="72"
+                                  VerticalAlignment="Center"
+                                  ItemsSource="{Binding StatsRealtimeIntervalChoices}"
+                                  SelectedItem="{Binding StatsRealtimeIntervalSeconds}" />
+                    </StackPanel>
+                    <TextBlock FontWeight="SemiBold"
+                               Text="Stats" />
+                    <TextBox MinHeight="72"
+                             Margin="0,4,0,0"
+                             Padding="8"
+                             FontFamily="Segoe UI"
+                             IsReadOnly="True"
+                             Text="{Binding DetailStatsText}"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Margin="0,12,0,0"
+                               FontWeight="SemiBold"
+                               Text="Inspect (JSON)" />
+                    <TextBox MinHeight="140"
+                             Margin="0,4,0,0"
+                             Padding="8"
+                             FontFamily="Consolas"
+                             IsReadOnly="True"
+                             Text="{Binding DetailInspectJson}"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+            </ScrollViewer>
+        </Expander>
+
+        <WrapPanel Grid.Row="5"
                    Margin="0,10,0,8">
             <Button Content="Làm mới"
                     Margin="0,0,8,4"
@@ -83,6 +183,37 @@
                     MinWidth="100"
                     Command="{Binding RefreshCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Chọn tất cả"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding SelectAllFilteredCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Bỏ chọn"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding ClearRowSelectionChecksCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Start đã chọn"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding BatchStartCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Stop đã chọn"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding BatchStopCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Xóa đã chọn"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding BatchRemoveCheckedCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Tải chi tiết"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    MinWidth="110"
+                    Command="{Binding LoadDetailCommand}"
+                    IsEnabled="{Binding CanLoadDetail}" />
             <Button Content="Start"
                     Margin="0,0,8,4"
                     Padding="12,6"
@@ -109,7 +240,7 @@
                     IsEnabled="{Binding CanRemove}" />
         </WrapPanel>
 
-        <Border Grid.Row="4"
+        <Border Grid.Row="6"
                 BorderBrush="#DDD"
                 BorderThickness="1"
                 Padding="8"
