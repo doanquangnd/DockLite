@@ -1,0 +1,130 @@
+<UserControl x:Class="DockLite.App.Views.ComposeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:converters="clr-namespace:DockLite.App.Converters"
+             d:DesignHeight="560"
+             d:DesignWidth="720"
+             mc:Ignorable="d">
+    <UserControl.Resources>
+        <converters:InvertBooleanConverter x:Key="InvertBooleanConverter" />
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="220" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Docker Compose"
+                   FontSize="20"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,12" />
+
+        <StackPanel Grid.Row="1"
+                    Margin="0,0,0,10">
+            <TextBlock Text="Thêm thư mục project (Windows: C:\... hoặc WSL: /mnt/c/...)"
+                       Margin="0,0,0,4" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0"
+                         Text="{Binding NewProjectPath, UpdateSourceTrigger=PropertyChanged}"
+                         Padding="6,4"
+                         Margin="0,0,8,0" />
+                <Button Grid.Column="1"
+                        Content="Thêm"
+                        Padding="12,6"
+                        MinWidth="80"
+                        Command="{Binding AddProjectCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            </Grid>
+        </StackPanel>
+
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding Projects}"
+                  SelectedItem="{Binding SelectedProject}"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  SelectionMode="Single"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  AlternatingRowBackground="#FAFAFA">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Tên"
+                                    Binding="{Binding Name}"
+                                    Width="120" />
+                <DataGridTextColumn Header="Đường dẫn WSL"
+                                    Binding="{Binding WslPath}"
+                                    Width="*" />
+                <DataGridTextColumn Header="Id"
+                                    Binding="{Binding Id}"
+                                    Width="120" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <WrapPanel Grid.Row="3"
+                   Margin="0,10,0,8">
+            <Button Content="Làm mới danh sách"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding LoadProjectsCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="Xóa khỏi danh sách"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding RemoveProjectCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="compose up -d"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding ComposeUpCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="compose down"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding ComposeDownCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="compose ps"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding ComposePsCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+        </WrapPanel>
+
+        <DockPanel Grid.Row="4"
+                   Margin="0,4,0,8"
+                   LastChildFill="True">
+            <TextBlock DockPanel.Dock="Top"
+                       Text="Output lệnh"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,6" />
+            <Border BorderBrush="#DDD"
+                    BorderThickness="1"
+                    Padding="8">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <TextBlock Text="{Binding CommandOutput}"
+                               TextWrapping="Wrap"
+                               FontFamily="Consolas"
+                               FontSize="12" />
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+
+        <Border Grid.Row="5"
+                BorderBrush="#EEE"
+                BorderThickness="0,1,0,0"
+                Padding="0,8,0,0">
+            <TextBlock Text="{Binding StatusMessage}"
+                       TextWrapping="Wrap" />
+        </Border>
+    </Grid>
+</UserControl>

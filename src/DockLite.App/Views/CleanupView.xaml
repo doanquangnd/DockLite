@@ -1,0 +1,96 @@
+<UserControl x:Class="DockLite.App.Views.CleanupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:converters="clr-namespace:DockLite.App.Converters"
+             d:DesignHeight="560"
+             d:DesignWidth="720"
+             mc:Ignorable="d">
+    <UserControl.Resources>
+        <converters:InvertBooleanConverter x:Key="InvertBooleanConverter" />
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Dọn dẹp"
+                   FontSize="20"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,12" />
+
+        <TextBlock Grid.Row="1"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,10"
+                   Foreground="#555"
+                   Text="Các lệnh gọi docker prune trong WSL. Xác nhận trước khi chạy. Volume và system prune có thể xóa dữ liệu vĩnh viễn." />
+
+        <StackPanel Grid.Row="2"
+                    Margin="0,0,0,10">
+            <WrapPanel>
+                <Button Content="Container prune"
+                        Margin="0,0,8,6"
+                        Padding="12,6"
+                        Command="{Binding PruneContainersCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                <Button Content="Image prune"
+                        Margin="0,0,8,6"
+                        Padding="12,6"
+                        Command="{Binding PruneImagesCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                <Button Content="Volume prune"
+                        Margin="0,0,8,6"
+                        Padding="12,6"
+                        Command="{Binding PruneVolumesCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                <Button Content="Network prune"
+                        Margin="0,0,8,6"
+                        Padding="12,6"
+                        Command="{Binding PruneNetworksCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            </WrapPanel>
+            <CheckBox Content="System prune kèm --volumes"
+                      IsChecked="{Binding SystemPruneIncludeVolumes}"
+                      Margin="0,4,0,6" />
+            <Button Content="System prune"
+                    HorizontalAlignment="Left"
+                    Padding="12,6"
+                    MinWidth="160"
+                    Command="{Binding PruneSystemCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+        </StackPanel>
+
+        <DockPanel Grid.Row="3"
+                   Margin="0,4,0,8"
+                   LastChildFill="True">
+            <TextBlock DockPanel.Dock="Top"
+                       Text="Output"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,6" />
+            <Border BorderBrush="#DDD"
+                    BorderThickness="1"
+                    Padding="8">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <TextBlock Text="{Binding CommandOutput}"
+                               TextWrapping="Wrap"
+                               FontFamily="Consolas"
+                               FontSize="12" />
+                </ScrollViewer>
+            </Border>
+        </DockPanel>
+
+        <Border Grid.Row="4"
+                BorderBrush="#EEE"
+                BorderThickness="0,1,0,0"
+                Padding="0,8,0,0">
+            <TextBlock Text="{Binding StatusMessage}"
+                       TextWrapping="Wrap" />
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DockLite.App/DockLite.App.csproj" />
+    <Project Path="src/DockLite.Contracts/DockLite.Contracts.csproj" />
+    <Project Path="src/DockLite.Core/DockLite.Core.csproj" />
+    <Project Path="src/DockLite.Infrastructure/DockLite.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DockLite.Tests/DockLite.Tests.csproj" />
+  </Folder>
+</Solution>
