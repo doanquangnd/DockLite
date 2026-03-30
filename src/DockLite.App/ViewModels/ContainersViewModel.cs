@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Text;
@@ -64,6 +65,26 @@ public partial class ContainersViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _canLoadDetail;
+
+    /// <summary>Còn dòng chưa tick: cho phép Chọn tất cả (trong danh sách đã lọc).</summary>
+    [ObservableProperty]
+    private bool _canSelectAllFiltered;
+
+    /// <summary>Có ít nhất một ô đã chọn: Bỏ chọn, Xóa đã chọn.</summary>
+    [ObservableProperty]
+    private bool _canClearSelection;
+
+    /// <summary>Có ít nhất một dòng đã chọn đang dừng: Start đã chọn.</summary>
+    [ObservableProperty]
+    private bool _canBatchStart;
+
+    /// <summary>Có ít nhất một dòng đã chọn đang chạy: Stop đã chọn.</summary>
+    [ObservableProperty]
+    private bool _canBatchStop;
+
+    /// <summary>Có ít nhất một dòng đã chọn: Xóa đã chọn.</summary>
+    [ObservableProperty]
+    private bool _canBatchRemove;
 
     [ObservableProperty]
     private bool _isDetailLoading;
@@ -401,6 +422,8 @@ public partial class ContainersViewModel : ObservableObject
         {
             row.IsSelected = true;
         }
+
+        UpdateBatchToolbarState();
     }
 
     [RelayCommand]
@@ -410,6 +433,8 @@ public partial class ContainersViewModel : ObservableObject
         {
             row.IsSelected = false;
         }
+
+        UpdateBatchToolbarState();
     }
 
     [RelayCommand]
@@ -615,6 +640,11 @@ public partial class ContainersViewModel : ObservableObject
 
     private void ApplyFilter()
     {
+        foreach (SelectableContainerRow row in FilteredItems)
+        {
+            row.PropertyChanged -= OnFilteredRowPropertyChanged;
+        }
+
         FilteredItems.Clear();
         string q = SearchText.Trim();
         foreach (ContainerSummaryDto item in _allItems)
@@ -629,8 +659,17 @@ public partial class ContainersViewModel : ObservableObject
                 continue;
             }
 
-            FilteredItems.Add(new SelectableContainerRow(item));
+            var row = new SelectableContainerRow(item);
+            row.PropertyChanged += OnFilteredRowPropertyChanged;
+            FilteredItems.Add(row);
         }
+
+        if (SelectedContainerRow is not null && !FilteredItems.Contains(SelectedContainerRow))
+        {
+            SelectedContainerRow = null;
+        }
+
+        UpdateToolbarState();
     }
 
     private bool MatchesFilterKind(ContainerSummaryDto item)
@@ -675,15 +714,53 @@ public partial class ContainersViewModel : ObservableObject
             CanRestart = false;
             CanRemove = false;
             CanLoadDetail = false;
+        }
+        else
+        {
+            bool running = IsRunning(s.Status);
+            CanStart = !running;
+            CanStop = running;
+            CanRestart = true;
+            CanRemove = true;
+            CanLoadDetail = !IsDetailLoading;
+        }
+
+        UpdateBatchToolbarState();
+    }
+
+    private void OnFilteredRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SelectableContainerRow.IsSelected))
+        {
+            UpdateBatchToolbarState();
+        }
+    }
+
+    /// <summary>
+    /// Nút Chọn tất cả / Bỏ chọn / Start|Stop|Xóa đã chọn — phụ thuộc ô tick và trạng thái từng dòng.
+    /// </summary>
+    private void UpdateBatchToolbarState()
+    {
+        if (IsBusy)
+        {
+            CanSelectAllFiltered = false;
+            CanClearSelection = false;
+            CanBatchStart = false;
+            CanBatchStop = false;
+            CanBatchRemove = false;
             return;
         }
 
-        bool running = IsRunning(s.Status);
-        CanStart = !running;
-        CanStop = running;
-        CanRestart = true;
-        CanRemove = true;
-        CanLoadDetail = !IsDetailLoading;
+        int n = FilteredItems.Count;
+        int selectedCount = FilteredItems.Count(r => r.IsSelected);
+        bool allSelected = n > 0 && selectedCount == n;
+        bool anySelected = selectedCount > 0;
+
+        CanSelectAllFiltered = n > 0 && !allSelected;
+        CanClearSelection = anySelected;
+        CanBatchStart = FilteredItems.Any(r => r.IsSelected && !IsRunning(r.Model.Status));
+        CanBatchStop = FilteredItems.Any(r => r.IsSelected && IsRunning(r.Model.Status));
+        CanBatchRemove = anySelected;
     }
 
     private void RestartStatsRealtimeTimerIfNeeded()

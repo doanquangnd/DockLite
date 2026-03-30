@@ -27,7 +27,9 @@ public sealed class AppSettingsStore : IAppSettingsStore
     {
         if (!File.Exists(_filePath))
         {
-            return new AppSettings();
+            var empty = new AppSettings();
+            AppSettingsDefaults.Normalize(empty);
+            return empty;
         }
 
         try
@@ -43,11 +45,14 @@ public sealed class AppSettingsStore : IAppSettingsStore
                 }
             }
 
+            AppSettingsDefaults.Normalize(loaded);
             return loaded;
         }
         catch
         {
-            return new AppSettings();
+            var fallback = new AppSettings();
+            AppSettingsDefaults.Normalize(fallback);
+            return fallback;
         }
     }
 

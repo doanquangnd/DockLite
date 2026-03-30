@@ -15,15 +15,16 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
                    Text="Dọn dẹp"
-                   FontSize="20"
+                   FontSize="22"
                    FontWeight="SemiBold"
-                   Margin="0,0,0,12" />
+                   Foreground="#0F172A"
+                   Margin="0,0,0,16" />
 
         <TextBlock Grid.Row="1"
                    TextWrapping="Wrap"
@@ -67,20 +68,25 @@
         </StackPanel>
 
         <DockPanel Grid.Row="3"
-                   Margin="0,4,0,8"
+                   MinHeight="200"
+                   Margin="0,8,0,12"
                    LastChildFill="True">
             <TextBlock DockPanel.Dock="Top"
                        Text="Output"
                        FontWeight="SemiBold"
-                       Margin="0,0,0,6" />
-            <Border BorderBrush="#DDD"
+                       Foreground="#334155"
+                       Margin="0,0,0,8" />
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
                     BorderThickness="1"
-                    Padding="8">
+                    Padding="12"
+                    CornerRadius="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <TextBlock Text="{Binding CommandOutput}"
                                TextWrapping="Wrap"
-                               FontFamily="Consolas"
-                               FontSize="12" />
+                               FontFamily="Cascadia Mono, Consolas"
+                               FontSize="12"
+                               Foreground="#334155" />
                 </ScrollViewer>
             </Border>
         </DockPanel>

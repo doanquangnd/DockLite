@@ -20,6 +20,19 @@ if (-not (Test-Path $proj)) {
 $selfContained = -not $FrameworkDependent.IsPresent
 $singleFile = -not $NoSingleFile.IsPresent
 
+# Nếu exe đích đang bị khóa (đang chạy từ thư mục publish), GenerateBundle sẽ lỗi Access denied khi ghi đè.
+$publishedExe = Join-Path $outDir "DockLite.App.exe"
+if (Test-Path $publishedExe) {
+    $fullExe = (Resolve-Path $publishedExe).Path
+    Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -and ($_.Path -ieq $fullExe)
+    } | ForEach-Object {
+        Write-Host "Đang đóng DockLite đang chạy từ thư mục publish (PID $($_.Id))."
+        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Milliseconds 500
+}
+
 Write-Host "Repo: $repoRoot"
 Write-Host "Output: $outDir"
 Write-Host "SelfContained: $selfContained  PublishSingleFile: $singleFile"

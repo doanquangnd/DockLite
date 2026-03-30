@@ -34,11 +34,13 @@ public sealed class AppStartupCoordinator : IAppStartupService
             _shutdownToken.Token);
         try
         {
+            var progress = new Progress<WslStartupProgress>(p => _composition.Shell.ApplyWslStartupProgress(p));
             (bool ok, WslEnsureFailureReason reason) = await WslDockerServiceAutoStart.TryEnsureRunningAsync(
                 _composition.HttpSession,
                 _composition.Settings,
                 _hostContext.BaseDirectory,
-                linked.Token).ConfigureAwait(true);
+                linked.Token,
+                progress).ConfigureAwait(true);
 
             if (!ok && reason == WslEnsureFailureReason.HealthTimeoutAfterWslStart)
             {
@@ -47,6 +49,8 @@ public sealed class AppStartupCoordinator : IAppStartupService
                     .ShowAsync("DockLite — health timeout", body, NotificationDisplayKind.Warning, linked.Token)
                     .ConfigureAwait(true);
             }
+
+            await _composition.Shell.RefreshServiceHeaderFromApiAsync(linked.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {

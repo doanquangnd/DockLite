@@ -11,7 +11,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -19,9 +19,10 @@
 
         <TextBlock Grid.Row="0"
                    Text="Container"
-                   FontSize="20"
+                   FontSize="22"
                    FontWeight="SemiBold"
-                   Margin="0,0,0,12" />
+                   Foreground="#0F172A"
+                   Margin="0,0,0,16" />
 
         <Grid Grid.Row="1"
               Margin="0,0,0,8">
@@ -36,9 +37,16 @@
                        Text="Lọc:"
                        VerticalAlignment="Center"
                        Margin="0,0,8,0" />
-            <ComboBox Grid.Column="1"
-                      ItemsSource="{Binding FilterKinds}"
-                      SelectedItem="{Binding FilterKind}" />
+            <Border Grid.Column="1"
+                    Style="{StaticResource InputChromeBorderStyle}">
+                <ComboBox BorderThickness="0"
+                          Background="Transparent"
+                          Padding="8,6"
+                          MinHeight="34"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding FilterKinds}"
+                          SelectedItem="{Binding FilterKind}" />
+            </Border>
             <TextBlock Grid.Column="3"
                        Text="Tìm:"
                        VerticalAlignment="Center"
@@ -49,11 +57,12 @@
         </Grid>
 
         <Border Grid.Row="2"
-                Margin="0,0,0,8"
-                BorderBrush="#E0E0E0"
+                Margin="0,0,0,12"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
                 BorderThickness="1"
-                Padding="10"
-                CornerRadius="4">
+                Padding="14"
+                CornerRadius="10">
             <StackPanel>
                 <WrapPanel Margin="0,0,0,8">
                     <Button Content="Top 5 RAM (snapshot)"
@@ -88,48 +97,52 @@
             </StackPanel>
         </Border>
 
-        <DataGrid Grid.Row="3"
-                  ItemsSource="{Binding FilteredItems}"
-                  SelectedItem="{Binding SelectedContainerRow}"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="False"
-                  CanUserAddRows="False"
-                  SelectionMode="Single"
-                  HeadersVisibility="Column"
-                  GridLinesVisibility="Horizontal"
-                  AlternatingRowBackground="#FAFAFA">
-            <DataGrid.Columns>
-                <DataGridTemplateColumn Width="48"
-                                        Header="Chọn">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <CheckBox HorizontalAlignment="Center"
-                                      IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" />
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                <DataGridTextColumn Width="90"
-                                    Binding="{Binding Model.ShortId}"
-                                    Header="ID"
-                                    IsReadOnly="True" />
-                <DataGridTextColumn Width="*"
-                                    Binding="{Binding Model.Name}"
-                                    Header="Tên"
-                                    IsReadOnly="True" />
-                <DataGridTextColumn Width="160"
-                                    Binding="{Binding Model.Image}"
-                                    Header="Image"
-                                    IsReadOnly="True" />
-                <DataGridTextColumn Width="200"
-                                    Binding="{Binding Model.Status}"
-                                    Header="Trạng thái"
-                                    IsReadOnly="True" />
-                <DataGridTextColumn Width="120"
-                                    Binding="{Binding Model.Ports}"
-                                    Header="Cổng"
-                                    IsReadOnly="True" />
-            </DataGrid.Columns>
-        </DataGrid>
+        <Border Grid.Row="3"
+                MinHeight="300"
+                Margin="0,0,0,8"
+                Style="{StaticResource RoundedTableChromeStyle}">
+            <DataGrid ItemsSource="{Binding FilteredItems}"
+                      SelectedItem="{Binding SelectedContainerRow}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="False"
+                      CanUserAddRows="False"
+                      SelectionMode="Single"
+                      HeadersVisibility="Column"
+                      GridLinesVisibility="Horizontal"
+                      AlternatingRowBackground="#F8FAFC">
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Width="48"
+                                            Header="Chọn">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <CheckBox HorizontalAlignment="Center"
+                                          IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Width="90"
+                                        Binding="{Binding Model.ShortId}"
+                                        Header="ID"
+                                        IsReadOnly="True" />
+                    <DataGridTextColumn Width="*"
+                                        Binding="{Binding Model.Name}"
+                                        Header="Tên"
+                                        IsReadOnly="True" />
+                    <DataGridTextColumn Width="160"
+                                        Binding="{Binding Model.Image}"
+                                        Header="Image"
+                                        IsReadOnly="True" />
+                    <DataGridTextColumn Width="200"
+                                        Binding="{Binding Model.Status}"
+                                        Header="Trạng thái"
+                                        IsReadOnly="True" />
+                    <DataGridTextColumn Width="120"
+                                        Binding="{Binding Model.Ports}"
+                                        Header="Cổng"
+                                        IsReadOnly="True" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
 
         <Expander Grid.Row="4"
                   Margin="0,8,0,0"
@@ -145,10 +158,18 @@
                         <TextBlock Margin="16,0,8,0"
                                    VerticalAlignment="Center"
                                    Text="Chu kỳ (giây):" />
-                        <ComboBox MinWidth="72"
-                                  VerticalAlignment="Center"
-                                  ItemsSource="{Binding StatsRealtimeIntervalChoices}"
-                                  SelectedItem="{Binding StatsRealtimeIntervalSeconds}" />
+                        <Border MinWidth="80"
+                                Style="{StaticResource InputChromeBorderStyle}"
+                                VerticalAlignment="Center">
+                            <ComboBox MinWidth="72"
+                                      BorderThickness="0"
+                                      Background="Transparent"
+                                      Padding="8,6"
+                                      MinHeight="34"
+                                      VerticalAlignment="Center"
+                                      ItemsSource="{Binding StatsRealtimeIntervalChoices}"
+                                      SelectedItem="{Binding StatsRealtimeIntervalSeconds}" />
+                        </Border>
                     </StackPanel>
                     <TextBlock FontWeight="SemiBold"
                                Text="Stats" />
@@ -187,27 +208,27 @@
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding SelectAllFilteredCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanSelectAllFiltered}" />
             <Button Content="Bỏ chọn"
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding ClearRowSelectionChecksCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanClearSelection}" />
             <Button Content="Start đã chọn"
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding BatchStartCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanBatchStart}" />
             <Button Content="Stop đã chọn"
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding BatchStopCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanBatchStop}" />
             <Button Content="Xóa đã chọn"
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding BatchRemoveCheckedCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanBatchRemove}" />
             <Button Content="Tải chi tiết"
                     Margin="0,0,8,4"
                     Padding="12,6"
@@ -241,12 +262,14 @@
         </WrapPanel>
 
         <Border Grid.Row="6"
-                BorderBrush="#DDD"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
                 BorderThickness="1"
-                Padding="8"
-                CornerRadius="4">
+                Padding="12"
+                CornerRadius="10">
             <TextBlock Text="{Binding StatusMessage}"
-                       TextWrapping="Wrap" />
+                       TextWrapping="Wrap"
+                       Foreground="#334155" />
         </Border>
     </Grid>
 </UserControl>

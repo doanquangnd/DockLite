@@ -29,4 +29,34 @@ public sealed class AppSettings
     /// Tên distro WSL (ví dụ Ubuntu). Để trống dùng mặc định của wsl.exe.
     /// </summary>
     public string? WslDistribution { get; set; }
+
+    /// <summary>
+    /// Múi giờ hiển thị (Windows <see cref="TimeZoneInfo.Id"/>). Để trống hoặc null = <see cref="TimeZoneInfo.Local"/>.
+    /// </summary>
+    public string? UiTimeZoneId { get; set; }
+
+    /// <summary>
+    /// Chuỗi định dạng ngày giờ cho UI (hợp lệ với <see cref="DateTime.ToString(string, IFormatProvider)"/>).
+    /// </summary>
+    public string UiDateTimeFormat { get; set; } = "yyyy/MM/dd HH:mm:ss";
+
+    /// <summary>
+    /// Sau khi tự spawn WSL khi mở app, chờ /api/health tối đa bao nhiêu giây (10–600, mặc định 30).
+    /// </summary>
+    public int WslAutoStartHealthWaitSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Start/Restart thủ công: chờ /api/health tối đa bao nhiêu giây (10–600, mặc định 90).
+    /// </summary>
+    public int WslManualHealthWaitSeconds { get; set; } = 90;
+
+    /// <summary>
+    /// Timeout một lần gọi GET /api/health khi poll (1–60 giây, mặc định 3).
+    /// </summary>
+    public int HealthProbeSingleRequestSeconds { get; set; } = 3;
+
+    /// <summary>
+    /// Khoảng cách giữa các lần poll health khi chờ WSL (100–5000 ms, mặc định 500).
+    /// </summary>
+    public int WslHealthPollIntervalMilliseconds { get; set; } = 500;
 }

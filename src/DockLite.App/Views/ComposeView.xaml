@@ -17,15 +17,16 @@
             <RowDefinition Height="220" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
                    Text="Docker Compose"
-                   FontSize="20"
+                   FontSize="22"
                    FontWeight="SemiBold"
-                   Margin="0,0,0,12" />
+                   Foreground="#0F172A"
+                   Margin="0,0,0,16" />
 
         <StackPanel Grid.Row="1"
                     Margin="0,0,0,10">
@@ -57,35 +58,39 @@
             </Grid>
         </StackPanel>
 
-        <DataGrid Grid.Row="2"
-                  ItemsSource="{Binding Projects}"
-                  SelectedItem="{Binding SelectedProject}"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  CanUserAddRows="False"
-                  SelectionMode="Single"
-                  HeadersVisibility="Column"
-                  GridLinesVisibility="Horizontal"
-                  AlternatingRowBackground="#FAFAFA">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Tên"
-                                    Binding="{Binding Name}"
-                                    Width="120" />
-                <DataGridTextColumn Header="Đường dẫn WSL"
-                                    Binding="{Binding WslPath}"
-                                    Width="*" />
-                <DataGridTextColumn Header="Id"
-                                    Binding="{Binding Id}"
-                                    Width="120" />
-            </DataGrid.Columns>
-        </DataGrid>
+        <Border Grid.Row="2"
+                Margin="0,0,0,8"
+                Style="{StaticResource RoundedTableChromeStyle}">
+            <DataGrid ItemsSource="{Binding Projects}"
+                      SelectedItem="{Binding SelectedProject}"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserAddRows="False"
+                      SelectionMode="Single"
+                      HeadersVisibility="Column"
+                      GridLinesVisibility="Horizontal"
+                      AlternatingRowBackground="#F8FAFC">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Tên"
+                                        Binding="{Binding Name}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Đường dẫn WSL"
+                                        Binding="{Binding WslPath}"
+                                        Width="*" />
+                    <DataGridTextColumn Header="Id"
+                                        Binding="{Binding Id}"
+                                        Width="120" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
 
         <Border Grid.Row="3"
                 Margin="0,8,0,0"
-                BorderBrush="#DDD"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
                 BorderThickness="1"
-                Padding="10"
-                CornerRadius="4">
+                Padding="14"
+                CornerRadius="12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="220" />
@@ -189,20 +194,25 @@
         </WrapPanel>
 
         <DockPanel Grid.Row="5"
-                   Margin="0,4,0,8"
+                   MinHeight="200"
+                   Margin="0,8,0,12"
                    LastChildFill="True">
             <TextBlock DockPanel.Dock="Top"
                        Text="Output lệnh"
                        FontWeight="SemiBold"
-                       Margin="0,0,0,6" />
-            <Border BorderBrush="#DDD"
+                       Foreground="#334155"
+                       Margin="0,0,0,8" />
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
                     BorderThickness="1"
-                    Padding="8">
+                    Padding="12"
+                    CornerRadius="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <TextBlock Text="{Binding CommandOutput}"
                                TextWrapping="Wrap"
-                               FontFamily="Consolas"
-                               FontSize="12" />
+                               FontFamily="Cascadia Mono, Consolas"
+                               FontSize="12"
+                               Foreground="#334155" />
                 </ScrollViewer>
             </Border>
         </DockPanel>

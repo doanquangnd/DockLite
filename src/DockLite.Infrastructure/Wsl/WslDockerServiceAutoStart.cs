@@ -31,10 +31,31 @@ public static class WslDockerServiceAutoStart
 
     private static readonly List<Process> WslRunServerProcesses = new();
 
-    private static readonly TimeSpan HealthPollInterval = TimeSpan.FromMilliseconds(500);
-    private static readonly TimeSpan HealthPollTimeout = TimeSpan.FromSeconds(45);
-    private static readonly TimeSpan ManualStartHealthWait = TimeSpan.FromSeconds(90);
-    private static readonly TimeSpan SingleHealthTimeout = TimeSpan.FromSeconds(3);
+    /// <summary>Giây chờ health sau khi spawn WSL khi mở app (theo cài đặt, mặc định 30).</summary>
+    public static int GetHealthWaitAfterWslSeconds(AppSettings settings)
+    {
+        int v = settings.WslAutoStartHealthWaitSeconds;
+        return v is >= 10 and <= 600 ? v : 30;
+    }
+
+    private static int GetManualHealthWaitSeconds(AppSettings settings)
+    {
+        int v = settings.WslManualHealthWaitSeconds;
+        return v is >= 10 and <= 600 ? v : 90;
+    }
+
+    private static TimeSpan GetSingleHealthProbeTimeout(AppSettings settings)
+    {
+        int v = settings.HealthProbeSingleRequestSeconds;
+        return TimeSpan.FromSeconds(v is >= 1 and <= 60 ? v : 3);
+    }
+
+    private static TimeSpan GetHealthPollInterval(AppSettings settings)
+    {
+        int ms = settings.WslHealthPollIntervalMilliseconds;
+        ms = ms is >= 100 and <= 5000 ? ms : 500;
+        return TimeSpan.FromMilliseconds(ms);
+    }
 
     /// <summary>
     /// Kiểm tra GET api/health; nếu lỗi và bật tự khởi động thì chạy WSL và chờ service sẵn sàng.
@@ -44,17 +65,20 @@ public static class WslDockerServiceAutoStart
         DockLiteHttpSession httpSession,
         AppSettings settings,
         string appBaseDirectory,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<WslStartupProgress>? progress = null)
     {
         if (!settings.AutoStartWslService)
         {
-            bool healthOk = await IsHealthOkWithRetryAsync(httpSession, cancellationToken).ConfigureAwait(false);
+            progress?.Report(new WslStartupProgress(WslStartupPhase.CheckingInitialHealth, null));
+            bool healthOk = await IsHealthOkWithRetryAsync(httpSession, settings, cancellationToken).ConfigureAwait(false);
             return (
                 healthOk,
                 healthOk ? WslEnsureFailureReason.None : WslEnsureFailureReason.HealthUnavailableWhenAutoStartOff);
         }
 
-        if (await IsHealthOkWithRetryAsync(httpSession, cancellationToken).ConfigureAwait(false))
+        progress?.Report(new WslStartupProgress(WslStartupPhase.CheckingInitialHealth, null));
+        if (await IsHealthOkWithRetryAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
         {
             return (true, WslEnsureFailureReason.None);
         }
@@ -80,14 +104,19 @@ public static class WslDockerServiceAutoStart
             return (false, WslEnsureFailureReason.WslPathConversionFailed);
         }
 
-        StartWslRunServer(wslPath, distro);
+        progress?.Report(new WslStartupProgress(WslStartupPhase.LaunchingWslScript, null));
+        SpawnWslLifecycleScript(wslPath, distro, "scripts/run-server.sh");
 
-        DateTime deadline = DateTime.UtcNow + HealthPollTimeout;
+        TimeSpan waitTotal = TimeSpan.FromSeconds(GetHealthWaitAfterWslSeconds(settings));
+        DateTime deadline = DateTime.UtcNow + waitTotal;
+        TimeSpan pollInterval = GetHealthPollInterval(settings);
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(HealthPollInterval, cancellationToken).ConfigureAwait(false);
-            if (await IsHealthOkOnceAsync(httpSession, cancellationToken).ConfigureAwait(false))
+            int remaining = Math.Max(0, (int)Math.Ceiling((deadline - DateTime.UtcNow).TotalSeconds));
+            progress?.Report(new WslStartupProgress(WslStartupPhase.WaitingHealthAfterWsl, remaining));
+            await Task.Delay(pollInterval, cancellationToken).ConfigureAwait(false);
+            if (await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
             {
                 return (true, WslEnsureFailureReason.None);
             }
@@ -180,7 +209,7 @@ public static class WslDockerServiceAutoStart
 
         try
         {
-            StartWslRunServer(wslPath, distro);
+            SpawnWslLifecycleScript(wslPath, distro, "scripts/run-server.sh");
         }
         catch (Exception ex)
         {
@@ -194,7 +223,181 @@ public static class WslDockerServiceAutoStart
     }
 
     /// <summary>
-    /// Gửi lệnh khởi động WSL rồi chờ GET /api/health thành công (tối đa khoảng 90 giây).
+    /// Gọi wsl.exe chạy bash scripts/stop-server.sh (dừng tiến trình docklite-wsl).
+    /// </summary>
+    public static bool TryStopServiceManually(AppSettings settings, string appBaseDirectory, out string userMessage)
+    {
+        userMessage = "";
+        string? root = ResolveWindowsRoot(settings, appBaseDirectory);
+        if (string.IsNullOrEmpty(root))
+        {
+            userMessage =
+                "Không tìm thấy thư mục wsl-docker-service. Điền đường dẫn Windows hoặc đặt exe cùng cây thư mục với clone.";
+            return false;
+        }
+
+        string stopScript = Path.Combine(root, "scripts", "stop-server.sh");
+        if (!File.Exists(stopScript))
+        {
+            userMessage = "Không thấy scripts/stop-server.sh tại: " + root;
+            return false;
+        }
+
+        string? distro = ResolveEffectiveDistribution(settings);
+        if (!TryGetWslUnixPath(root, distro, out string wslPath))
+        {
+            userMessage =
+                "Không chuyển được đường dẫn sang Unix (wslpath). Kiểm tra WSL và đường dẫn thư mục.";
+            return false;
+        }
+
+        try
+        {
+            SpawnWslLifecycleScript(wslPath, distro, "scripts/stop-server.sh");
+        }
+        catch (Exception ex)
+        {
+            userMessage = "Không chạy được wsl.exe: " + ex.Message;
+            return false;
+        }
+
+        userMessage = "Đã gửi lệnh dừng service trong WSL (bash scripts/stop-server.sh).";
+        return true;
+    }
+
+    /// <summary>
+    /// Gọi wsl.exe chạy bash scripts/build-server.sh (go mod tidy + go build).
+    /// </summary>
+    public static bool TryBuildServiceManually(AppSettings settings, string appBaseDirectory, out string userMessage)
+    {
+        userMessage = "";
+        string? root = ResolveWindowsRoot(settings, appBaseDirectory);
+        if (string.IsNullOrEmpty(root))
+        {
+            userMessage =
+                "Không tìm thấy thư mục wsl-docker-service. Điền đường dẫn Windows hoặc đặt exe cùng cây thư mục với clone.";
+            return false;
+        }
+
+        string buildScript = Path.Combine(root, "scripts", "build-server.sh");
+        if (!File.Exists(buildScript))
+        {
+            userMessage = "Không thấy scripts/build-server.sh tại: " + root;
+            return false;
+        }
+
+        string? distro = ResolveEffectiveDistribution(settings);
+        if (!TryGetWslUnixPath(root, distro, out string wslPath))
+        {
+            userMessage =
+                "Không chuyển được đường dẫn sang Unix (wslpath). Kiểm tra WSL và đường dẫn thư mục.";
+            return false;
+        }
+
+        try
+        {
+            SpawnWslLifecycleScript(wslPath, distro, "scripts/build-server.sh");
+        }
+        catch (Exception ex)
+        {
+            userMessage = "Không chạy được wsl.exe: " + ex.Message;
+            return false;
+        }
+
+        userMessage =
+            "Đã gửi lệnh build trong WSL (bash scripts/build-server.sh). Output ghi trong nhật ký ứng dụng; mở terminal WSL nếu cần xem trực tiếp.";
+        return true;
+    }
+
+    /// <summary>
+    /// Gọi wsl.exe chạy bash scripts/restart-server.sh (pkill rồi run-server).
+    /// </summary>
+    public static bool TryRestartServiceManually(AppSettings settings, string appBaseDirectory, out string userMessage)
+    {
+        userMessage = "";
+        string? root = ResolveWindowsRoot(settings, appBaseDirectory);
+        if (string.IsNullOrEmpty(root))
+        {
+            userMessage =
+                "Không tìm thấy thư mục wsl-docker-service. Điền đường dẫn Windows hoặc đặt exe cùng cây thư mục với clone.";
+            return false;
+        }
+
+        string restartScript = Path.Combine(root, "scripts", "restart-server.sh");
+        if (!File.Exists(restartScript))
+        {
+            userMessage = "Không thấy scripts/restart-server.sh tại: " + root;
+            return false;
+        }
+
+        string? distro = ResolveEffectiveDistribution(settings);
+        if (!TryGetWslUnixPath(root, distro, out string wslPath))
+        {
+            userMessage =
+                "Không chuyển được đường dẫn sang Unix (wslpath). Kiểm tra WSL và đường dẫn thư mục.";
+            return false;
+        }
+
+        try
+        {
+            SpawnWslLifecycleScript(wslPath, distro, "scripts/restart-server.sh");
+        }
+        catch (Exception ex)
+        {
+            userMessage = "Không chạy được wsl.exe: " + ex.Message;
+            return false;
+        }
+
+        userMessage =
+            "Đã gửi lệnh restart service trong WSL (bash scripts/restart-server.sh). Đợi vài giây rồi kiểm tra kết nối.";
+        return true;
+    }
+
+    /// <summary>
+    /// Restart trong WSL rồi chờ GET /api/health thành công (tối đa theo <see cref="AppSettings.WslManualHealthWaitSeconds"/>).
+    /// </summary>
+    public static async Task<(bool CommandSent, bool HealthOk, string Message)> TryRestartServiceManuallyAndWaitForHealthAsync(
+        DockLiteHttpSession httpSession,
+        AppSettings settings,
+        string appBaseDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryRestartServiceManually(settings, appBaseDirectory, out string msg))
+        {
+            return (false, false, msg);
+        }
+
+        int manualSec = GetManualHealthWaitSeconds(settings);
+        TimeSpan poll = GetHealthPollInterval(settings);
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(manualSec);
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Delay(poll, cancellationToken).ConfigureAwait(false);
+            if (await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
+            {
+                return (
+                    true,
+                    true,
+                    "Service đã phản hồi /api/health sau restart. Có thể dùng các chức năng hoặc nhấn Kiểm tra kết nối.");
+            }
+        }
+
+        string hintForLog = FormatHealthTimeoutUserHint(AppFileLog.LogDirectory, includeLeadSummary: true);
+        AppFileLog.WriteMultiline("WSL health timeout (restart)", hintForLog);
+        string hintUi = FormatHealthTimeoutUserHint(AppFileLog.LogDirectory, includeLeadSummary: false);
+        return (
+            true,
+            false,
+            "Đã gửi restart tới WSL nhưng sau khoảng " + manualSec + " giây vẫn không kết nối được health. "
+                + "Trong WSL xem log hoặc chạy tay bash scripts/restart-server.sh."
+                + Environment.NewLine
+                + Environment.NewLine
+                + hintUi);
+    }
+
+    /// <summary>
+    /// Gửi lệnh khởi động WSL rồi chờ GET /api/health thành công (tối đa theo <see cref="AppSettings.WslManualHealthWaitSeconds"/>).
     /// </summary>
     public static async Task<(bool CommandSent, bool HealthOk, string Message)> TryStartServiceManuallyAndWaitForHealthAsync(
         DockLiteHttpSession httpSession,
@@ -207,12 +410,14 @@ public static class WslDockerServiceAutoStart
             return (false, false, msg);
         }
 
-        DateTime deadline = DateTime.UtcNow + ManualStartHealthWait;
+        int manualSec = GetManualHealthWaitSeconds(settings);
+        TimeSpan poll = GetHealthPollInterval(settings);
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(manualSec);
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(HealthPollInterval, cancellationToken).ConfigureAwait(false);
-            if (await IsHealthOkOnceAsync(httpSession, cancellationToken).ConfigureAwait(false))
+            await Task.Delay(poll, cancellationToken).ConfigureAwait(false);
+            if (await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
             {
                 return (
                     true,
@@ -227,7 +432,7 @@ public static class WslDockerServiceAutoStart
         return (
             true,
             false,
-            "Đã gửi lệnh tới WSL nhưng sau khoảng 90 giây vẫn không kết nối được health. "
+            "Đã gửi lệnh tới WSL nhưng sau khoảng " + manualSec + " giây vẫn không kết nối được health. "
                 + "Trong WSL chạy tay: bash scripts/run-server.sh và xem có lỗi go build hay không; chạy go version nếu nghi PATH. "
                 + "Đảm bảo Địa chỉ base URL trỏ đúng máy (127.0.0.1 hoặc IP WSL) và đã nhấn Lưu nếu vừa sửa ô địa chỉ."
                 + Environment.NewLine
@@ -241,9 +446,10 @@ public static class WslDockerServiceAutoStart
         {
             string raw = settings.WslDockerServiceWindowsPath.Trim();
             // Đường dẫn \\wsl$\... hoặc \\wsl.localhost\... đôi khi Directory.Exists trả false dù Explorer mở được — vẫn thử wslpath.
-            if (LooksLikeWslUncPath(raw))
+            // Không trả về raw có dấu /: Path.GetFullPath + wslpath sẽ sai (mất dấu \ giữa các thành phần).
+            if (WslPathNormalizer.IsWslNetworkUncPath(raw))
             {
-                return raw;
+                return WslPathNormalizer.NormalizeForWslpathArgument(raw);
             }
 
             string p = Path.GetFullPath(raw);
@@ -251,18 +457,6 @@ public static class WslDockerServiceAutoStart
         }
 
         return WslDockerServicePathResolver.TryFindFrom(appBaseDirectory);
-    }
-
-    private static bool LooksLikeWslUncPath(string p)
-    {
-        if (string.IsNullOrEmpty(p))
-        {
-            return false;
-        }
-
-        string n = p.Replace('/', '\\');
-        return n.StartsWith(@"\\wsl.localhost\", StringComparison.OrdinalIgnoreCase)
-            || n.StartsWith(@"\\wsl$\", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -317,7 +511,14 @@ public static class WslDockerServiceAutoStart
     private static bool TryGetWslUnixPath(string windowsDirectory, string? wslDistribution, out string wslPath)
     {
         wslPath = "";
-        string full = Path.GetFullPath(windowsDirectory);
+        string full = WslPathNormalizer.NormalizeForWslpathArgument(windowsDirectory);
+
+        // UNC \\wsl.localhost\Distro\... : không dùng wslpath (thường trả /mnt/c/wsl.localhost/... không tồn tại).
+        if (WslPathNormalizer.IsWslNetworkUncPath(full))
+        {
+            return WslPathNormalizer.TryUnixPathFromWslUnc(full, wslDistribution, out wslPath, out _);
+        }
+
         using var p = new Process();
         p.StartInfo.FileName = "wsl.exe";
         p.StartInfo.UseShellExecute = false;
@@ -352,11 +553,12 @@ public static class WslDockerServiceAutoStart
         }
     }
 
-    private static void StartWslRunServer(string wslUnixPath, string? distribution)
+    /// <param name="scriptRelativeFromRoot">Ví dụ scripts/run-server.sh, scripts/stop-server.sh, scripts/restart-server.sh.</param>
+    private static void SpawnWslLifecycleScript(string wslUnixPath, string? distribution, string scriptRelativeFromRoot)
     {
-        // Gọi qua bash thay vì ./run-server.sh để không phụ thuộc chmod +x (tránh Permission denied trên clone/NTFS).
+        // Gọi qua bash thay vì ./script.sh để không phụ thuộc chmod +x (tránh Permission denied trên clone/NTFS).
         // Dùng -lc (login shell): bash -c không nạp .profile/.bashrc — go thường nằm trong PATH chỉ sau login/interactive.
-        string inner = $"cd '{wslUnixPath}' && exec bash scripts/run-server.sh";
+        string inner = $"cd '{wslUnixPath}' && exec bash {scriptRelativeFromRoot}";
         var psi = new ProcessStartInfo
         {
             FileName = "wsl.exe",
@@ -385,8 +587,8 @@ public static class WslDockerServiceAutoStart
 
         string distroLabel = string.IsNullOrWhiteSpace(distribution) ? "(mặc định)" : distribution.Trim();
         string cmdSummary = string.IsNullOrWhiteSpace(distribution)
-            ? $"wsl.exe bash -lc \"cd '{wslUnixPath}' && exec bash scripts/run-server.sh\""
-            : $"wsl.exe -d {distribution.Trim()} bash -lc \"cd '{wslUnixPath}' && exec bash scripts/run-server.sh\"";
+            ? $"wsl.exe bash -lc \"cd '{wslUnixPath}' && exec bash {scriptRelativeFromRoot}\""
+            : $"wsl.exe -d {distribution.Trim()} bash -lc \"cd '{wslUnixPath}' && exec bash {scriptRelativeFromRoot}\"";
 
         lock (WslRecentOutputLock)
         {
@@ -457,13 +659,14 @@ public static class WslDockerServiceAutoStart
     /// </summary>
     private static async Task<bool> IsHealthOkWithRetryAsync(
         DockLiteHttpSession httpSession,
+        AppSettings settings,
         CancellationToken cancellationToken)
     {
         const int attempts = 3;
         var between = TimeSpan.FromMilliseconds(250);
         for (int i = 0; i < attempts; i++)
         {
-            if (await IsHealthOkOnceAsync(httpSession, cancellationToken).ConfigureAwait(false))
+            if (await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
             {
                 return true;
             }
@@ -477,11 +680,14 @@ public static class WslDockerServiceAutoStart
         return false;
     }
 
-    private static async Task<bool> IsHealthOkOnceAsync(DockLiteHttpSession httpSession, CancellationToken cancellationToken)
+    private static async Task<bool> IsHealthOkOnceAsync(
+        DockLiteHttpSession httpSession,
+        AppSettings settings,
+        CancellationToken cancellationToken)
     {
         HttpClient httpClient = httpSession.Client;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        linked.CancelAfter(SingleHealthTimeout);
+        linked.CancelAfter(GetSingleHealthProbeTimeout(settings));
         try
         {
             using HttpResponseMessage response = await httpClient

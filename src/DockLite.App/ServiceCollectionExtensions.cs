@@ -18,6 +18,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IDialogService, WpfDialogService>();
         services.AddSingleton<INotificationService, WpfToastNotificationService>();
         services.AddSingleton<IAppShutdownToken, AppShutdownToken>();
+        services.AddSingleton<AppUiDisplaySettings>();
         services.AddSingleton<IAppShellFactory, AppShellFactory>();
         services.AddSingleton<ShellCompositionResult>(sp =>
         {

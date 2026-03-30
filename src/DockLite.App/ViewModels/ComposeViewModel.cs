@@ -6,6 +6,7 @@ using DockLite.App.Services;
 using DockLite.Contracts.Api;
 using DockLite.Core;
 using DockLite.Core.Services;
+using DockLite.Infrastructure.Wsl;
 using Microsoft.Win32;
 
 namespace DockLite.App.ViewModels;
@@ -132,6 +133,23 @@ public partial class ComposeViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Với UNC WSL (\\wsl.localhost\ hoặc \\wsl$\), gửi thêm wslPath dạng /home/... để service không phụ thuộc parse lại từ chuỗi đã đổi dấu.
+    /// </summary>
+    private static ComposeProjectAddRequest CreateComposeAddRequest(string path)
+    {
+        if (WslPathNormalizer.TryUnixPathFromWslUnc(path, expectedDistro: null, out string unixPath, out _))
+        {
+            return new ComposeProjectAddRequest
+            {
+                WindowsPath = path,
+                WslPath = unixPath,
+            };
+        }
+
+        return new ComposeProjectAddRequest { WindowsPath = path };
+    }
+
     [RelayCommand]
     private void BrowseProjectFolder()
     {
@@ -172,7 +190,7 @@ public partial class ComposeViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            var req = new ComposeProjectAddRequest { WindowsPath = path };
+            ComposeProjectAddRequest req = CreateComposeAddRequest(path);
             ApiResult<ComposeProjectAddData> res = await _apiClient.AddComposeProjectAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {

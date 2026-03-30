@@ -1,11 +1,13 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DockLite.App.Services;
 using DockLite.Core.Diagnostics;
 using Microsoft.Win32;
 
@@ -16,6 +18,8 @@ namespace DockLite.App.ViewModels;
 /// </summary>
 public partial class AppDebugLogViewModel : ObservableObject
 {
+    private readonly AppUiDisplaySettings _uiDisplay;
+
     private enum LogLevelGuess
     {
         TatCa,
@@ -63,8 +67,9 @@ public partial class AppDebugLogViewModel : ObservableObject
         "Thông tin",
     };
 
-    public AppDebugLogViewModel()
+    public AppDebugLogViewModel(AppUiDisplaySettings uiDisplay)
     {
+        _uiDisplay = uiDisplay;
         CategoryOptions.Add("Tất cả");
     }
 
@@ -136,7 +141,7 @@ public partial class AppDebugLogViewModel : ObservableObject
                 continue;
             }
 
-            kept.Add(line);
+            kept.Add(FormatLogLineForDisplay(line));
         }
 
         if (kept.Count == 0)
@@ -255,6 +260,40 @@ public partial class AppDebugLogViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Đổi cột thời gian đầu dòng (UTC ISO trong file) sang định dạng theo Cài đặt — Hiển thị.
+    /// </summary>
+    private string FormatLogLineForDisplay(string line)
+    {
+        if (string.IsNullOrEmpty(line) || line.StartsWith("(", StringComparison.Ordinal))
+        {
+            return line;
+        }
+
+        int t1 = line.IndexOf('\t');
+        if (t1 <= 0)
+        {
+            return line;
+        }
+
+        ReadOnlySpan<char> tsSpan = line.AsSpan(0, t1);
+        if (!DateTime.TryParse(tsSpan, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTime utc))
+        {
+            return line;
+        }
+
+        if (utc.Kind == DateTimeKind.Unspecified)
+        {
+            utc = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
+        }
+        else if (utc.Kind == DateTimeKind.Local)
+        {
+            utc = utc.ToUniversalTime();
+        }
+
+        return _uiDisplay.FormatFromUtc(utc) + line.Substring(t1);
+    }
+
+    /// <summary>
     /// Sao chép khối chẩn đoán (phiên bản, bộ lọc, đường dẫn log, UTC, nội dung đang hiển thị) vào clipboard.
     /// </summary>
     [RelayCommand]
@@ -267,7 +306,7 @@ public partial class AppDebugLogViewModel : ObservableObject
             sb.Append("Phiên bản: ").AppendLine(Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "?");
             sb.Append("OS: ").AppendLine(Environment.OSVersion.ToString());
             sb.Append("Thư mục log: ").AppendLine(AppFileLog.LogDirectory);
-            sb.Append("UTC: ").AppendLine(DateTime.UtcNow.ToString("O"));
+            sb.Append("Thời gian (theo cài đặt hiển thị): ").AppendLine(_uiDisplay.FormatFromUtc(DateTime.UtcNow));
             sb.Append("Lọc category: ").AppendLine(SelectedCategory);
             sb.Append("Lọc mức: ").AppendLine(SelectedLevelOption);
             sb.Append("Lọc chuỗi: ").AppendLine(string.IsNullOrEmpty(FilterText.Trim()) ? "(trống)" : FilterText.Trim());
@@ -307,7 +346,7 @@ public partial class AppDebugLogViewModel : ObservableObject
                 || ParseLevelFromUi(SelectedLevelOption) != LogLevelGuess.TatCa;
             string body = anyFilter
                 ? string.Join(Environment.NewLine, VisibleLines.Where(static l => l != "(Không có dòng khớp bộ lọc.)"))
-                : _rawLogText;
+                : string.Join(Environment.NewLine, SplitLines(_rawLogText).Select(FormatLogLineForDisplay));
             File.WriteAllText(dlg.FileName, body, Encoding.UTF8);
             StatusMessage = anyFilter
                 ? "Đã xuất phần đang lọc: " + dlg.FileName

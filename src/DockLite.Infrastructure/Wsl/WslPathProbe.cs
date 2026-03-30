@@ -24,11 +24,24 @@ public static class WslPathProbe
         string full;
         try
         {
-            full = Path.GetFullPath(windowsPath.Trim());
+            full = WslPathNormalizer.NormalizeForWslpathArgument(windowsPath);
         }
         catch (Exception ex)
         {
             errorMessage = ex.Message;
+            return false;
+        }
+
+        // UNC tới ổ Linux trong distro: dựng /home/... từ segment sau tên distro (wslpath hay trả sai).
+        if (WslPathNormalizer.IsWslNetworkUncPath(full))
+        {
+            if (WslPathNormalizer.TryUnixPathFromWslUnc(full, wslDistribution, out unixPath, out string? hint))
+            {
+                errorMessage = null;
+                return true;
+            }
+
+            errorMessage = hint ?? "Không đổi được đường UNC \\wsl.localhost\\... hoặc \\wsl$\\... sang đường trong distro.";
             return false;
         }
 

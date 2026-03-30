@@ -3,195 +3,303 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             d:DesignHeight="620"
-             d:DesignWidth="640"
+             d:DesignHeight="640"
+             d:DesignWidth="720"
              mc:Ignorable="d">
-    <Grid>
+    <Grid Margin="4,0,8,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="380" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
                    Text="Cài đặt"
-                   FontSize="20"
+                   FontSize="22"
                    FontWeight="SemiBold"
+                   Foreground="#0F172A"
                    Margin="0,0,0,16" />
 
-        <TextBlock Grid.Row="1"
-                   Text="Địa chỉ base URL service (WSL)"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,6" />
-        <Grid Grid.Row="2" Margin="0,0,0,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBox Grid.Column="0"
-                     Text="{Binding ServiceBaseUrl, UpdateSourceTrigger=PropertyChanged}"
-                     Padding="8"
-                     Margin="0,0,8,0"
-                     ToolTip="Mặc định http://127.0.0.1:17890/. Nếu Windows không kết nối được dù service đã chạy trong WSL, dùng nút bên phải để điền IP WSL." />
-            <Button Grid.Column="1"
-                    Padding="12,6"
-                    MinWidth="120"
-                    VerticalAlignment="Center"
-                    Content="Điền IP WSL"
-                    Command="{Binding ApplyWslIpCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
-        </Grid>
+        <Border Grid.Row="1"
+                Margin="0,0,0,12"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="1">
+            <TabControl Style="{StaticResource SettingsTabControlStyle}"
+                        ItemContainerStyle="{StaticResource SettingsTabItemStyle}"
+                        Padding="10,10,10,0">
+            <TabItem Header="Kết nối">
+                <ScrollViewer Style="{StaticResource SettingsTabScrollViewerStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Địa chỉ base URL service (WSL)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding ServiceBaseUrl, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8"
+                                     Margin="0,0,8,0"
+                                     ToolTip="Mặc định http://127.0.0.1:17890/. Nếu Windows không kết nối được dù service đã chạy trong WSL, dùng nút bên phải để điền IP WSL." />
+                            <Button Grid.Column="1"
+                                    Padding="12,6"
+                                    MinWidth="120"
+                                    VerticalAlignment="Center"
+                                    Content="Điền IP WSL"
+                                    Command="{Binding ApplyWslIpCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                        </Grid>
+                        <TextBlock Text="Timeout HTTP (giây, 30–600)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding HttpTimeoutSecondsText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,8"
+                                 ToolTip="Áp dụng cho mọi lệnh gọi REST (compose, prune có thể chạy lâu)." />
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="#64748B"
+                                   FontSize="12"
+                                   Text="Kiểm tra kết nối đầy đủ (health + Docker) dùng nút ở hàng dưới cùng." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-        <TextBlock Grid.Row="3"
-                   Text="Timeout HTTP (giây, 30–600)"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,6" />
-        <TextBox Grid.Row="4"
-                 Text="{Binding HttpTimeoutSecondsText, UpdateSourceTrigger=PropertyChanged}"
-                 Padding="8"
-                 Margin="0,0,0,12"
-                 ToolTip="Áp dụng cho mọi lệnh gọi REST (compose, prune có thể chạy lâu)." />
+            <TabItem Header="WSL và service">
+                <ScrollViewer Style="{StaticResource SettingsTabScrollViewerStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Tự khởi động service trong WSL"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <CheckBox IsChecked="{Binding AutoStartWslService, Mode=TwoWay}"
+                                  Margin="0,0,0,12">
+                            <TextBlock Text="Khi mở DockLite, nếu chưa có phản hồi thì chạy wsl-docker-service (bash scripts/run-server.sh, không cần chmod +x file .sh)"
+                                       TextWrapping="Wrap" />
+                        </CheckBox>
+                        <TextBlock Text="Thư mục wsl-docker-service (Windows, tùy chọn)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding WslDockerServiceWindowsPath, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,8"
+                                 ToolTip="Để trống: tự tìm thư mục wsl-docker-service cùng cây thư mục với DockLite.App.exe." />
+                        <TextBlock Text="Distro WSL (tùy chọn)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding WslDistribution, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,12"
+                                 ToolTip="Ví dụ: Ubuntu. Để trống dùng distro mặc định của wsl.exe." />
+                        <TextBlock Text="Thử distro (uname -a)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,6" />
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,8">
+                            <Button Content="Chạy uname -a trong distro"
+                                    Padding="12,6"
+                                    MinWidth="200"
+                                    VerticalAlignment="Top"
+                                    Command="{Binding TestDistroCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding DistroTestResult}"
+                                   TextWrapping="Wrap"
+                                   FontFamily="Consolas"
+                                   FontSize="12"
+                                   Foreground="#333"
+                                   Margin="0,0,0,12" />
+                        <TextBlock Text="Tóm tắt đường dẫn WSL hiệu dụng"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <Button Content="Cập nhật tóm tắt"
+                                Padding="12,6"
+                                HorizontalAlignment="Left"
+                                MinWidth="160"
+                                Margin="0,0,0,8"
+                                Command="{Binding RefreshEffectiveWslPathSummaryCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                        <TextBlock Text="{Binding EffectiveWslPathSummary}"
+                                   TextWrapping="Wrap"
+                                   FontFamily="Consolas"
+                                   FontSize="12"
+                                   Foreground="#222"
+                                   Margin="0,0,0,12" />
+                        <TextBlock Text="Thử wslpath (Windows → Unix)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,6" />
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding WslpathProbeWindowsPath, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8"
+                                     Margin="0,0,8,0"
+                                     ToolTip="Đường dẫn Windows (file hoặc thư mục). Dùng Distro WSL ở trên nếu cần." />
+                            <Button Grid.Column="1"
+                                    Padding="12,6"
+                                    MinWidth="120"
+                                    VerticalAlignment="Center"
+                                    Content="Chạy wslpath"
+                                    Command="{Binding ProbeWslpathCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                        </Grid>
+                        <TextBlock Text="{Binding WslpathProbeResult}"
+                                   TextWrapping="Wrap"
+                                   FontFamily="Consolas"
+                                   FontSize="12"
+                                   Foreground="#333"
+                                   Margin="0,0,0,8" />
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="#64748B"
+                                   FontSize="12"
+                                   Text="Start / Dừng / Restart service và chờ health: dùng nút ở hàng dưới cùng (thời gian chờ lấy theo tab «Chờ và health»)." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-        <TextBlock Grid.Row="5"
-                   Text="Tự khởi động service trong WSL"
-                   FontWeight="SemiBold"
-                   Margin="0,8,0,6" />
-        <CheckBox Grid.Row="6"
-                  IsChecked="{Binding AutoStartWslService, Mode=TwoWay}"
-                  Margin="0,0,0,8">
-            <TextBlock Text="Khi mở DockLite, nếu chưa có phản hồi thì chạy wsl-docker-service (bash scripts/run-server.sh, không cần chmod +x file .sh)"
-                       TextWrapping="Wrap" />
-        </CheckBox>
+            <TabItem Header="Hiển thị">
+                <ScrollViewer Style="{StaticResource SettingsTabScrollViewerStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Múi giờ hiển thị (ứng dụng)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding TimeZoneOptions}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Id"
+                                  SelectedValue="{Binding SelectedUiTimeZoneId, UpdateSourceTrigger=PropertyChanged}"
+                                  Padding="8,6"
+                                  Margin="0,0,0,12"
+                                  MinHeight="36"
+                                  ToolTip="Chọn «Giờ máy» để dùng múi giờ Windows hiện tại." />
+                        <TextBlock Text="Định dạng ngày giờ (chuỗi .NET)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding UiDateTimeFormat, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,8"
+                                 FontFamily="Consolas"
+                                 ToolTip="Ví dụ: dd/MM/yyyy HH:mm:ss, G, g. Đổi sau khi Lưu mới áp dụng toàn app." />
+                        <TextBlock Text="Gợi ý nhanh"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <ItemsControl ItemsSource="{Binding DateFormatPresets}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding}"
+                                            Margin="0,0,6,6"
+                                            Padding="10,4"
+                                            FontSize="12"
+                                            Command="{Binding DataContext.ApplyDateFormatPresetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="Xem trước"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,6" />
+                        <TextBlock Text="{Binding DateFormatPreviewText}"
+                                   TextWrapping="Wrap"
+                                   FontFamily="Consolas"
+                                   FontSize="12"
+                                   Foreground="#334155"
+                                   Margin="0,0,0,8" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-        <TextBlock Grid.Row="7"
-                   Text="Thư mục wsl-docker-service (Windows, tùy chọn)"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,6" />
-        <TextBox Grid.Row="8"
-                 Text="{Binding WslDockerServiceWindowsPath, UpdateSourceTrigger=PropertyChanged}"
-                 Padding="8"
-                 Margin="0,0,0,8"
-                 ToolTip="Để trống: tự tìm thư mục wsl-docker-service cùng cây thư mục với DockLite.App.exe." />
+            <TabItem Header="Chờ và health">
+                <ScrollViewer Style="{StaticResource SettingsTabScrollViewerStyle}">
+                    <StackPanel>
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="#64748B"
+                                   FontSize="12"
+                                   Margin="0,0,0,12"
+                                   Text="Áp dụng cho lần khởi động tự động (mở app), Start/Restart thủ công và polling /api/health. Nhấn Lưu để ghi vào file cài đặt." />
+                        <TextBlock Text="Chờ health sau khi tự spawn WSL khi mở app (giây, 10–600)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding WslAutoStartHealthWaitSecondsText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,12"
+                                 ToolTip="Sau khi gửi run-server.sh khi mở app, chờ tối đa bấy nhiêu giây để có /api/health." />
+                        <TextBlock Text="Chờ health khi Start / Restart thủ công (giây, 10–600)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding WslManualHealthWaitSecondsText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,12"
+                                 ToolTip="Nút Start / Restart trên header hoặc Cài đặt: chờ health tối đa bấy nhiêu giây." />
+                        <TextBlock Text="Timeout một lần GET /api/health khi poll (giây, 1–60)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding HealthProbeSingleRequestSecondsText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,12"
+                                 ToolTip="Mỗi lần thử GET /api/health trong vòng chờ dài sẽ hủy sau bấy nhiêu giây để không treo quá lâu." />
+                        <TextBlock Text="Khoảng cách giữa các lần poll health (ms, 100–5000)"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding WslHealthPollIntervalMillisecondsText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,8"
+                                 ToolTip="Trong vòng chờ dài, đợi bấy nhiêu ms giữa hai lần gọi /api/health." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            </TabControl>
+        </Border>
 
-        <TextBlock Grid.Row="9"
-                   Text="Distro WSL (tùy chọn)"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,6" />
-        <TextBox Grid.Row="10"
-                 Text="{Binding WslDistribution, UpdateSourceTrigger=PropertyChanged}"
-                 Padding="8"
-                 Margin="0,0,0,8"
-                 ToolTip="Ví dụ: Ubuntu. Để trống dùng distro mặc định của wsl.exe." />
-
-        <TextBlock Grid.Row="11"
-                   Text="Thử distro (uname -a)"
-                   FontWeight="SemiBold"
-                   Margin="0,8,0,6" />
-        <StackPanel Grid.Row="12"
+        <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
-                    Margin="0,0,0,8">
-            <Button Content="Chạy uname -a trong distro"
-                    Padding="12,6"
-                    MinWidth="200"
-                    VerticalAlignment="Top"
-                    Command="{Binding TestDistroCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
-        </StackPanel>
-        <TextBlock Grid.Row="13"
-                   Text="{Binding DistroTestResult}"
-                   TextWrapping="Wrap"
-                   FontFamily="Consolas"
-                   FontSize="12"
-                   Foreground="#333"
-                   Margin="0,0,0,12" />
-
-        <TextBlock Grid.Row="14"
-                   Text="Tóm tắt đường dẫn WSL hiệu dụng"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,6" />
-        <Button Grid.Row="15"
-                Content="Cập nhật tóm tắt"
-                Padding="12,6"
-                HorizontalAlignment="Left"
-                MinWidth="160"
-                Margin="0,0,0,8"
-                Command="{Binding RefreshEffectiveWslPathSummaryCommand}"
-                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
-        <TextBlock Grid.Row="16"
-                   Text="{Binding EffectiveWslPathSummary}"
-                   TextWrapping="Wrap"
-                   FontFamily="Consolas"
-                   FontSize="12"
-                   Foreground="#222"
-                   Margin="0,0,0,12" />
-
-        <TextBlock Grid.Row="17"
-                   Text="Thử wslpath (Windows → Unix)"
-                   FontWeight="SemiBold"
-                   Margin="0,8,0,6" />
-        <Grid Grid.Row="18"
-              Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBox Grid.Column="0"
-                     Text="{Binding WslpathProbeWindowsPath, UpdateSourceTrigger=PropertyChanged}"
-                     Padding="8"
-                     Margin="0,0,8,0"
-                     ToolTip="Đường dẫn Windows (file hoặc thư mục). Dùng Distro WSL ở trên nếu cần." />
-            <Button Grid.Column="1"
-                    Padding="12,6"
-                    MinWidth="120"
-                    VerticalAlignment="Center"
-                    Content="Chạy wslpath"
-                    Command="{Binding ProbeWslpathCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
-        </Grid>
-        <TextBlock Grid.Row="19"
-                   Text="{Binding WslpathProbeResult}"
-                   TextWrapping="Wrap"
-                   FontFamily="Consolas"
-                   FontSize="12"
-                   Foreground="#333"
-                   Margin="0,0,0,12" />
-
-        <StackPanel Grid.Row="20"
-                    Orientation="Horizontal"
-                    Margin="0,0,0,12">
+                    Margin="0,4,0,14"
+                    HorizontalAlignment="Stretch">
             <Button Content="Lưu"
                     Padding="16,6"
                     MinWidth="100"
                     Margin="0,0,8,0"
                     Command="{Binding SaveCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
-            <Button Content="Khởi động service WSL"
+            <Button Content="Build service WSL"
+                    Padding="16,6"
+                    MinWidth="158"
+                    Margin="0,0,8,0"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Command="{Binding BuildWslServiceManualCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
+                    ToolTip="Chạy bash scripts/build-server.sh trong thư mục wsl-docker-service (go mod tidy + go build). Output stdout/stderr ghi trong nhật ký ứng dụng." />
+            <Button Content="Start service WSL"
                     Padding="16,6"
                     MinWidth="168"
                     Margin="0,0,8,0"
                     Command="{Binding StartWslServiceManualCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
-                    ToolTip="Áp dụng địa chỉ trong ô cho kết nối, gọi wsl bash -lc scripts/run-server.sh (PATH có go), rồi chờ /api/health tối đa khoảng 90 giây." />
+                    IsEnabled="{Binding CanStartWslServiceButton}"
+                    ToolTip="Áp dụng địa chỉ trong ô cho kết nối, gọi wsl bash -lc scripts/run-server.sh (PATH có go), rồi chờ /api/health theo giá trị tab Chờ và health." />
+            <Button Content="Dừng service WSL"
+                    Padding="16,6"
+                    MinWidth="152"
+                    Margin="0,0,8,0"
+                    Command="{Binding StopWslServiceManualCommand}"
+                    IsEnabled="{Binding CanStopWslServiceButton}"
+                    ToolTip="Gọi bash scripts/stop-server.sh trong thư mục wsl-docker-service (pkill tiến trình docklite-wsl)." />
+            <Button Content="Restart service WSL"
+                    Padding="16,6"
+                    MinWidth="168"
+                    Margin="0,0,8,0"
+                    Command="{Binding RestartWslServiceManualCommand}"
+                    IsEnabled="{Binding CanRestartWslServiceButton}"
+                    ToolTip="Gọi bash scripts/restart-server.sh (dừng rồi chạy lại run-server), rồi chờ /api/health theo giá trị tab Chờ và health." />
             <Button Content="Kiểm tra kết nối"
                     Padding="16,6"
                     MinWidth="140"
@@ -199,11 +307,13 @@
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
         </StackPanel>
 
-        <Border Grid.Row="21"
-                BorderBrush="#DDD"
+        <Border Grid.Row="3"
+                Margin="4,0,8,0"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
                 BorderThickness="1"
-                Padding="12"
-                CornerRadius="4"
+                Padding="16"
+                CornerRadius="10"
                 VerticalAlignment="Top">
             <TextBlock Text="{Binding StatusMessage}"
                        TextWrapping="Wrap" />

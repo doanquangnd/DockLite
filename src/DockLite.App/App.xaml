@@ -4,7 +4,11 @@
              xmlns:converters="clr-namespace:DockLite.App.Converters"
              >
     <Application.Resources>
-        <ResourceDictionary>
+        <ResourceDictionary xmlns:sys="clr-namespace:System.Windows.Controls;assembly=PresentationFramework">
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/DockLite.App;component/Themes/ModernTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <sys:BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <converters:InvertBooleanConverter x:Key="InvertBooleanConverter" />
         </ResourceDictionary>
     </Application.Resources>

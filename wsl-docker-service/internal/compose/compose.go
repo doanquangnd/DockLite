@@ -121,13 +121,37 @@ func saveProjects(items []Project) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+// uncWslNetworkToUnixPath chuyển UNC \\wsl.localhost\<distro>\... hoặc \\wsl$\<distro>\... (đã đổi \ thành /)
+// sang đường tuyệt đối trong filesystem Linux của distro (ví dụ /home/user/proj).
+func uncWslNetworkToUnixPath(p string) (string, bool) {
+	parts := strings.Split(p, "/")
+	var segs []string
+	for _, s := range parts {
+		if s != "" {
+			segs = append(segs, s)
+		}
+	}
+	if len(segs) < 3 {
+		return "", false
+	}
+	first := strings.ToLower(segs[0])
+	if first == "wsl.localhost" || first == "wsl$" {
+		return "/" + strings.Join(segs[2:], "/"), true
+	}
+	return "", false
+}
+
 // ToWslPath chuyển đường dẫn Windows hoặc WSL sang dạng WSL.
 func ToWslPath(p string) (string, error) {
 	p = strings.TrimSpace(p)
+	p = strings.TrimPrefix(p, "\ufeff")
 	if p == "" {
 		return "", fmt.Errorf("đường dẫn trống")
 	}
 	p = strings.ReplaceAll(p, "\\", "/")
+	if u, ok := uncWslNetworkToUnixPath(p); ok {
+		return u, nil
+	}
 	if strings.HasPrefix(p, "/mnt/") {
 		return p, nil
 	}

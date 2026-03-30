@@ -7,101 +7,183 @@
         xmlns:views="clr-namespace:DockLite.App.Views"
         mc:Ignorable="d"
         Title="DockLite"
-        Height="640"
-        Width="960"
-        MinHeight="480"
-        MinWidth="720">
+        Height="680"
+        Width="1024"
+        MinHeight="520"
+        MinWidth="760"
+        Background="{StaticResource WindowBackgroundBrush}"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
+        FontFamily="Segoe UI Variable, Segoe UI">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="248" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0"
-                Background="#F3F3F3"
-                BorderBrush="#DDD"
+        <!-- Header chung: trạng thái service WSL (góc phải) -->
+        <Border Grid.Row="0"
+                Grid.ColumnSpan="2"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="20,10,24,10">
+            <Grid>
+                <StackPanel HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                    <Button Margin="0,0,6,0"
+                            Padding="10,6"
+                            MinWidth="72"
+                            VerticalAlignment="Center"
+                            Content="Start"
+                            Command="{Binding HeaderStartWslServiceCommand}"
+                            IsEnabled="{Binding CanHeaderStartWslService}"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            ToolTip="Khởi động service Go trong WSL (run-server.sh); thời gian chờ /api/health theo Cài đặt — tab Chờ và health." />
+                    <Button Margin="0,0,6,0"
+                            Padding="10,6"
+                            MinWidth="72"
+                            VerticalAlignment="Center"
+                            Content="Dừng"
+                            Command="{Binding HeaderStopWslServiceCommand}"
+                            IsEnabled="{Binding CanHeaderStopWslService}"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            ToolTip="Dừng tiến trình docklite-wsl (scripts/stop-server.sh)." />
+                    <Button Margin="0,0,12,0"
+                            Padding="10,6"
+                            MinWidth="84"
+                            VerticalAlignment="Center"
+                            Content="Restart"
+                            Command="{Binding HeaderRestartWslServiceCommand}"
+                            IsEnabled="{Binding CanHeaderRestartWslService}"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            ToolTip="Restart service (scripts/restart-server.sh); thời gian chờ /api/health theo Cài đặt — tab Chờ và health." />
+                    <Button Margin="0,0,16,0"
+                            Padding="12,6"
+                            VerticalAlignment="Center"
+                            Content="Trợ giúp"
+                            Command="{Binding ShowHelpCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            ToolTip="Mô tả chức năng và hướng dẫn cho màn hình đang mở" />
+                        <StackPanel HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="#64748B"
+                                Text="Trạng thái service (WSL): " />
+                            <TextBlock Margin="0,0,12,0"
+                                    FontSize="13"
+                                    Foreground="#334155"
+                                    Text="{Binding ServiceHeaderPrimaryText}"
+                                    TextAlignment="Right"
+                                    TextWrapping="Wrap" />
+                            <TextBlock Margin="0,4,0,0"
+                                    FontSize="12"
+                                    Foreground="#64748B"
+                                    Text="{Binding ServiceHeaderSecondaryText}"
+                                    TextAlignment="Right"
+                                    Visibility="{Binding HasServiceHeaderSecondary, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Thanh bên -->
+        <Border Grid.Row="1"
+                Grid.Column="0"
+                Background="{StaticResource SidebarBackgroundBrush}"
+                BorderBrush="#1E293B"
                 BorderThickness="0,0,1,0">
             <DockPanel LastChildFill="True">
-                <TextBlock DockPanel.Dock="Top"
-                           Text="DockLite"
-                           FontSize="18"
-                           FontWeight="SemiBold"
-                           Margin="16,20,16,12" />
-                <StackPanel Margin="8,0,8,16">
+                <StackPanel DockPanel.Dock="Top"
+                            Margin="20,28,16,20">
+                    <TextBlock Text="DockLite"
+                               FontSize="22"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource NavForegroundBrush}" />
+                    <TextBlock Margin="0,6,0,0"
+                               FontSize="12.5"
+                               Foreground="{StaticResource NavLabelMutedBrush}"
+                               Text="Quản lý Docker qua WSL"
+                               TextWrapping="Wrap" />
+                    <Border Height="1"
+                            Margin="0,18,0,0"
+                            Background="#334155"
+                            Opacity="0.9" />
+                </StackPanel>
+                <StackPanel Margin="10,0,12,20">
                     <Button Content="Tổng quan"
-                            Margin="0,4"
-                            Padding="12,8"
-                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource NavRailButtonStyle}"
                             Command="{Binding NavigateDashboardCommand}" />
                     <Button Content="Container"
-                            Margin="0,4"
-                            Padding="12,8"
-                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource NavRailButtonStyle}"
                             Command="{Binding NavigateContainersCommand}" />
                     <Button Content="Log"
-                            Margin="0,4"
-                            Padding="12,8"
-                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource NavRailButtonStyle}"
                             Command="{Binding NavigateLogsCommand}" />
                     <Button Content="Compose"
-                            Margin="0,4"
-                            Padding="12,8"
-                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource NavRailButtonStyle}"
                             Command="{Binding NavigateComposeCommand}" />
                     <Button Content="Image"
-                            Margin="0,4"
-                            Padding="12,8"
-                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource NavRailButtonStyle}"
                             Command="{Binding NavigateImagesCommand}" />
                     <Button Content="Dọn dẹp"
-                            Margin="0,4"
-                            Padding="12,8"
-                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource NavRailButtonStyle}"
                             Command="{Binding NavigateCleanupCommand}" />
                     <Button Content="Nhật ký ứng dụng"
-                            Margin="0,4"
-                            Padding="12,8"
-                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource NavRailButtonStyle}"
                             Command="{Binding NavigateAppDebugLogCommand}" />
                     <Button Content="Cài đặt"
-                            Margin="0,4"
-                            Padding="12,8"
-                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource NavRailButtonStyle}"
                             Command="{Binding NavigateSettingsCommand}" />
                 </StackPanel>
             </DockPanel>
         </Border>
 
-        <ContentControl Grid.Column="1"
-                        Margin="20"
-                        Content="{Binding CurrentPage}">
-            <ContentControl.Resources>
-                <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
-                    <views:DashboardView />
-                </DataTemplate>
+        <!-- Vùng nội dung -->
+        <Border Grid.Row="1"
+                Grid.Column="1"
+                Background="{StaticResource ContentBackgroundBrush}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          CanContentScroll="False"
+                          Padding="28,24,32,28">
+                <ContentControl Content="{Binding CurrentPage}">
+                    <ContentControl.Resources>
+                        <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
+                            <views:DashboardView />
+                        </DataTemplate>
 
-                <DataTemplate DataType="{x:Type vm:ContainersViewModel}">
-                    <views:ContainersView />
-                </DataTemplate>
-                <DataTemplate DataType="{x:Type vm:LogsViewModel}">
-                    <views:LogsView />
-                </DataTemplate>
-                <DataTemplate DataType="{x:Type vm:ComposeViewModel}">
-                    <views:ComposeView />
-                </DataTemplate>
-                <DataTemplate DataType="{x:Type vm:ImagesViewModel}">
-                    <views:ImagesView />
-                </DataTemplate>
-                <DataTemplate DataType="{x:Type vm:CleanupViewModel}">
-                    <views:CleanupView />
-                </DataTemplate>
-                <DataTemplate DataType="{x:Type vm:AppDebugLogViewModel}">
-                    <views:AppDebugLogView />
-                </DataTemplate>
-                <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
-                    <views:SettingsView />
-                </DataTemplate>
-            </ContentControl.Resources>
-        </ContentControl>
+                        <DataTemplate DataType="{x:Type vm:ContainersViewModel}">
+                            <views:ContainersView />
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:LogsViewModel}">
+                            <views:LogsView />
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:ComposeViewModel}">
+                            <views:ComposeView />
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:ImagesViewModel}">
+                            <views:ImagesView />
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:CleanupViewModel}">
+                            <views:CleanupView />
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:AppDebugLogViewModel}">
+                            <views:AppDebugLogView />
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+                            <views:SettingsView />
+                        </DataTemplate>
+                    </ContentControl.Resources>
+                </ContentControl>
+            </ScrollViewer>
+        </Border>
     </Grid>
 </Window>

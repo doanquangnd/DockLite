@@ -9,53 +9,59 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
                    Text="Tổng quan"
-                   FontSize="20"
+                   FontSize="22"
                    FontWeight="SemiBold"
-                   Margin="0,0,0,12" />
+                   Foreground="#0F172A"
+                   Margin="0,0,0,16" />
 
-        <ScrollViewer Grid.Row="1"
-                      VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-                <TextBlock Text="Service WSL"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,6" />
-                <Border BorderBrush="#DDD"
-                        BorderThickness="1"
-                        Padding="12"
-                        CornerRadius="4"
-                        Margin="0,0,0,16">
-                    <TextBlock Text="{Binding ServiceHealthText}"
-                               TextWrapping="Wrap" />
-                </Border>
+        <StackPanel Grid.Row="1">
+            <TextBlock Text="Service WSL"
+                       FontWeight="SemiBold"
+                       Foreground="#334155"
+                       Margin="0,0,0,8" />
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1"
+                    Padding="16"
+                    CornerRadius="10"
+                    Margin="0,0,0,20">
+                <TextBlock Text="{Binding ServiceHealthText}"
+                           TextWrapping="Wrap"
+                           Foreground="#1E293B"
+                           LineHeight="22" />
+            </Border>
 
-                <TextBlock Text="Docker Engine"
-                           FontWeight="SemiBold"
-                           Margin="0,0,0,6" />
-                <Border BorderBrush="#DDD"
-                        BorderThickness="1"
-                        Padding="12"
-                        CornerRadius="4">
-                    <TextBlock Text="{Binding DockerInfoText}"
-                               TextWrapping="Wrap"
-                               Foreground="#333"
-                               FontFamily="Consolas" />
-                </Border>
-            </StackPanel>
-        </ScrollViewer>
+            <TextBlock Text="Docker Engine"
+                       FontWeight="SemiBold"
+                       Foreground="#334155"
+                       Margin="0,0,0,8" />
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="1"
+                    Padding="16"
+                    CornerRadius="10">
+                <TextBlock Text="{Binding DockerInfoText}"
+                           TextWrapping="Wrap"
+                           Foreground="#334155"
+                           FontFamily="Cascadia Mono, Consolas"
+                           FontSize="12.5"
+                           LineHeight="20" />
+            </Border>
+        </StackPanel>
 
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
-                    Margin="0,12,0,0">
+                    Margin="0,20,0,0">
             <Button Content="Làm mới"
-                    Padding="16,6"
-                    MinWidth="120"
+                    Padding="18,8"
+                    MinWidth="128"
                     Command="{Binding RefreshCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
         </StackPanel>
