@@ -6,12 +6,12 @@
         xmlns:vm="clr-namespace:DockLite.App.ViewModels"
         xmlns:views="clr-namespace:DockLite.App.Views"
         mc:Ignorable="d"
-        Title="DockLite"
+        Title="{DynamicResource Ui_MainWindow_Title}"
         Height="680"
         Width="1024"
         MinHeight="520"
         MinWidth="760"
-        Background="{StaticResource WindowBackgroundBrush}"
+        Background="{DynamicResource WindowBackgroundBrush}"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
         FontFamily="Segoe UI Variable, Segoe UI">
@@ -21,126 +21,144 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="248" />
+            <ColumnDefinition Width="260" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <!-- Header chung: trạng thái service WSL (góc phải) -->
         <Border Grid.Row="0"
                 Grid.ColumnSpan="2"
-                Background="{StaticResource SidebarBackgroundBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}"
+                Background="{DynamicResource WindowBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="20,10,24,10">
+                Padding="22,12,26,12"
+                Effect="{DynamicResource DockLiteSubtleHeaderShadow}">
             <Grid>
-                <StackPanel HorizontalAlignment="Right"
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0"
+                            HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             Orientation="Horizontal">
                     <Button Margin="0,0,6,0"
                             Padding="10,6"
                             MinWidth="72"
                             VerticalAlignment="Center"
-                            Content="Start"
+                            Content="{DynamicResource Ui_Header_Start}"
                             Command="{Binding HeaderStartWslServiceCommand}"
                             IsEnabled="{Binding CanHeaderStartWslService}"
                             Style="{StaticResource SecondaryButtonStyle}"
-                            ToolTip="Khởi động service Go trong WSL (run-server.sh); thời gian chờ /api/health theo Cài đặt — tab Chờ và health." />
+                            ToolTip="{DynamicResource Ui_Tooltip_Header_Start}" />
                     <Button Margin="0,0,6,0"
                             Padding="10,6"
                             MinWidth="72"
                             VerticalAlignment="Center"
-                            Content="Dừng"
+                            Content="{DynamicResource Ui_Header_Stop}"
                             Command="{Binding HeaderStopWslServiceCommand}"
                             IsEnabled="{Binding CanHeaderStopWslService}"
                             Style="{StaticResource SecondaryButtonStyle}"
-                            ToolTip="Dừng tiến trình docklite-wsl (scripts/stop-server.sh)." />
+                            ToolTip="{DynamicResource Ui_Tooltip_Header_Stop}" />
                     <Button Margin="0,0,12,0"
                             Padding="10,6"
                             MinWidth="84"
                             VerticalAlignment="Center"
-                            Content="Restart"
+                            Content="{DynamicResource Ui_Header_Restart}"
                             Command="{Binding HeaderRestartWslServiceCommand}"
                             IsEnabled="{Binding CanHeaderRestartWslService}"
                             Style="{StaticResource SecondaryButtonStyle}"
-                            ToolTip="Restart service (scripts/restart-server.sh); thời gian chờ /api/health theo Cài đặt — tab Chờ và health." />
+                            ToolTip="{DynamicResource Ui_Tooltip_Header_Restart}" />
                     <Button Margin="0,0,16,0"
                             Padding="12,6"
                             VerticalAlignment="Center"
-                            Content="Trợ giúp"
+                            Content="{DynamicResource Ui_Header_Help}"
                             Command="{Binding ShowHelpCommand}"
                             Style="{StaticResource SecondaryButtonStyle}"
-                            ToolTip="Mô tả chức năng và hướng dẫn cho màn hình đang mở" />
+                            ToolTip="{DynamicResource Ui_Tooltip_Header_Help}" />
                         <StackPanel HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             Orientation="Horizontal">
                             <TextBlock
                                 FontSize="12"
-                                Foreground="#64748B"
-                                Text="Trạng thái service (WSL): " />
+                                Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                Text="{DynamicResource Ui_Header_StatusPrefix}" />
                             <TextBlock Margin="0,0,12,0"
                                     FontSize="13"
-                                    Foreground="#334155"
+                                    Foreground="{DynamicResource ThemeBodyTextBrush}"
                                     Text="{Binding ServiceHeaderPrimaryText}"
                                     TextAlignment="Right"
                                     TextWrapping="Wrap" />
                             <TextBlock Margin="0,4,0,0"
                                     FontSize="12"
-                                    Foreground="#64748B"
+                                    Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                     Text="{Binding ServiceHeaderSecondaryText}"
                                     TextAlignment="Right"
                                     Visibility="{Binding HasServiceHeaderSecondary, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </StackPanel>
                 </StackPanel>
+                <ProgressBar Grid.Row="1"
+                             Width="280"
+                             Height="5"
+                             Margin="0,8,0,0"
+                             HorizontalAlignment="Right"
+                             Maximum="100"
+                             Value="{Binding WslStartupProgressBarValue}"
+                             IsIndeterminate="{Binding WslStartupProgressBarIndeterminate}"
+                             Visibility="{Binding WslStartupProgressBarVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
             </Grid>
         </Border>
 
         <!-- Thanh bên -->
         <Border Grid.Row="1"
                 Grid.Column="0"
-                Background="{StaticResource SidebarBackgroundBrush}"
-                BorderBrush="#1E293B"
+                Background="{DynamicResource SidebarBackgroundBrush}"
+                BorderBrush="{DynamicResource SidebarEdgeBorderBrush}"
                 BorderThickness="0,0,1,0">
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Top"
-                            Margin="20,28,16,20">
-                    <TextBlock Text="DockLite"
+                            Margin="22,30,18,20">
+                    <TextBlock Text="{DynamicResource Ui_Sidebar_Title}"
                                FontSize="22"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource NavForegroundBrush}" />
                     <TextBlock Margin="0,6,0,0"
                                FontSize="12.5"
                                Foreground="{StaticResource NavLabelMutedBrush}"
-                               Text="Quản lý Docker qua WSL"
+                               Text="{DynamicResource Ui_Sidebar_Subtitle}"
                                TextWrapping="Wrap" />
                     <Border Height="1"
                             Margin="0,18,0,0"
-                            Background="#334155"
+                            Background="{DynamicResource SidebarDividerBrush}"
                             Opacity="0.9" />
                 </StackPanel>
-                <StackPanel Margin="10,0,12,20">
-                    <Button Content="Tổng quan"
-                            Style="{StaticResource NavRailButtonStyle}"
+                <StackPanel Margin="12,0,14,22">
+                    <Button Content="{DynamicResource Ui_Nav_Dashboard}"
+                            Style="{StaticResource NavShellDashboardStyle}"
                             Command="{Binding NavigateDashboardCommand}" />
-                    <Button Content="Container"
-                            Style="{StaticResource NavRailButtonStyle}"
+                    <Button Content="{DynamicResource Ui_Nav_Containers}"
+                            Style="{StaticResource NavShellContainersStyle}"
                             Command="{Binding NavigateContainersCommand}" />
-                    <Button Content="Log"
-                            Style="{StaticResource NavRailButtonStyle}"
+                    <Button Content="{DynamicResource Ui_Nav_Logs}"
+                            Style="{StaticResource NavShellLogsStyle}"
                             Command="{Binding NavigateLogsCommand}" />
-                    <Button Content="Compose"
-                            Style="{StaticResource NavRailButtonStyle}"
+                    <Button Content="{DynamicResource Ui_Nav_Compose}"
+                            Style="{StaticResource NavShellComposeStyle}"
                             Command="{Binding NavigateComposeCommand}" />
-                    <Button Content="Image"
-                            Style="{StaticResource NavRailButtonStyle}"
+                    <Button Content="{DynamicResource Ui_Nav_Images}"
+                            Style="{StaticResource NavShellImagesStyle}"
                             Command="{Binding NavigateImagesCommand}" />
-                    <Button Content="Dọn dẹp"
-                            Style="{StaticResource NavRailButtonStyle}"
+                    <Button Content="{DynamicResource Ui_Nav_NetworkVolume}"
+                            Style="{StaticResource NavShellNetworkVolumeStyle}"
+                            Command="{Binding NavigateNetworkVolumeCommand}" />
+                    <Button Content="{DynamicResource Ui_Nav_Cleanup}"
+                            Style="{StaticResource NavShellCleanupStyle}"
                             Command="{Binding NavigateCleanupCommand}" />
-                    <Button Content="Nhật ký ứng dụng"
-                            Style="{StaticResource NavRailButtonStyle}"
+                    <Button Content="{DynamicResource Ui_Nav_AppLog}"
+                            Style="{StaticResource NavShellAppLogStyle}"
                             Command="{Binding NavigateAppDebugLogCommand}" />
-                    <Button Content="Cài đặt"
-                            Style="{StaticResource NavRailButtonStyle}"
+                    <Button Content="{DynamicResource Ui_Nav_Settings}"
+                            Style="{StaticResource NavShellSettingsStyle}"
                             Command="{Binding NavigateSettingsCommand}" />
                 </StackPanel>
             </DockPanel>
@@ -149,11 +167,14 @@
         <!-- Vùng nội dung -->
         <Border Grid.Row="1"
                 Grid.Column="1"
-                Background="{StaticResource ContentBackgroundBrush}">
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                Background="{DynamicResource ContentBackgroundBrush}">
+            <ScrollViewer x:Name="MainContentScrollViewer"
+                          VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           CanContentScroll="False"
-                          Padding="28,24,32,28">
+                          PanningMode="VerticalOnly"
+                          IsDeferredScrollingEnabled="True"
+                          Padding="32,28,36,32">
                 <ContentControl Content="{Binding CurrentPage}">
                     <ContentControl.Resources>
                         <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
@@ -172,6 +193,9 @@
                         <DataTemplate DataType="{x:Type vm:ImagesViewModel}">
                             <views:ImagesView />
                         </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:NetworkVolumeViewModel}">
+                            <views:NetworkVolumeView />
+                        </DataTemplate>
                         <DataTemplate DataType="{x:Type vm:CleanupViewModel}">
                             <views:CleanupView />
                         </DataTemplate>
@@ -185,5 +209,20 @@
                 </ContentControl>
             </ScrollViewer>
         </Border>
+
+        <!-- Toast: luôn trong client area, theo cửa sổ (đa màn hình / thu nhỏ) -->
+        <Grid Grid.Row="0"
+              Grid.RowSpan="2"
+              Grid.Column="0"
+              Grid.ColumnSpan="2"
+              Panel.ZIndex="4000"
+              IsHitTestVisible="False">
+            <StackPanel x:Name="ToastStackPanel"
+                        VerticalAlignment="Bottom"
+                        HorizontalAlignment="Right"
+                        Margin="0,0,20,20"
+                        MaxWidth="520"
+                        IsHitTestVisible="True" />
+        </Grid>
     </Grid>
 </Window>

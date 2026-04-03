@@ -73,12 +73,19 @@ public partial class CleanupViewModel : ObservableObject
         if (!res.Success)
         {
             CommandOutput = res.Error?.Details ?? string.Empty;
-            StatusMessage = $"{label}: {res.Error?.Message ?? "lỗi"}";
+            StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                "Ui_Status_Common_LabelColonMessageFormat",
+                "{0}: {1}",
+                label,
+                res.Error?.Message ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorGeneric", "lỗi"));
             return;
         }
 
         CommandOutput = res.Data?.Output ?? string.Empty;
-        StatusMessage = $"{label}: hoàn tất.";
+        StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Status_Common_LabelDoneFormat",
+            "{0}: hoàn tất.",
+            label);
     }
 
     [RelayCommand]

@@ -15,26 +15,26 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="Cài đặt"
+                   Text="{DynamicResource Ui_Settings_PageTitle}"
                    FontSize="22"
                    FontWeight="SemiBold"
-                   Foreground="#0F172A"
+                   Foreground="{DynamicResource ThemePageTitleBrush}"
                    Margin="0,0,0,16" />
 
         <Border Grid.Row="1"
                 Margin="0,0,0,12"
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="1"
                 CornerRadius="12"
                 Padding="1">
             <TabControl Style="{StaticResource SettingsTabControlStyle}"
                         ItemContainerStyle="{StaticResource SettingsTabItemStyle}"
                         Padding="10,10,10,0">
-            <TabItem Header="Kết nối">
-                <ScrollViewer Style="{StaticResource SettingsTabScrollViewerStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Địa chỉ base URL service (WSL)"
+            <TabItem Header="{DynamicResource Ui_Settings_Tab_Connection}">
+                <StackPanel Margin="24,22,26,26"
+                            TextElement.Foreground="{DynamicResource ThemeControlForegroundBrush}">
+                        <TextBlock Text="{DynamicResource Ui_Settings_Conn_BaseUrlLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <Grid Margin="0,0,0,12">
@@ -46,108 +46,112 @@
                                      Text="{Binding ServiceBaseUrl, UpdateSourceTrigger=PropertyChanged}"
                                      Padding="8"
                                      Margin="0,0,8,0"
-                                     ToolTip="Mặc định http://127.0.0.1:17890/. Nếu Windows không kết nối được dù service đã chạy trong WSL, dùng nút bên phải để điền IP WSL." />
+                                     ToolTip="{DynamicResource Ui_Settings_Conn_BaseUrlTooltip}" />
                             <Button Grid.Column="1"
                                     Padding="12,6"
                                     MinWidth="120"
                                     VerticalAlignment="Center"
-                                    Content="Điền IP WSL"
+                                    Content="{DynamicResource Ui_Settings_Conn_ApplyWslIp}"
                                     Command="{Binding ApplyWslIpCommand}"
                                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
                         </Grid>
                         <TextBlock Margin="0,0,0,10"
                                    TextWrapping="Wrap"
-                                   Foreground="#B45309"
+                                   Foreground="{DynamicResource ThemeWarningForegroundBrush}"
                                    FontSize="12"
                                    Text="{Binding ServiceBaseUrlSecurityHint}" />
-                        <TextBlock Text="Timeout HTTP (giây, 30–600)"
+                        <TextBlock Margin="0,0,0,10"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   FontSize="12"
+                                   Text="{Binding ServiceBaseUrlPortHint}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Conn_TimeoutLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding HttpTimeoutSecondsText, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,8"
-                                 ToolTip="Áp dụng cho mọi lệnh gọi REST (compose, prune có thể chạy lâu)." />
+                                 ToolTip="{DynamicResource Ui_Settings_Conn_TimeoutTooltip}" />
                         <TextBlock TextWrapping="Wrap"
-                                   Foreground="#64748B"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                    FontSize="12"
-                                   Text="Kiểm tra kết nối đầy đủ (health + Docker) dùng nút ở hàng dưới cùng." />
-                    </StackPanel>
-                </ScrollViewer>
+                                   Text="{DynamicResource Ui_Settings_Conn_CheckHint}" />
+                </StackPanel>
             </TabItem>
 
-            <TabItem Header="WSL và service">
-                <ScrollViewer Style="{StaticResource SettingsTabScrollViewerStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Tự khởi động service trong WSL"
+            <TabItem Header="{DynamicResource Ui_Settings_Tab_Wsl}">
+                <StackPanel Margin="24,22,26,26"
+                            TextElement.Foreground="{DynamicResource ThemeControlForegroundBrush}">
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_AutoStartLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <CheckBox IsChecked="{Binding AutoStartWslService, Mode=TwoWay}"
                                   Margin="0,0,0,12">
-                            <TextBlock Text="Khi mở DockLite, nếu chưa có phản hồi thì chạy wsl-docker-service (bash scripts/run-server.sh, không cần chmod +x file .sh)"
+                            <TextBlock Text="{DynamicResource Ui_Settings_Wsl_AutoStartCheck}"
                                        TextWrapping="Wrap" />
                         </CheckBox>
-                        <TextBlock Text="Thư mục wsl-docker-service trong WSL"
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_ServiceDirLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding WslDockerServiceWindowsPath, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,8"
-                                 ToolTip="Thư mục chứa scripts (run/build): UNC \\wsl.localhost\… nếu mã chỉ nằm trong WSL, hoặc C:\…\wsl-docker-service nếu clone trên ổ đĩa. Để trống: tự tìm cạnh DockLite.App.exe." />
-                        <TextBlock Text="Distro WSL (tùy chọn)"
+                                 ToolTip="{DynamicResource Ui_Settings_Wsl_ServiceDirTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_DistroLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding WslDistribution, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,12"
-                                 ToolTip="Ví dụ: Ubuntu. Để trống dùng distro mặc định của wsl.exe." />
-                        <TextBlock Text="Đồng bộ mã nguồn Go sang WSL (Linux)"
+                                 ToolTip="{DynamicResource Ui_Settings_Wsl_DistroTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_SyncTitle}"
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,6" />
                         <TextBlock TextWrapping="Wrap"
-                                   Foreground="#64748B"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                    FontSize="12"
                                    Margin="0,0,0,8"
-                                   Text="Sao chép từ ô «Nguồn trong Windows» (hoặc cùng thư mục với ô dịch vụ nếu để trống) sang «Đích trong WSL». Dùng rsync nếu có trong distro; không thì cp -a." />
-                        <TextBlock Text="Nguồn trong Windows"
+                                   Text="{DynamicResource Ui_Settings_Wsl_SyncIntro}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_SyncSourceLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding WslDockerServiceSyncSourceWindowsPath, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,8"
-                                 ToolTip="Thư mục wsl-docker-service trên ổ Windows (ví dụ C:\...\DockLite\wsl-docker-service). Để trống: dùng cùng đường dẫn với ô «Thư mục wsl-docker-service trong WSL» phía trên (sau khi quy ra wslpath)." />
-                        <TextBlock Text="Đích trong WSL (đường dẫn Unix)"
+                                 ToolTip="{DynamicResource Ui_Settings_Wsl_SyncSourceTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_SyncDestLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding WslDockerServiceLinuxSyncPath, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,8"
                                  FontFamily="Consolas"
-                                 ToolTip="Ví dụ: /home/user/wsl-docker-service — đường tuyệt đối trong Linux (không dùng C:\ hay /mnt/c/...). Điền trước khi Đồng bộ; Lưu để ghi cài đặt." />
+                                 ToolTip="{DynamicResource Ui_Settings_Wsl_SyncDestTooltip}" />
                         <CheckBox IsChecked="{Binding WslDockerServiceSyncDeleteExtra, Mode=TwoWay}"
                                   Margin="0,0,0,10">
                             <TextBlock TextWrapping="Wrap"
-                                       Text="Xóa file ở đích không còn ở nguồn (rsync --delete; chỉ khi rsync có trong WSL)" />
+                                       Text="{DynamicResource Ui_Settings_Wsl_SyncDeleteExtra}" />
                         </CheckBox>
                         <CheckBox IsChecked="{Binding WslDockerServiceSyncEnforceVersionGe, Mode=TwoWay}"
                                   Margin="0,0,0,10">
                             <TextBlock TextWrapping="Wrap"
-                                       Text="Chỉ đồng bộ khi version nguồn (file VERSION trên Windows) lớn hơn hoặc bằng version trên đích (WSL); cần file VERSION một dòng (ví dụ 0.1.0) ở thư mục nguồn" />
+                                       Text="{DynamicResource Ui_Settings_Wsl_SyncVersionEnforce}" />
                         </CheckBox>
                         <StackPanel Orientation="Horizontal"
                                     Margin="0,0,0,12">
-                            <Button Content="Đồng bộ mã nguồn vào WSL"
+                            <Button Content="{DynamicResource Ui_Settings_Wsl_SyncButton}"
                                     Padding="12,6"
                                     MinWidth="220"
                                     Command="{Binding SyncServiceSourceToWslCommand}"
                                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
-                                    ToolTip="Chạy rsync hoặc cp trong WSL từ «Nguồn trong Windows» (wslpath) tới «Đích trong WSL». Dùng ô hiện tại (không bắt buộc Lưu trước)." />
+                                    ToolTip="{DynamicResource Ui_Settings_Wsl_SyncButtonTooltip}" />
                         </StackPanel>
-                        <TextBlock Text="Thử distro (uname -a)"
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_UnameTitle}"
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,6" />
                         <StackPanel Orientation="Horizontal"
                                     Margin="0,0,0,8">
-                            <Button Content="Chạy uname -a trong distro"
+                            <Button Content="{DynamicResource Ui_Settings_Wsl_UnameButton}"
                                     Padding="12,6"
                                     MinWidth="200"
                                     VerticalAlignment="Top"
@@ -158,12 +162,12 @@
                                    TextWrapping="Wrap"
                                    FontFamily="Consolas"
                                    FontSize="12"
-                                   Foreground="#333"
+                                   Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
                                    Margin="0,0,0,12" />
-                        <TextBlock Text="Tóm tắt đường dẫn WSL hiệu dụng"
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_PathSummaryTitle}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
-                        <Button Content="Cập nhật tóm tắt"
+                        <Button Content="{DynamicResource Ui_Settings_Wsl_PathSummaryRefresh}"
                                 Padding="12,6"
                                 HorizontalAlignment="Left"
                                 MinWidth="160"
@@ -174,9 +178,39 @@
                                    TextWrapping="Wrap"
                                    FontFamily="Consolas"
                                    FontSize="12"
-                                   Foreground="#222"
+                                   Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
                                    Margin="0,0,0,12" />
-                        <TextBlock Text="Thử wslpath (Windows → Unix)"
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_QuickDiagTitle}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,6" />
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   FontSize="12"
+                                   Margin="0,0,0,8"
+                                   Text="{DynamicResource Ui_Settings_Wsl_QuickDiagIntro}" />
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,8">
+                            <Button Content="{DynamicResource Ui_Settings_Wsl_QuickDiagButton}"
+                                    Padding="12,6"
+                                    MinWidth="200"
+                                    VerticalAlignment="Top"
+                                    Command="{Binding QuickWslDiagnosticsCommand}"
+                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
+                                    ToolTip="{DynamicResource Ui_Settings_Wsl_QuickDiagTooltip}" />
+                        </StackPanel>
+                        <TextBox Text="{Binding WslQuickDiagnosticsText}"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 MinHeight="120"
+                                 MaxHeight="280"
+                                 Padding="8"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
+                                 Margin="0,0,0,12" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_WslpathTitle}"
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,6" />
                         <Grid Margin="0,0,0,8">
@@ -188,12 +222,12 @@
                                      Text="{Binding WslpathProbeWindowsPath, UpdateSourceTrigger=PropertyChanged}"
                                      Padding="8"
                                      Margin="0,0,8,0"
-                                     ToolTip="Đường dẫn Windows (file hoặc thư mục). Dùng Distro WSL ở trên nếu cần." />
+                                     ToolTip="{DynamicResource Ui_Settings_Wsl_WslpathTooltip}" />
                             <Button Grid.Column="1"
                                     Padding="12,6"
                                     MinWidth="120"
                                     VerticalAlignment="Center"
-                                    Content="Chạy wslpath"
+                                    Content="{DynamicResource Ui_Settings_Wsl_WslpathRunButton}"
                                     Command="{Binding ProbeWslpathCommand}"
                                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
                         </Grid>
@@ -201,20 +235,39 @@
                                    TextWrapping="Wrap"
                                    FontFamily="Consolas"
                                    FontSize="12"
-                                   Foreground="#333"
+                                   Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
                                    Margin="0,0,0,8" />
                         <TextBlock TextWrapping="Wrap"
-                                   Foreground="#64748B"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                    FontSize="12"
-                                   Text="Start / Dừng / Restart service và chờ health: dùng nút ở hàng dưới cùng (thời gian chờ lấy theo tab «Chờ và health»)." />
-                    </StackPanel>
-                </ScrollViewer>
+                                   Text="{DynamicResource Ui_Settings_Wsl_ServiceButtonsNote}" />
+                </StackPanel>
             </TabItem>
 
-            <TabItem Header="Hiển thị">
-                <ScrollViewer Style="{StaticResource SettingsTabScrollViewerStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Múi giờ hiển thị (ứng dụng)"
+            <TabItem Header="{DynamicResource Ui_Settings_Tab_Display}">
+                <StackPanel Margin="24,22,26,26"
+                            TextElement.Foreground="{DynamicResource ThemeControlForegroundBrush}">
+                        <TextBlock Text="{DynamicResource Ui_Settings_Display_LanguageLabel}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding UiLanguageList}"
+                                  DisplayMemberPath="Title"
+                                  SelectedItem="{Binding SelectedUiLanguageItem}"
+                                  Padding="8,6"
+                                  Margin="0,0,0,12"
+                                  MinHeight="36"
+                                  ToolTip="{DynamicResource Ui_Settings_Display_LanguageTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Display_ThemeLabel}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding UiThemeList}"
+                                  DisplayMemberPath="Title"
+                                  SelectedItem="{Binding SelectedUiThemeItem}"
+                                  Padding="8,6"
+                                  Margin="0,0,0,12"
+                                  MinHeight="36"
+                                  ToolTip="{DynamicResource Ui_Settings_Display_ThemeTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Display_TimeZoneLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <ComboBox ItemsSource="{Binding TimeZoneOptions}"
@@ -224,16 +277,16 @@
                                   Padding="8,6"
                                   Margin="0,0,0,12"
                                   MinHeight="36"
-                                  ToolTip="Chọn «Giờ máy» để dùng múi giờ Windows hiện tại." />
-                        <TextBlock Text="Định dạng ngày giờ (chuỗi .NET)"
+                                  ToolTip="{DynamicResource Ui_Settings_Display_TimeZoneTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Display_DateFormatLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding UiDateTimeFormat, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,8"
                                  FontFamily="Consolas"
-                                 ToolTip="Ví dụ: dd/MM/yyyy HH:mm:ss, G, g. Đổi sau khi Lưu mới áp dụng toàn app." />
-                        <TextBlock Text="Gợi ý nhanh"
+                                 ToolTip="{DynamicResource Ui_Settings_Display_DateFormatTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Display_PresetsLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <ItemsControl ItemsSource="{Binding DateFormatPresets}">
@@ -253,57 +306,55 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Text="Xem trước"
+                        <TextBlock Text="{DynamicResource Ui_Settings_Display_PreviewLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,8,0,6" />
                         <TextBlock Text="{Binding DateFormatPreviewText}"
                                    TextWrapping="Wrap"
                                    FontFamily="Consolas"
                                    FontSize="12"
-                                   Foreground="#334155"
+                                   Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
                                    Margin="0,0,0,8" />
-                    </StackPanel>
-                </ScrollViewer>
+                </StackPanel>
             </TabItem>
 
-            <TabItem Header="Chờ và health">
-                <ScrollViewer Style="{StaticResource SettingsTabScrollViewerStyle}">
-                    <StackPanel>
+            <TabItem Header="{DynamicResource Ui_Settings_Tab_HealthWait}">
+                <StackPanel Margin="24,22,26,26"
+                            TextElement.Foreground="{DynamicResource ThemeControlForegroundBrush}">
                         <TextBlock TextWrapping="Wrap"
-                                   Foreground="#64748B"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                    FontSize="12"
                                    Margin="0,0,0,12"
-                                   Text="Áp dụng cho lần khởi động tự động (mở app), Start/Restart thủ công và polling /api/health. Nhấn Lưu để ghi vào file cài đặt." />
-                        <TextBlock Text="Chờ health sau khi tự spawn WSL khi mở app (giây, 10–600)"
+                                   Text="{DynamicResource Ui_Settings_Health_Intro}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Health_AutoWaitLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding WslAutoStartHealthWaitSecondsText, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,12"
-                                 ToolTip="Sau khi gửi run-server.sh khi mở app, chờ tối đa bấy nhiêu giây để có /api/health." />
-                        <TextBlock Text="Chờ health khi Start / Restart thủ công (giây, 10–600)"
+                                 ToolTip="{DynamicResource Ui_Settings_Health_AutoWaitTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Health_ManualWaitLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding WslManualHealthWaitSecondsText, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,12"
-                                 ToolTip="Nút Start / Restart trên header hoặc Cài đặt: chờ health tối đa bấy nhiêu giây." />
-                        <TextBlock Text="Timeout một lần GET /api/health khi poll (giây, 1–60)"
+                                 ToolTip="{DynamicResource Ui_Settings_Health_ManualWaitTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Health_ProbeLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding HealthProbeSingleRequestSecondsText, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,12"
-                                 ToolTip="Mỗi lần thử GET /api/health trong vòng chờ dài sẽ hủy sau bấy nhiêu giây để không treo quá lâu." />
-                        <TextBlock Text="Khoảng cách giữa các lần poll health (ms, 100–5000)"
+                                 ToolTip="{DynamicResource Ui_Settings_Health_ProbeTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Health_PollLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding WslHealthPollIntervalMillisecondsText, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
                                  Margin="0,0,0,8"
-                                 ToolTip="Trong vòng chờ dài, đợi bấy nhiêu ms giữa hai lần gọi /api/health." />
-                    </StackPanel>
-                </ScrollViewer>
+                                 ToolTip="{DynamicResource Ui_Settings_Health_PollTooltip}" />
+                </StackPanel>
             </TabItem>
             </TabControl>
         </Border>
@@ -312,50 +363,50 @@
                     Orientation="Horizontal"
                     Margin="0,4,0,14"
                     HorizontalAlignment="Stretch">
-            <Button Content="Lưu"
+            <Button Content="{DynamicResource Ui_Settings_Footer_Save}"
                     Padding="16,6"
                     MinWidth="100"
                     Margin="0,0,8,0"
                     Command="{Binding SaveCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
-            <Button Content="Đồng bộ mã → WSL"
+            <Button Content="{DynamicResource Ui_Settings_Footer_SyncCode}"
                     Padding="16,6"
                     MinWidth="168"
                     Margin="0,0,8,0"
                     Style="{StaticResource SecondaryButtonStyle}"
                     Command="{Binding SyncServiceSourceToWslCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
-                    ToolTip="Sao chép từ «Nguồn trong Windows» sang «Đích trong WSL» (tab WSL và service; không bắt buộc Lưu trước)." />
-            <Button Content="Build service WSL"
+                    ToolTip="{DynamicResource Ui_Settings_Footer_SyncCodeTooltip}" />
+            <Button Content="{DynamicResource Ui_Settings_Footer_Build}"
                     Padding="16,6"
                     MinWidth="158"
                     Margin="0,0,8,0"
                     Style="{StaticResource SecondaryButtonStyle}"
                     Command="{Binding BuildWslServiceManualCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
-                    ToolTip="Chạy bash scripts/build-server.sh trong thư mục wsl-docker-service (go mod tidy + go build). Output stdout/stderr ghi trong nhật ký ứng dụng." />
-            <Button Content="Start service WSL"
+                    ToolTip="{DynamicResource Ui_Settings_Footer_BuildTooltip}" />
+            <Button Content="{DynamicResource Ui_Settings_Footer_Start}"
                     Padding="16,6"
                     MinWidth="168"
                     Margin="0,0,8,0"
                     Command="{Binding StartWslServiceManualCommand}"
                     IsEnabled="{Binding CanStartWslServiceButton}"
-                    ToolTip="Áp dụng địa chỉ trong ô cho kết nối, gọi wsl bash -lc scripts/run-server.sh (PATH có go), rồi chờ /api/health theo giá trị tab Chờ và health." />
-            <Button Content="Dừng service WSL"
+                    ToolTip="{DynamicResource Ui_Settings_Footer_StartTooltip}" />
+            <Button Content="{DynamicResource Ui_Settings_Footer_Stop}"
                     Padding="16,6"
                     MinWidth="152"
                     Margin="0,0,8,0"
                     Command="{Binding StopWslServiceManualCommand}"
                     IsEnabled="{Binding CanStopWslServiceButton}"
-                    ToolTip="Gọi bash scripts/stop-server.sh trong thư mục wsl-docker-service (pkill tiến trình docklite-wsl)." />
-            <Button Content="Restart service WSL"
+                    ToolTip="{DynamicResource Ui_Settings_Footer_StopTooltip}" />
+            <Button Content="{DynamicResource Ui_Settings_Footer_Restart}"
                     Padding="16,6"
                     MinWidth="168"
                     Margin="0,0,8,0"
                     Command="{Binding RestartWslServiceManualCommand}"
                     IsEnabled="{Binding CanRestartWslServiceButton}"
-                    ToolTip="Gọi bash scripts/restart-server.sh (dừng rồi chạy lại run-server), rồi chờ /api/health theo giá trị tab Chờ và health." />
-            <Button Content="Kiểm tra kết nối"
+                    ToolTip="{DynamicResource Ui_Settings_Footer_RestartTooltip}" />
+            <Button Content="{DynamicResource Ui_Settings_Footer_TestConnection}"
                     Padding="16,6"
                     MinWidth="140"
                     Command="{Binding TestConnectionCommand}"
@@ -364,14 +415,15 @@
 
         <Border Grid.Row="3"
                 Margin="4,0,8,0"
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="1"
                 Padding="16"
                 CornerRadius="10"
                 VerticalAlignment="Top">
             <TextBlock Text="{Binding StatusMessage}"
-                       TextWrapping="Wrap" />
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}" />
         </Border>
     </Grid>
 </UserControl>

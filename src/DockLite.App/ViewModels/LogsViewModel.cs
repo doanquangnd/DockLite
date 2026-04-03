@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -20,11 +21,25 @@ namespace DockLite.App.ViewModels;
 public partial class LogsViewModel : ObservableObject
 {
     private const int MaxBufferedLines = 5000;
-    private static readonly TimeSpan FollowFlushInterval = TimeSpan.FromMilliseconds(150);
+
+    /// <summary>
+    /// Tìm trong ô lọc: với dòng dài hơn ngưỡng chỉ quét tiền tố (tránh Contains trên chuỗi hàng MB).
+    /// </summary>
+    private const int MaxLogLineSearchChars = 65536;
+
+    private const int FollowFlushIntervalMsDefault = 150;
+    private const int FollowFlushIntervalMsMedium = 280;
+    private const int FollowFlushIntervalMsSlow = 450;
+
+    /// <summary>
+    /// Giới hạn thời gian chờ khi tải danh sách container (tránh chờ trùng với timeout HTTP dài trong Cài đặt khi service không phản hồi).
+    /// </summary>
+    private static readonly TimeSpan _listRequestTimeout = TimeSpan.FromSeconds(30);
 
     private readonly IDockLiteApiClient _apiClient;
     private readonly ILogStreamClient _logStream;
     private readonly IAppShutdownToken _shutdownToken;
+    private readonly AppShellActivityState _shellActivity;
     private readonly Dispatcher _dispatcher;
     private readonly List<LogLineViewModel> _buffer = new();
     private readonly StringBuilder _streamPending = new();
@@ -33,12 +48,59 @@ public partial class LogsViewModel : ObservableObject
     private DispatcherTimer? _followFlushTimer;
     private CancellationTokenSource? _followCts;
 
-    public LogsViewModel(IDockLiteApiClient apiClient, ILogStreamClient logStream, IAppShutdownToken shutdownToken)
+    public LogsViewModel(
+        IDockLiteApiClient apiClient,
+        ILogStreamClient logStream,
+        IAppShutdownToken shutdownToken,
+        AppShellActivityState shellActivity)
     {
         _apiClient = apiClient;
         _logStream = logStream;
         _shutdownToken = shutdownToken;
+        _shellActivity = shellActivity;
         _dispatcher = Application.Current.Dispatcher;
+        _shellActivity.Changed += OnShellActivityChangedForLogs;
+    }
+
+    private void OnShellActivityChangedForLogs(object? sender, EventArgs e)
+    {
+        SyncFollowFlushTimerWithShellActivity();
+    }
+
+    /// <summary>
+    /// Khởi động lại timer flush khi đang follow và điều kiện tab/cửa sổ cho phép; tạm dừng timer khi không (chunk vẫn tích lũy trong bộ đệm).
+    /// </summary>
+    private void SyncFollowFlushTimerWithShellActivity()
+    {
+        if (!IsFollowing)
+        {
+            return;
+        }
+
+        if (_shellActivity.ShouldProcessLogsFollowFlush)
+        {
+            if (_followFlushTimer is null)
+            {
+                StartFollowFlushTimer();
+            }
+        }
+        else
+        {
+            StopFollowFlushTimer();
+        }
+    }
+
+    private void StartFollowFlushTimer()
+    {
+        StopFollowFlushTimer();
+        if (!_shellActivity.ShouldProcessLogsFollowFlush)
+        {
+            return;
+        }
+
+        _followFlushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(FollowFlushIntervalMsDefault) };
+        _followFlushTimer.Tick += OnFollowFlushTick;
+        _followFlushTimer.Start();
     }
 
     public ObservableCollection<ContainerSummaryDto> ContainerOptions { get; } = new();
@@ -83,14 +145,20 @@ public partial class LogsViewModel : ObservableObject
     private async Task LoadContainersAsync()
     {
         IsBusy = true;
-        StatusMessage = string.Empty;
+        StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Logs_Status_LoadingContainers",
+            "Đang tải danh sách container...");
         try
         {
-            ApiResult<ContainerListData> list = await _apiClient.GetContainersAsync(_shutdownToken.Token).ConfigureAwait(true);
+            using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken.Token);
+            requestCts.CancelAfter(_listRequestTimeout);
+
+            ApiResult<ContainerListData> list = await _apiClient.GetContainersAsync(requestCts.Token).ConfigureAwait(true);
             ContainerOptions.Clear();
             if (!list.Success)
             {
-                StatusMessage = list.Error?.Message ?? "Không đọc được danh sách.";
+                StatusMessage = list.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ListLoadFailed", "Không đọc được danh sách.");
             }
             else if (list.Data?.Items is not null)
             {
@@ -99,12 +167,29 @@ public partial class LogsViewModel : ObservableObject
                     ContainerOptions.Add(c);
                 }
 
-                StatusMessage = $"Đã tải {ContainerOptions.Count} container.";
+                StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_Status_Common_LoadedContainersCountFormat",
+                    "Đã tải {0} container.",
+                    ContainerOptions.Count);
             }
             else
             {
-                StatusMessage = $"Đã tải {ContainerOptions.Count} container.";
+                StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_Status_Common_LoadedContainersCountFormat",
+                    "Đã tải {0} container.",
+                    ContainerOptions.Count);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            if (_shutdownToken.Token.IsCancellationRequested)
+            {
+                throw;
+            }
+
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Logs_Status_ListRequestTimeout",
+                "Hết thời gian chờ khi tải danh sách container. Kiểm tra service hoặc mạng.");
         }
         catch (Exception ex)
         {
@@ -121,7 +206,7 @@ public partial class LogsViewModel : ObservableObject
     {
         if (SelectedContainer is null)
         {
-            StatusMessage = "Chọn container.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Logs_Status_SelectContainer", "Chọn container.");
             return;
         }
 
@@ -135,12 +220,13 @@ public partial class LogsViewModel : ObservableObject
                 .ConfigureAwait(true);
             if (!res.Success)
             {
-                StatusMessage = res.Error?.Message ?? "Không có phản hồi.";
+                StatusMessage = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Logs_Status_NoResponse", "Không có phản hồi.");
                 return;
             }
 
             ReplaceBufferWithText(res.Data?.Content ?? string.Empty);
-            StatusMessage = "Đã tải log (tail).";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Logs_Status_TailLoaded", "Đã tải log (tail).");
         }
         catch (Exception ex)
         {
@@ -157,7 +243,7 @@ public partial class LogsViewModel : ObservableObject
     {
         if (SelectedContainer is null)
         {
-            StatusMessage = "Chọn container.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Logs_Status_SelectContainer", "Chọn container.");
             return;
         }
 
@@ -171,11 +257,11 @@ public partial class LogsViewModel : ObservableObject
         _followCts = new CancellationTokenSource();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(_followCts.Token, _shutdownToken.Token);
         CancellationToken token = linked.Token;
-        StatusMessage = "Đang theo dõi log (WebSocket)...";
+        StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Logs_Status_FollowWsProgress",
+            "Đang theo dõi log (WebSocket)...");
 
-        _followFlushTimer = new DispatcherTimer { Interval = FollowFlushInterval };
-        _followFlushTimer.Tick += OnFollowFlushTick;
-        _followFlushTimer.Start();
+        StartFollowFlushTimer();
 
         try
         {
@@ -192,21 +278,28 @@ public partial class LogsViewModel : ObservableObject
             if (!token.IsCancellationRequested)
             {
                 _ = _dispatcher.BeginInvoke(
-                    () => StatusMessage = "Luồng log đã kết thúc.",
+                    () => StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                        "Ui_Logs_Status_FollowEnded",
+                        "Luồng log đã kết thúc."),
                     DispatcherPriority.Background);
             }
         }
         catch (OperationCanceledException)
         {
             _ = _dispatcher.BeginInvoke(
-                () => StatusMessage = "Đã dừng theo dõi.",
+                () => StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Logs_Status_FollowStopped",
+                    "Đã dừng theo dõi."),
                 DispatcherPriority.Background);
         }
         catch (Exception ex)
         {
             string msg = ExceptionMessages.FormatForUser(ex);
             _ = _dispatcher.BeginInvoke(
-                () => StatusMessage = "WebSocket: " + msg,
+                () => StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_Logs_Status_WebSocketPrefixFormat",
+                    "WebSocket: {0}",
+                    msg),
                 DispatcherPriority.Background);
         }
         finally
@@ -244,11 +337,18 @@ public partial class LogsViewModel : ObservableObject
         }
 
         Lines.Clear();
-        StatusMessage = "Đã xóa nội dung hiển thị.";
+        StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Logs_Status_ClearedDisplay",
+            "Đã xóa nội dung hiển thị.");
     }
 
     private void OnFollowFlushTick(object? sender, EventArgs e)
     {
+        if (!_shellActivity.ShouldProcessLogsFollowFlush)
+        {
+            return;
+        }
+
         string batch;
         lock (_streamChunkLock)
         {
@@ -258,10 +358,73 @@ public partial class LogsViewModel : ObservableObject
 
         if (batch.Length == 0)
         {
+            long pendingAfter;
+            lock (_streamChunkLock)
+            {
+                pendingAfter = _incomingStreamChunks.Length;
+            }
+
+            if (_followFlushTimer is not null && _buffer.Count < 2200 && pendingAfter < 50_000)
+            {
+                _followFlushTimer.Interval = TimeSpan.FromMilliseconds(FollowFlushIntervalMsDefault);
+            }
+
             return;
         }
 
+        var sw = Stopwatch.StartNew();
         AppendStreamChunk(batch);
+        sw.Stop();
+        AdjustFollowFlushIntervalAfterWork(sw.ElapsedMilliseconds);
+    }
+
+    /// <summary>
+    /// Giảm tần suất flush khi bộ đệm lớn hoặc một tick xử lý lâu (heuristic thay cho đo FPS).
+    /// </summary>
+    private void AdjustFollowFlushIntervalAfterWork(long elapsedMsThisTick)
+    {
+        if (_followFlushTimer is null)
+        {
+            return;
+        }
+
+        int backlog = _buffer.Count;
+        long pendingLen;
+        lock (_streamChunkLock)
+        {
+            pendingLen = _incomingStreamChunks.Length;
+        }
+
+        int targetMs = FollowFlushIntervalMsDefault;
+        if (elapsedMsThisTick >= 75 || backlog >= 4500 || pendingLen >= 400_000)
+        {
+            targetMs = FollowFlushIntervalMsSlow;
+        }
+        else if (elapsedMsThisTick >= 35 || backlog >= 2800 || pendingLen >= 120_000)
+        {
+            targetMs = FollowFlushIntervalMsMedium;
+        }
+
+        double cur = _followFlushTimer.Interval.TotalMilliseconds;
+        if (Math.Abs(cur - targetMs) > 0.5)
+        {
+            _followFlushTimer.Interval = TimeSpan.FromMilliseconds(targetMs);
+        }
+    }
+
+    private static bool LineMatchesSearch(string line, string q)
+    {
+        if (string.IsNullOrEmpty(q))
+        {
+            return true;
+        }
+
+        if (line.Length <= MaxLogLineSearchChars)
+        {
+            return line.Contains(q, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return line.AsSpan(0, MaxLogLineSearchChars).Contains(q.AsSpan(), StringComparison.OrdinalIgnoreCase);
     }
 
     private void StopFollowFlushTimer()
@@ -350,7 +513,7 @@ public partial class LogsViewModel : ObservableObject
             return;
         }
 
-        if (vm.Text.Contains(q, StringComparison.OrdinalIgnoreCase))
+        if (LineMatchesSearch(vm.Text, q))
         {
             Lines.Add(vm);
         }
@@ -377,7 +540,7 @@ public partial class LogsViewModel : ObservableObject
         string q = SearchText.Trim();
         foreach (LogLineViewModel line in _buffer)
         {
-            if (string.IsNullOrEmpty(q) || line.Text.Contains(q, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrEmpty(q) || LineMatchesSearch(line.Text, q))
             {
                 Lines.Add(line);
             }

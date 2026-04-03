@@ -26,6 +26,7 @@ public partial class App : Application
         var services = new ServiceCollection();
         services.AddDockLiteUi(AppContext.BaseDirectory);
         _serviceProvider = services.BuildServiceProvider();
+        ShellCompositionResult composition = _serviceProvider.GetRequiredService<ShellCompositionResult>();
         MainWindow mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         MainWindow = mainWindow;
         mainWindow.Show();

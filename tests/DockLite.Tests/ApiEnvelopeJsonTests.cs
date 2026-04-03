@@ -35,4 +35,25 @@ public sealed class ApiEnvelopeJsonTests
         Assert.Equal("TEST", env.Error.Code);
         Assert.Equal("Lỗi thử", env.Error.Message);
     }
+
+    [Fact]
+    public void Deserialize_success_envelope_stats_batch()
+    {
+        const string json = """
+            {"success":true,"data":{"items":[
+              {"id":"abc","ok":true,"stats":{"readAt":"2026-01-01T00:00:00Z","cpuUsagePercent":1.5,"memoryUsageBytes":100,"memoryLimitBytes":200,"networkRxBytes":0,"networkTxBytes":0,"blockReadBytes":0,"blockWriteBytes":0}},
+              {"id":"def","ok":false,"error":"no such container"}
+            ]}}
+            """;
+        ApiEnvelope<ContainerStatsBatchData>? env = JsonSerializer.Deserialize<ApiEnvelope<ContainerStatsBatchData>>(json, JsonOptions);
+        Assert.NotNull(env);
+        Assert.True(env.Success);
+        Assert.NotNull(env.Data);
+        Assert.Equal(2, env.Data.Items.Count);
+        Assert.True(env.Data.Items[0].Ok);
+        Assert.NotNull(env.Data.Items[0].Stats);
+        Assert.Equal(1.5, env.Data.Items[0].Stats!.CpuUsagePercent, 2);
+        Assert.False(env.Data.Items[1].Ok);
+        Assert.Equal("no such container", env.Data.Items[1].Error);
+    }
 }

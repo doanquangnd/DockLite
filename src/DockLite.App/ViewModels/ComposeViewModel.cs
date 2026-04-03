@@ -1,5 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Services;
@@ -21,6 +25,11 @@ public partial class ComposeViewModel : ObservableObject
     private readonly IDockLiteApiClient _apiClient;
     private readonly INotificationService _notificationService;
     private readonly IAppShutdownToken _shutdownToken;
+
+    /// <summary>
+    /// Distro WSL từ cài đặt (tùy chọn), dùng trong lệnh gợi ý <c>wsl -d</c>.
+    /// </summary>
+    private readonly string? _wslDistribution;
 
     public ObservableCollection<ComposeProjectDto> Projects { get; } = new();
 
@@ -50,6 +59,18 @@ public partial class ComposeViewModel : ObservableObject
     [ObservableProperty]
     private string _newProjectPath = string.Empty;
 
+    /// <summary>
+    /// Mỗi dòng một file compose tương đối (tùy chọn) khi thêm project — map sang <c>-f</c> trên service.
+    /// </summary>
+    [ObservableProperty]
+    private string _newProjectComposeFilesText = string.Empty;
+
+    /// <summary>
+    /// Chỉnh danh sách file <c>-f</c> cho project đang chọn; nhấn Lưu để gửi PATCH.
+    /// </summary>
+    [ObservableProperty]
+    private string _composeFilesEditorText = string.Empty;
+
     [ObservableProperty]
     private string _commandOutput = string.Empty;
 
@@ -65,24 +86,188 @@ public partial class ComposeViewModel : ObservableObject
     [ObservableProperty]
     private bool _canComposeServiceAction;
 
-    public ComposeViewModel(IDockLiteApiClient apiClient, INotificationService notificationService, IAppShutdownToken shutdownToken)
+    [ObservableProperty]
+    private bool _canSaveComposeFiles;
+
+    public ComposeViewModel(
+        IDockLiteApiClient apiClient,
+        INotificationService notificationService,
+        IAppShutdownToken shutdownToken,
+        string? wslDistributionFromSettings)
     {
         _apiClient = apiClient;
         _notificationService = notificationService;
         _shutdownToken = shutdownToken;
+        _wslDistribution = string.IsNullOrWhiteSpace(wslDistributionFromSettings)
+            ? null
+            : wslDistributionFromSettings.Trim();
         UpdateComposeServiceUiState();
+    }
+
+    /// <summary>
+    /// Một dòng lệnh WSL + bash để chạy <c>docker compose exec -it … sh</c> trong thư mục project (terminal bên ngoài).
+    /// </summary>
+    public string SuggestedWslTerminalComposeExecLine
+    {
+        get
+        {
+            ComposeProjectDto? p = SelectedProject;
+            if (p is null || string.IsNullOrWhiteSpace(SelectedService))
+            {
+                return string.Empty;
+            }
+
+            string dir = p.WslPath.Trim();
+            if (dir.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            string composeArgs = BuildComposeFileArgsForDockerCli(p.ComposeFiles);
+            string svc = SelectedService.Trim();
+            string inner = $"cd {BashSingleQuote(dir)} && docker compose{composeArgs} exec -it {svc} sh";
+            string bashC = BashSingleQuote(inner);
+            if (string.IsNullOrWhiteSpace(_wslDistribution))
+            {
+                return $"wsl -- bash -c {bashC}";
+            }
+
+            return $"wsl -d {BashSingleQuote(_wslDistribution)} -- bash -c {bashC}";
+        }
+    }
+
+    /// <summary>
+    /// Cho phép nút sao chép khi đã chọn project và service.
+    /// </summary>
+    public bool CanCopySuggestedTerminalComposeLine => !string.IsNullOrEmpty(SuggestedWslTerminalComposeExecLine);
+
+    /// <summary>
+    /// Mở <c>wsl.exe</c> tại thư mục project (chỉ cần chọn project, không cần service).
+    /// </summary>
+    public bool CanOpenTerminalInProjectFolder =>
+        SelectedProject is not null
+        && !string.IsNullOrWhiteSpace(SelectedProject.WslPath)
+        && !IsBusy;
+
+    private static string BashSingleQuote(string s)
+    {
+        return "'" + s.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
+    }
+
+    private static string BuildComposeFileArgsForDockerCli(IReadOnlyList<string>? files)
+    {
+        if (files is null || files.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder();
+        foreach (string f in files)
+        {
+            string t = f?.Trim() ?? string.Empty;
+            if (t.Length > 0)
+            {
+                sb.Append(" -f ").Append(BashSingleQuote(t));
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Sao chép <see cref="SuggestedWslTerminalComposeExecLine"/> vào clipboard (Windows).
+    /// </summary>
+    [RelayCommand]
+    private void CopySuggestedTerminalComposeLine()
+    {
+        string t = SuggestedWslTerminalComposeExecLine;
+        if (string.IsNullOrEmpty(t))
+        {
+            return;
+        }
+
+        Clipboard.SetText(t);
+        StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Compose_Status_CopyTerminalDone",
+            "Đã sao chép lệnh docker compose (terminal WSL).");
+    }
+
+    /// <summary>
+    /// Mở terminal WSL (bash đăng nhập) trong thư mục project — thay cho shell tương tác nhúng trong UI.
+    /// </summary>
+    [RelayCommand]
+    private void OpenTerminalInProjectFolder()
+    {
+        if (SelectedProject is null)
+        {
+            return;
+        }
+
+        string dir = SelectedProject.WslPath.Trim();
+        if (dir.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "wsl.exe",
+                UseShellExecute = false,
+                CreateNoWindow = false,
+            };
+            string inner = $"cd {BashSingleQuote(dir)} && exec bash -l";
+            if (string.IsNullOrWhiteSpace(_wslDistribution))
+            {
+                psi.ArgumentList.Add("-e");
+                psi.ArgumentList.Add("bash");
+                psi.ArgumentList.Add("-lc");
+                psi.ArgumentList.Add(inner);
+            }
+            else
+            {
+                psi.ArgumentList.Add("-d");
+                psi.ArgumentList.Add(_wslDistribution!);
+                psi.ArgumentList.Add("-e");
+                psi.ArgumentList.Add("bash");
+                psi.ArgumentList.Add("-lc");
+                psi.ArgumentList.Add(inner);
+            }
+
+            Process.Start(psi);
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_OpenTerminalOk",
+                "Đã mở terminal WSL trong thư mục project.");
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                "Ui_Compose_Status_OpenTerminalFailedFormat",
+                "Không mở được WSL: {0}",
+                ex.Message);
+        }
+    }
+
+    private void NotifyTerminalComposeHints()
+    {
+        OnPropertyChanged(nameof(SuggestedWslTerminalComposeExecLine));
+        OnPropertyChanged(nameof(CanCopySuggestedTerminalComposeLine));
     }
 
     partial void OnSelectedProjectChanged(ComposeProjectDto? value)
     {
         Services.Clear();
         SelectedService = null;
+        ComposeFilesEditorText = FormatComposeFilesForEditor(value?.ComposeFiles);
         UpdateComposeServiceUiState();
+        NotifyTerminalComposeHints();
     }
 
     partial void OnSelectedServiceChanged(string? value)
     {
         UpdateComposeServiceUiState();
+        NotifyTerminalComposeHints();
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -96,6 +281,38 @@ public partial class ComposeViewModel : ObservableObject
         CanComposeServiceAction = SelectedProject is not null
             && !string.IsNullOrWhiteSpace(SelectedService)
             && !IsBusy;
+        CanSaveComposeFiles = SelectedProject is not null && !IsBusy;
+        OnPropertyChanged(nameof(CanOpenTerminalInProjectFolder));
+    }
+
+    private static string FormatComposeFilesForEditor(IReadOnlyList<string>? files)
+    {
+        if (files is null || files.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(Environment.NewLine, files);
+    }
+
+    private static List<string> ParseComposeFileLines(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return new List<string>();
+        }
+
+        var lines = new List<string>();
+        foreach (string line in text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            string t = line.Trim();
+            if (t.Length > 0)
+            {
+                lines.Add(t);
+            }
+        }
+
+        return lines;
     }
 
     [RelayCommand]
@@ -109,7 +326,8 @@ public partial class ComposeViewModel : ObservableObject
             Projects.Clear();
             if (!res.Success)
             {
-                StatusMessage = res.Error?.Message ?? "Phản hồi không hợp lệ.";
+                StatusMessage = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_InvalidResponse", "Phản hồi không hợp lệ.");
                 return;
             }
 
@@ -121,7 +339,10 @@ public partial class ComposeViewModel : ObservableObject
                 }
             }
 
-            StatusMessage = $"Đã tải {Projects.Count} project.";
+            StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                "Ui_Compose_Status_LoadedProjectsCountFormat",
+                "Đã tải {0} project.",
+                Projects.Count);
         }
         catch (Exception ex)
         {
@@ -136,18 +357,20 @@ public partial class ComposeViewModel : ObservableObject
     /// <summary>
     /// Với UNC WSL (\\wsl.localhost\ hoặc \\wsl$\), gửi thêm wslPath dạng /home/... để service không phụ thuộc parse lại từ chuỗi đã đổi dấu.
     /// </summary>
-    private static ComposeProjectAddRequest CreateComposeAddRequest(string path)
+    private static ComposeProjectAddRequest CreateComposeAddRequest(string path, IReadOnlyList<string> composeFiles)
     {
+        List<string>? filesArg = composeFiles.Count == 0 ? null : composeFiles.ToList();
         if (WslPathNormalizer.TryUnixPathFromWslUnc(path, expectedDistro: null, out string unixPath, out _))
         {
             return new ComposeProjectAddRequest
             {
                 WindowsPath = path,
                 WslPath = unixPath,
+                ComposeFiles = filesArg,
             };
         }
 
-        return new ComposeProjectAddRequest { WindowsPath = path };
+        return new ComposeProjectAddRequest { WindowsPath = path, ComposeFiles = filesArg };
     }
 
     [RelayCommand]
@@ -182,7 +405,9 @@ public partial class ComposeViewModel : ObservableObject
         string path = NewProjectPath.Trim();
         if (string.IsNullOrEmpty(path))
         {
-            StatusMessage = "Nhập đường dẫn thư mục project (Windows hoặc /mnt/...).";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_EnterProjectPath",
+                "Nhập đường dẫn thư mục project (Windows hoặc /mnt/...).");
             return;
         }
 
@@ -190,16 +415,19 @@ public partial class ComposeViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            ComposeProjectAddRequest req = CreateComposeAddRequest(path);
+            List<string> composeFiles = ParseComposeFileLines(NewProjectComposeFilesText);
+            ComposeProjectAddRequest req = CreateComposeAddRequest(path, composeFiles);
             ApiResult<ComposeProjectAddData> res = await _apiClient.AddComposeProjectAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {
-                StatusMessage = res.Error?.Message ?? "Thêm thất bại.";
+                StatusMessage = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_AddFailed", "Thêm thất bại.");
                 return;
             }
 
             NewProjectPath = string.Empty;
-            StatusMessage = "Đã thêm project.";
+            NewProjectComposeFilesText = string.Empty;
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_ProjectAdded", "Đã thêm project.");
             await LoadProjectsAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -217,7 +445,9 @@ public partial class ComposeViewModel : ObservableObject
     {
         if (SelectedProject is null)
         {
-            StatusMessage = "Chọn project để xóa.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_SelectProjectToDelete",
+                "Chọn project để xóa.");
             return;
         }
 
@@ -227,12 +457,61 @@ public partial class ComposeViewModel : ObservableObject
             ApiResult<EmptyApiPayload> res = await _apiClient.RemoveComposeProjectAsync(SelectedProject.Id, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {
-                StatusMessage = res.Error?.Message ?? "Xóa thất bại.";
+                StatusMessage = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_DeleteFailed", "Xóa thất bại.");
                 return;
             }
 
-            StatusMessage = "Đã xóa khỏi danh sách.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_DeletedFromList",
+                "Đã xóa khỏi danh sách.");
             await LoadProjectsAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ExceptionMessages.FormatForUser(ex);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task SaveComposeFilesAsync()
+    {
+        if (SelectedProject is null)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectProject", "Chọn project.");
+            return;
+        }
+
+        string id = SelectedProject.Id;
+        IsBusy = true;
+        StatusMessage = string.Empty;
+        try
+        {
+            List<string> files = ParseComposeFileLines(ComposeFilesEditorText);
+            var req = new ComposeProjectPatchRequest { ComposeFiles = files };
+            ApiResult<ComposeProjectPatchData> res = await _apiClient
+                .PatchComposeProjectAsync(id, req, _shutdownToken.Token)
+                .ConfigureAwait(true);
+            if (!res.Success)
+            {
+                StatusMessage = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SaveComposeFailed", "Không lưu được.");
+                return;
+            }
+
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_ComposeFilesUpdated",
+                "Đã cập nhật file compose (-f).");
+            await LoadProjectsAsync().ConfigureAwait(true);
+            ComposeProjectDto? match = Projects.FirstOrDefault(p => p.Id == id);
+            if (match is not null)
+            {
+                SelectedProject = match;
+            }
         }
         catch (Exception ex)
         {
@@ -267,7 +546,7 @@ public partial class ComposeViewModel : ObservableObject
     {
         if (SelectedProject is null)
         {
-            StatusMessage = "Chọn project.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectProject", "Chọn project.");
             return;
         }
 
@@ -281,7 +560,10 @@ public partial class ComposeViewModel : ObservableObject
                 .ConfigureAwait(true);
             if (!res.Success)
             {
-                StatusMessage = res.Error?.Message ?? "Không đọc được danh sách service.";
+                StatusMessage = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent(
+                        "Ui_Compose_Status_LoadServicesFailed",
+                        "Không đọc được danh sách service.");
                 return;
             }
 
@@ -295,7 +577,10 @@ public partial class ComposeViewModel : ObservableObject
             }
 
             CommandOutput = res.Data?.Output ?? string.Empty;
-            StatusMessage = $"Đã tải {Services.Count} service.";
+            StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                "Ui_Compose_Status_LoadedServicesCountFormat",
+                "Đã tải {0} service.",
+                Services.Count);
         }
         catch (Exception ex)
         {
@@ -324,13 +609,13 @@ public partial class ComposeViewModel : ObservableObject
     {
         if (SelectedProject is null)
         {
-            StatusMessage = "Chọn project.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectProject", "Chọn project.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(SelectedService))
         {
-            StatusMessage = "Chọn service.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectService", "Chọn service.");
             return;
         }
 
@@ -359,14 +644,17 @@ public partial class ComposeViewModel : ObservableObject
             if (!res.Success)
             {
                 string part = res.Error?.Details ?? string.Empty;
-                string msg = res.Error?.Message ?? "Lỗi.";
+                string msg = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
                 CommandOutput = string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg;
                 StatusMessage = msg;
                 return;
             }
 
             CommandOutput = res.Data?.Output ?? string.Empty;
-            StatusMessage = "Đã tải logs service.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_ServiceLogsLoaded",
+                "Đã tải logs service.");
         }
         catch (Exception ex)
         {
@@ -384,20 +672,22 @@ public partial class ComposeViewModel : ObservableObject
     {
         if (SelectedProject is null)
         {
-            StatusMessage = "Chọn project.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectProject", "Chọn project.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(SelectedService))
         {
-            StatusMessage = "Chọn service.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectService", "Chọn service.");
             return;
         }
 
         string cmd = ComposeExecCommandLine.Trim();
         if (string.IsNullOrEmpty(cmd))
         {
-            StatusMessage = "Nhập lệnh (ví dụ: uname -a).";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_EnterExecCommand",
+                "Nhập lệnh (ví dụ: uname -a).");
             return;
         }
 
@@ -415,7 +705,8 @@ public partial class ComposeViewModel : ObservableObject
             if (!res.Success)
             {
                 string part = res.Error?.Details ?? string.Empty;
-                string msg = res.Error?.Message ?? "Lỗi.";
+                string msg = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
                 CommandOutput = string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg;
                 StatusMessage = msg;
                 NotifyComposeFailure(msg);
@@ -423,7 +714,7 @@ public partial class ComposeViewModel : ObservableObject
             }
 
             CommandOutput = res.Data?.Output ?? string.Empty;
-            StatusMessage = "Đã chạy exec (không TTY).";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_ExecRan", "Đã chạy exec (không TTY).");
         }
         catch (Exception ex)
         {
@@ -441,13 +732,13 @@ public partial class ComposeViewModel : ObservableObject
     {
         if (SelectedProject is null)
         {
-            StatusMessage = "Chọn project.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectProject", "Chọn project.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(SelectedService))
         {
-            StatusMessage = "Chọn service.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectService", "Chọn service.");
             return;
         }
 
@@ -464,7 +755,8 @@ public partial class ComposeViewModel : ObservableObject
             if (!res.Success)
             {
                 string part = res.Error?.Details ?? string.Empty;
-                string msg = res.Error?.Message ?? "Lỗi.";
+                string msg = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
                 CommandOutput = string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg;
                 StatusMessage = msg;
                 NotifyComposeFailure(msg);
@@ -472,7 +764,7 @@ public partial class ComposeViewModel : ObservableObject
             }
 
             CommandOutput = res.Data?.Output ?? string.Empty;
-            StatusMessage = "Xong.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_Done", "Xong.");
         }
         catch (Exception ex)
         {
@@ -490,7 +782,7 @@ public partial class ComposeViewModel : ObservableObject
     {
         if (SelectedProject is null)
         {
-            StatusMessage = "Chọn project.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectProject", "Chọn project.");
             return;
         }
 
@@ -502,7 +794,8 @@ public partial class ComposeViewModel : ObservableObject
             if (!res.Success)
             {
                 string part = res.Error?.Details ?? string.Empty;
-                string msg = res.Error?.Message ?? "Lỗi.";
+                string msg = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
                 CommandOutput = string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg;
                 StatusMessage = msg;
                 NotifyComposeFailure(msg);
@@ -510,7 +803,7 @@ public partial class ComposeViewModel : ObservableObject
             }
 
             CommandOutput = res.Data?.Output ?? string.Empty;
-            StatusMessage = "Xong.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_Done", "Xong.");
         }
         catch (Exception ex)
         {

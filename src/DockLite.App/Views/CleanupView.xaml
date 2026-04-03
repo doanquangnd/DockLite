@@ -23,13 +23,13 @@
                    Text="Dọn dẹp"
                    FontSize="22"
                    FontWeight="SemiBold"
-                   Foreground="#0F172A"
+                   Foreground="{DynamicResource ThemePageTitleBrush}"
                    Margin="0,0,0,16" />
 
         <TextBlock Grid.Row="1"
                    TextWrapping="Wrap"
                    Margin="0,0,0,10"
-                   Foreground="#555"
+                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                    Text="Các lệnh gọi docker prune trong WSL. Xác nhận trước khi chạy. Volume và system prune có thể xóa dữ liệu vĩnh viễn." />
 
         <StackPanel Grid.Row="2"
@@ -74,10 +74,10 @@
             <TextBlock DockPanel.Dock="Top"
                        Text="Output"
                        FontWeight="SemiBold"
-                       Foreground="#334155"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
                        Margin="0,0,0,8" />
-            <Border Background="{StaticResource CardBackgroundBrush}"
-                    BorderBrush="{StaticResource CardBorderBrush}"
+            <Border Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     Padding="12"
                     CornerRadius="10">
@@ -86,17 +86,18 @@
                                TextWrapping="Wrap"
                                FontFamily="Cascadia Mono, Consolas"
                                FontSize="12"
-                               Foreground="#334155" />
+                               Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}" />
                 </ScrollViewer>
             </Border>
         </DockPanel>
 
         <Border Grid.Row="4"
-                BorderBrush="#EEE"
+                BorderBrush="{DynamicResource ThemeSeparatorBorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="0,8,0,0">
             <TextBlock Text="{Binding StatusMessage}"
-                       TextWrapping="Wrap" />
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}" />
         </Border>
     </Grid>
 </UserControl>

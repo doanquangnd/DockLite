@@ -75,6 +75,12 @@ func listContainers(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		created := time.Unix(c.Created, 0).UTC().Format(time.RFC3339)
+		labels := map[string]string{}
+		if c.Labels != nil {
+			for k, v := range c.Labels {
+				labels[k] = v
+			}
+		}
 		items = append(items, map[string]interface{}{
 			"id":        c.ID,
 			"shortId":   shortID,
@@ -84,6 +90,7 @@ func listContainers(w http.ResponseWriter, r *http.Request) {
 			"ports":     formatContainerPorts(c.Ports),
 			"command":   c.Command,
 			"createdAt": created,
+			"labels":    labels,
 		})
 	}
 	apiresponse.WriteSuccess(w, map[string]interface{}{"items": items}, http.StatusOK)

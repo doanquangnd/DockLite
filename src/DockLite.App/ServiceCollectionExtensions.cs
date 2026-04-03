@@ -16,7 +16,9 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton(new AppHostContext(appBaseDirectory));
         services.AddSingleton<IDialogService, WpfDialogService>();
-        services.AddSingleton<INotificationService, WpfToastNotificationService>();
+        services.AddSingleton<MainWindowAccessor>();
+        services.AddSingleton<INotificationService>(sp =>
+            new WpfToastNotificationService(sp.GetRequiredService<MainWindowAccessor>()));
         services.AddSingleton<IAppShutdownToken, AppShutdownToken>();
         services.AddSingleton<AppShellActivityState>();
         services.AddSingleton<AppUiDisplaySettings>();

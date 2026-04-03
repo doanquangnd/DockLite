@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -19,13 +20,17 @@ func main() {
 	mux := http.NewServeMux()
 	httpserver.Register(mux)
 
+	handler := httpserver.LogRequests(httpserver.RequestContextTimeout(httpserver.LimitRequestBody(mux)))
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           httpserver.LogRequests(mux),
+		Handler:           handler,
 		ReadHeaderTimeout: httpserver.ReadHeaderTimeout,
+		ReadTimeout:       httpserver.ReadTimeout,
+		WriteTimeout:      httpserver.WriteTimeout,
+		IdleTimeout:       httpserver.IdleTimeout,
 	}
 
-	log.Printf("docklite-wsl lắng nghe %s (REST + WS + compose + images + prune)", addr)
+	slog.Info("docklite-wsl_listen", "addr", addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

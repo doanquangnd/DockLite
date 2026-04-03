@@ -2,6 +2,7 @@ namespace DockLite.App.Services;
 
 /// <summary>
 /// Thông báo ngắn không chặn luồng (khác <see cref="IDialogService"/> modal).
+/// Toast hiển thị trong client area cửa sổ chính (góc phải dưới), không gắn cố định WorkArea màn hình.
 /// </summary>
 public interface INotificationService
 {

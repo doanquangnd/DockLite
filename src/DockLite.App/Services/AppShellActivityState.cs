@@ -8,6 +8,10 @@ public sealed class AppShellActivityState
     private bool _mainWindowInteractive = true;
     private bool _containersPageVisible;
     private bool _dashboardPageVisible;
+    private bool _logsPageVisible;
+    private bool _composePageVisible;
+    private bool _imagesPageVisible;
+    private bool _networkVolumePageVisible;
 
     /// <summary>
     /// Có nên chạy timer / gọi API làm mới stats realtime hay không.
@@ -18,6 +22,11 @@ public sealed class AppShellActivityState
     /// Làm mới định kỳ trang Tổng quan (health + Docker info) khi tab đang mở và cửa sổ tương tác.
     /// </summary>
     public bool ShouldAutoRefreshDashboard => _mainWindowInteractive && _dashboardPageVisible;
+
+    /// <summary>
+    /// Timer gộp chunk log (follow WebSocket) chỉ chạy khi tab Log đang mở và cửa sổ tương tác — tránh tải UI khi chuyển tab hoặc sang app khác.
+    /// </summary>
+    public bool ShouldProcessLogsFollowFlush => _mainWindowInteractive && _logsPageVisible;
 
     public event EventHandler? Changed;
 
@@ -60,6 +69,62 @@ public sealed class AppShellActivityState
         }
 
         _dashboardPageVisible = visible;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Sidebar đang mở trang Log / container log.
+    /// </summary>
+    public void SetLogsPageVisible(bool visible)
+    {
+        if (_logsPageVisible == visible)
+        {
+            return;
+        }
+
+        _logsPageVisible = visible;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Sidebar đang mở trang Compose (dùng khi sau này có timer/đồng bộ nền).
+    /// </summary>
+    public void SetComposePageVisible(bool visible)
+    {
+        if (_composePageVisible == visible)
+        {
+            return;
+        }
+
+        _composePageVisible = visible;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Sidebar đang mở trang Image.
+    /// </summary>
+    public void SetImagesPageVisible(bool visible)
+    {
+        if (_imagesPageVisible == visible)
+        {
+            return;
+        }
+
+        _imagesPageVisible = visible;
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Sidebar đang mở trang Mạng và volume.
+    /// </summary>
+    public void SetNetworkVolumePageVisible(bool visible)
+    {
+        if (_networkVolumePageVisible == visible)
+        {
+            return;
+        }
+
+        _networkVolumePageVisible = visible;
         Changed?.Invoke(this, EventArgs.Empty);
     }
 }

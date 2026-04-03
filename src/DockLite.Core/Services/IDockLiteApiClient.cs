@@ -1,3 +1,4 @@
+using System.IO;
 using DockLite.Contracts.Api;
 
 namespace DockLite.Core.Services;
@@ -57,11 +58,23 @@ public interface IDockLiteApiClient
     /// </summary>
     Task<ApiResult<ContainerStatsSnapshotData>> GetContainerStatsAsync(string containerId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// POST /api/containers/stats-batch — nhiều snapshot trong một yêu cầu (tối đa 32 id).
+    /// </summary>
+    Task<ApiResult<ContainerStatsBatchData>> GetContainerStatsBatchAsync(
+        IReadOnlyList<string> containerIds,
+        CancellationToken cancellationToken = default);
+
     Task<ApiResult<ComposeProjectListData>> GetComposeProjectsAsync(CancellationToken cancellationToken = default);
 
     Task<ApiResult<ComposeProjectAddData>> AddComposeProjectAsync(ComposeProjectAddRequest request, CancellationToken cancellationToken = default);
 
     Task<ApiResult<EmptyApiPayload>> RemoveComposeProjectAsync(string projectId, CancellationToken cancellationToken = default);
+
+    Task<ApiResult<ComposeProjectPatchData>> PatchComposeProjectAsync(
+        string projectId,
+        ComposeProjectPatchRequest request,
+        CancellationToken cancellationToken = default);
 
     Task<ApiResult<ComposeCommandData>> ComposeUpAsync(string projectId, CancellationToken cancellationToken = default);
 
@@ -123,4 +136,42 @@ public interface IDockLiteApiClient
     /// POST /api/system/prune
     /// </summary>
     Task<ApiResult<ComposeCommandData>> SystemPruneAsync(SystemPruneRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/images/{id}/inspect
+    /// </summary>
+    Task<ApiResult<ImageInspectData>> GetImageInspectAsync(string imageId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/images/{id}/history
+    /// </summary>
+    Task<ApiResult<ImageHistoryData>> GetImageHistoryAsync(string imageId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// POST /api/images/pull
+    /// </summary>
+    Task<ApiResult<ImagePullResultData>> PullImageAsync(ImagePullRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// POST /api/images/load — thân application/x-tar (stream từ file).
+    /// </summary>
+    Task<ApiResult<ImageLoadResultData>> UploadImageLoadAsync(Stream tarStream, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/images/{id}/export — ghi luồng tar binary (không dùng envelope JSON).
+    /// </summary>
+    Task<(bool Success, string? ErrorMessage)> DownloadImageExportAsync(
+        string imageId,
+        Stream destination,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/networks
+    /// </summary>
+    Task<ApiResult<NetworkListData>> GetNetworksAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/volumes
+    /// </summary>
+    Task<ApiResult<VolumeListData>> GetVolumesAsync(CancellationToken cancellationToken = default);
 }

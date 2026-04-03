@@ -25,6 +25,26 @@ public static class AppSettingsDefaults
 
         string? tz = s.UiTimeZoneId?.Trim();
         s.UiTimeZoneId = string.IsNullOrEmpty(tz) ? null : tz;
+
+        string theme = (s.UiTheme ?? string.Empty).Trim();
+        if (string.Equals(theme, "Dark", StringComparison.OrdinalIgnoreCase))
+        {
+            s.UiTheme = "Dark";
+        }
+        else
+        {
+            s.UiTheme = "Light";
+        }
+
+        string lang = (s.UiLanguage ?? string.Empty).Trim();
+        if (string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase))
+        {
+            s.UiLanguage = "en";
+        }
+        else
+        {
+            s.UiLanguage = "vi";
+        }
     }
 
     private static int Clamp(int value, int min, int max, int fallback)

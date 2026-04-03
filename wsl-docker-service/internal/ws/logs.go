@@ -39,8 +39,8 @@ func (w *textWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// HandleLogs nâng cấp WebSocket và stream log container qua Docker Engine API (không spawn docker logs).
-func HandleLogs(w http.ResponseWriter, r *http.Request) {
+// handleLogs nâng cấp WebSocket và stream log container qua Docker Engine API (không spawn docker logs).
+func handleLogs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return

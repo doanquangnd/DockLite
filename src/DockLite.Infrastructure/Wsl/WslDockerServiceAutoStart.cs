@@ -9,7 +9,7 @@ using DockLite.Infrastructure.Api;
 namespace DockLite.Infrastructure.Wsl;
 
 /// <summary>
-/// Nếu service chưa phản hồi, gọi wsl.exe chạy bash scripts/run-server.sh trong thư mục wsl-docker-service (không dùng ./ để tránh Permission denied).
+/// Nếu service chưa phản hồi, gọi wsl.exe chạy bash scripts/restart-server.sh trong thư mục wsl-docker-service (không dùng ./ để tránh Permission denied).
 /// </summary>
 public static class WslDockerServiceAutoStart
 {
@@ -59,7 +59,7 @@ public static class WslDockerServiceAutoStart
     }
 
     /// <summary>
-    /// Kiểm tra GET api/health; nếu lỗi và bật tự khởi động thì chạy WSL và chờ service sẵn sàng.
+    /// Kiểm tra GET api/health; nếu lỗi và bật tự khởi động thì chạy WSL (restart-server.sh) và chờ service sẵn sàng.
     /// </summary>
     /// <returns>Ok nếu cuối cùng health OK; Reason mô tả khi không đạt.</returns>
     public static async Task<(bool Ok, WslEnsureFailureReason Reason)> TryEnsureRunningAsync(
@@ -91,11 +91,11 @@ public static class WslDockerServiceAutoStart
             return (false, WslEnsureFailureReason.MissingServiceRoot);
         }
 
-        string runScript = Path.Combine(root, "scripts", "run-server.sh");
-        if (!File.Exists(runScript))
+        string restartScript = Path.Combine(root, "scripts", "restart-server.sh");
+        if (!File.Exists(restartScript))
         {
-            Debug.WriteLine("DockLite: thiếu scripts/run-server.sh tại " + root);
-            return (false, WslEnsureFailureReason.MissingRunScript);
+            Debug.WriteLine("DockLite: thiếu scripts/restart-server.sh tại " + root);
+            return (false, WslEnsureFailureReason.MissingRestartScript);
         }
 
         string? distro = ResolveEffectiveDistribution(settings);
@@ -106,7 +106,7 @@ public static class WslDockerServiceAutoStart
         }
 
         progress?.Report(new WslStartupProgress(WslStartupPhase.LaunchingWslScript, null));
-        SpawnWslLifecycleScript(wslPath, distro, "scripts/run-server.sh");
+        SpawnWslLifecycleScript(wslPath, distro, "scripts/restart-server.sh");
 
         TimeSpan waitTotal = TimeSpan.FromSeconds(GetHealthWaitAfterWslSeconds(settings));
         DateTime deadline = DateTime.UtcNow + waitTotal;
@@ -143,7 +143,7 @@ public static class WslDockerServiceAutoStart
             var sb = new StringBuilder();
             if (includeLeadSummary)
             {
-                sb.AppendLine("Không nhận /api/health trong thời gian chờ sau khi gọi WSL.");
+                sb.AppendLine("Không nhận /api/health trong thời gian chờ sau khi gọi WSL (restart service).");
                 sb.AppendLine();
             }
             if (!string.IsNullOrEmpty(_lastWslCommandSummary))

@@ -2,7 +2,6 @@
 package httpserver
 
 import (
-	"log"
 	"net/http"
 	"time"
 
@@ -21,21 +20,18 @@ func Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/docker/info", docker.DockerInfo)
 	mux.HandleFunc("/api/containers/top-by-memory", docker.TopContainersByMemory)
 	mux.HandleFunc("/api/containers/top-by-cpu", docker.TopContainersByCPU)
+	mux.HandleFunc("/api/containers/stats-batch", docker.ContainerStatsBatch)
 	mux.HandleFunc("/api/containers", docker.ContainersCollection)
 	mux.HandleFunc("/api/containers/", docker.ContainersItem)
-	mux.HandleFunc("/ws/containers/", ws.HandleLogs)
+	mux.HandleFunc("/ws/containers/", ws.HandleContainersPath)
 	compose.Register(mux)
-	mux.HandleFunc("/api/images", docker.ImagesRoot)
+	mux.HandleFunc("/api/images/pull", docker.ImagePull)
+	mux.HandleFunc("/api/images/load", docker.ImageLoad)
 	mux.HandleFunc("/api/images/prune", docker.ImagesPrune)
 	mux.HandleFunc("/api/images/remove", docker.ImagesRemove)
+	mux.HandleFunc("/api/networks", docker.NetworksList)
+	mux.HandleFunc("/api/volumes", docker.VolumesList)
+	mux.HandleFunc("/api/images", docker.ImagesRoot)
+	mux.HandleFunc("/api/images/", docker.ImagesPath)
 	mux.HandleFunc("/api/system/prune", docker.SystemPrune)
-}
-
-// LogRequests middleware ghi method + path.
-func LogRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		IncRequestCount()
-		log.Printf("%s %s", r.Method, r.URL.Path)
-		next.ServeHTTP(w, r)
-	})
 }

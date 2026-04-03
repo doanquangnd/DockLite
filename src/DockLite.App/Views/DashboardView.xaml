@@ -17,38 +17,38 @@
                    Text="Tổng quan"
                    FontSize="22"
                    FontWeight="SemiBold"
-                   Foreground="#0F172A"
+                   Foreground="{DynamicResource ThemePageTitleBrush}"
                    Margin="0,0,0,16" />
 
         <StackPanel Grid.Row="1">
             <TextBlock Text="Service WSL"
                        FontWeight="SemiBold"
-                       Foreground="#334155"
+                       Foreground="{DynamicResource ThemeControlForegroundBrush}"
                        Margin="0,0,0,8" />
-            <Border Background="{StaticResource CardBackgroundBrush}"
-                    BorderBrush="{StaticResource CardBorderBrush}"
+            <Border Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     Padding="16"
                     CornerRadius="10"
                     Margin="0,0,0,20">
                 <TextBlock Text="{Binding ServiceHealthText}"
                            TextWrapping="Wrap"
-                           Foreground="#1E293B"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
                            LineHeight="22" />
             </Border>
 
             <TextBlock Text="Docker Engine"
                        FontWeight="SemiBold"
-                       Foreground="#334155"
+                       Foreground="{DynamicResource ThemeControlForegroundBrush}"
                        Margin="0,0,0,8" />
-            <Border Background="{StaticResource CardBackgroundBrush}"
-                    BorderBrush="{StaticResource CardBorderBrush}"
+            <Border Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     Padding="16"
                     CornerRadius="10">
                 <TextBlock Text="{Binding DockerInfoText}"
                            TextWrapping="Wrap"
-                           Foreground="#334155"
+                           Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
                            FontFamily="Cascadia Mono, Consolas"
                            FontSize="12.5"
                            LineHeight="20" />
@@ -58,7 +58,7 @@
         <StackPanel Grid.Row="2"
                     Margin="0,20,0,0">
             <TextBlock TextWrapping="Wrap"
-                       Foreground="#64748B"
+                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                        FontSize="12"
                        Margin="0,0,0,10"
                        Text="Tự làm mới khi đang ở trang này và cửa sổ đang tương tác: chu kỳ ngắn hơn sau lần làm mới lỗi, dài hơn khi ổn định." />

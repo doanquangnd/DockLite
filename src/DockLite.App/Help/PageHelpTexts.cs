@@ -1,9 +1,11 @@
+using System.Windows;
+using DockLite.App.Services;
 using DockLite.App.ViewModels;
 
 namespace DockLite.App.Help;
 
 /// <summary>
-/// Nội dung trợ giúp theo màn hình (tiếng Việt).
+/// Nội dung trợ giúp theo màn hình (UiStrings.vi/en.xaml, khóa Ui_Help_*).
 /// </summary>
 internal static class PageHelpTexts
 {
@@ -11,17 +13,23 @@ internal static class PageHelpTexts
     {
         return page switch
         {
-            DashboardViewModel => ("Tổng quan", DashboardBody),
-            ContainersViewModel => ("Container", ContainersBody),
-            LogsViewModel => ("Log container", LogsBody),
-            ComposeViewModel => ("Docker Compose", ComposeBody),
-            ImagesViewModel => ("Image", ImagesBody),
-            CleanupViewModel => ("Dọn dẹp", CleanupBody),
-            AppDebugLogViewModel => ("Nhật ký ứng dụng", AppDebugLogBody),
-            SettingsViewModel => ("Cài đặt", SettingsBody),
-            null => ("DockLite", "Chưa có màn hình được chọn."),
-            _ => ("DockLite", "Không có nội dung trợ giúp cho màn hình này."),
+            DashboardViewModel => (R("Ui_Help_Dashboard_Title", "Tổng quan"), R("Ui_Help_Dashboard_Body", DashboardBody)),
+            ContainersViewModel => (R("Ui_Help_Containers_Title", "Container"), R("Ui_Help_Containers_Body", ContainersBody)),
+            LogsViewModel => (R("Ui_Help_Logs_Title", "Log container"), R("Ui_Help_Logs_Body", LogsBody)),
+            ComposeViewModel => (R("Ui_Help_Compose_Title", "Docker Compose"), R("Ui_Help_Compose_Body", ComposeBody)),
+            ImagesViewModel => (R("Ui_Help_Images_Title", "Image"), R("Ui_Help_Images_Body", ImagesBody)),
+            NetworkVolumeViewModel => (R("Ui_Help_NetworkVolume_Title", "Mạng và volume"), R("Ui_Help_NetworkVolume_Body", NetworkVolumeBody)),
+            CleanupViewModel => (R("Ui_Help_Cleanup_Title", "Dọn dẹp"), R("Ui_Help_Cleanup_Body", CleanupBody)),
+            AppDebugLogViewModel => (R("Ui_Help_AppDebugLog_Title", "Nhật ký ứng dụng"), R("Ui_Help_AppDebugLog_Body", AppDebugLogBody)),
+            SettingsViewModel => (R("Ui_Help_Settings_Title", "Cài đặt"), R("Ui_Help_Settings_Body", SettingsBody)),
+            null => (R("Ui_Help_DockLite_Title", "DockLite"), R("Ui_Help_NoPage_Body", NoPageBody)),
+            _ => (R("Ui_Help_DockLite_Title", "DockLite"), R("Ui_Help_Unknown_Body", UnknownPageBody)),
         };
+    }
+
+    private static string R(string key, string fallbackVi)
+    {
+        return UiLanguageManager.TryLocalize(Application.Current, key, fallbackVi);
     }
 
     private const string DashboardBody =
@@ -33,24 +41,33 @@ internal static class PageHelpTexts
         "Danh sách container theo Docker. Lọc theo trạng thái, tìm theo tên, image, ID.\n\n"
         + "Ô Chọn: chọn nhiều dòng để thao tác hàng loạt. Chọn tất cả / Bỏ chọn điều khiển các ô tick.\n\n"
         + "Start đã chọn / Stop đã chọn / Xóa đã chọn: chỉ áp dụng cho dòng đã tick; Start chỉ khi container đang dừng, Stop khi đang chạy.\n\n"
-        + "Dòng highlight (một dòng): Start, Stop, Restart, Xóa, Tải chi tiết (inspect + stats). Phần mở rộng có thể bật stats realtime theo chu kỳ.\n\n"
+        + "Dòng highlight (một dòng): Start, Stop, Restart, Xóa, Tải chi tiết (inspect + stats). Phần mở rộng có thể bật stats realtime: polling REST theo chu kỳ hoặc WebSocket stream (ít request hơn).\n\n"
+        + "Sparkline CPU và RAM %: cập nhật khi realtime bật (hoặc một điểm sau «Tải chi tiết»).\n\n"
         + "Top RAM / Top CPU: xem snapshot từ server (không phải danh sách đầy đủ).";
 
     private const string LogsBody =
         "Xem log stdout/stderr của container. Chọn container, chọn số dòng tail, có thể tìm trong log.\n\n"
+        + "Ô Tìm: với dòng rất dài, chỉ khớp trong phần đầu (xem tooltip). Màu dòng theo từ khóa mức log cũng chỉ xét phần đầu dòng để tránh tải nặng.\n\n"
         + "Tải container: nạp danh sách container để chọn. Tải tail: lấy một lần phần cuối log.\n\n"
-        + "Theo dõi (WS): luồng log (nếu service hỗ trợ WebSocket). Xóa màn hình: xóa nội dung hiển thị.";
+        + "Theo dõi (WS): luồng log; tần suất đưa dòng lên màn hình tự giãn khi bộ đệm lớn hoặc xử lý một đợt lâu. Xóa màn hình: xóa nội dung hiển thị.";
 
     private const string ComposeBody =
         "Quản lý các thư mục project Docker Compose và gọi lệnh compose qua service trong WSL.\n\n"
         + "Thêm thư mục project (Windows hoặc đường dẫn WSL), chọn project trong bảng, chọn service trong file compose.\n\n"
+        + "Nhiều file compose: nhập mỗi dòng một đường dẫn tương đối trong thư mục project (tương đương docker compose -f …); có thể chỉnh sau khi thêm bằng «Lưu file compose».\n\n"
         + "Có thể start/stop service, xem log service, chạy exec không TTY. Output lệnh compose hiện ở khung dưới.\n\n"
+        + "«Mở terminal WSL trong thư mục project»: gọi wsl.exe (theo distro trong Cài đặt nếu có) để mở bash tại thư mục project — dùng cho lệnh compose exec -it hoặc shell tương tác ngoài DockLite.\n\n"
         + "Làm mới danh sách: đồng bộ project đã lưu; compose up/down/ps: chạy trong WSL tại thư mục project.";
 
     private const string ImagesBody =
         "Danh sách image Docker. Tìm theo repository, tag, ID. Dùng ô Chọn để chọn nhiều image.\n\n"
+        + "Khối mở rộng: inspect JSON, history layer, pull theo reference (log có thể rút gọn), xuất tar (docker save) và nhập tar (docker load). Pull, xuất và nhập chạy trên luồng nền để giao diện không đứng; vẫn có thể chờ lâu tới khi server phản hồi xong.\n\n"
         + "Xóa các dòng đã chọn / Xóa image (dòng highlight): gỡ image. Prune dangling / prune không dùng: gọi lệnh prune qua API (cẩn thận dữ liệu).\n\n"
         + "Chọn tất cả / Bỏ chọn: tương tự container; các nút chỉ nên dùng khi đã chọn dòng phù hợp.";
+
+    private const string NetworkVolumeBody =
+        "Liệt kê network và volume từ Docker Engine (GET /api/networks và /api/volumes). Làm mới để tải lại hai bảng.\n\n"
+        + "Chỉ xem danh sách; tạo/xóa network hay volume qua CLI Docker hoặc Compose.";
 
     private const string CleanupBody =
         "Gọi các lệnh docker prune trong WSL (container, image, volume, network, system prune). Mỗi lệnh có thể xóa dữ liệu vĩnh viễn.\n\n"
@@ -67,4 +84,8 @@ internal static class PageHelpTexts
         "Trang Cài đặt chia tab: Kết nối (base URL, timeout HTTP), WSL và service (tự khởi động, thư mục dịch vụ, distro, nguồn Windows và đích Unix khi đồng bộ mã Go, tùy chọn version VERSION, thử uname/wslpath), Hiển thị (múi giờ, định dạng ngày giờ, xem trước), Chờ và health (thời gian chờ sau khi spawn WSL, chờ Start/Restart thủ công, timeout từng lần poll, khoảng cách poll).\n\n"
         + "Lưu ghi toàn bộ vào file cài đặt. Hàng nút dưới cùng: Build service (go build trong WSL), Start / Dừng / Restart, Kiểm tra kết nối.\n\n"
         + "Điền IP WSL khi localhost không forward được sang WSL2. Thời gian chờ health không còn cố định: chỉnh trong tab Chờ và health rồi Lưu.";
+
+    private const string NoPageBody = "Chưa có màn hình được chọn.";
+
+    private const string UnknownPageBody = "Không có nội dung trợ giúp cho màn hình này.";
 }

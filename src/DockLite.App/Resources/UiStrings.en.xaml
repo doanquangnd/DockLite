@@ -1,0 +1,303 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <sys:String x:Key="Ui_Lang_Vi">Vietnamese</sys:String>
+    <sys:String x:Key="Ui_Lang_En">English</sys:String>
+
+    <sys:String x:Key="Ui_MainWindow_Title">DockLite</sys:String>
+    <sys:String x:Key="Ui_Header_Start">Start</sys:String>
+    <sys:String x:Key="Ui_Header_Stop">Stop</sys:String>
+    <sys:String x:Key="Ui_Header_Restart">Restart</sys:String>
+    <sys:String x:Key="Ui_Header_Help">Help</sys:String>
+    <sys:String x:Key="Ui_Header_StatusPrefix">Service status (WSL):</sys:String>
+    <sys:String x:Key="Ui_Sidebar_Title">DockLite</sys:String>
+    <sys:String x:Key="Ui_Sidebar_Subtitle">Manage Docker via WSL</sys:String>
+    <sys:String x:Key="Ui_Nav_Dashboard">Dashboard</sys:String>
+    <sys:String x:Key="Ui_Nav_Containers">Containers</sys:String>
+    <sys:String x:Key="Ui_Nav_Logs">Logs</sys:String>
+    <sys:String x:Key="Ui_Nav_Compose">Compose</sys:String>
+    <sys:String x:Key="Ui_Nav_Images">Images</sys:String>
+    <sys:String x:Key="Ui_Nav_NetworkVolume">Networks &amp; volumes</sys:String>
+    <sys:String x:Key="Ui_Nav_Cleanup">Cleanup</sys:String>
+    <sys:String x:Key="Ui_Nav_AppLog">App log</sys:String>
+    <sys:String x:Key="Ui_Nav_Settings">Settings</sys:String>
+
+    <sys:String x:Key="Ui_Tooltip_Header_Start">Start the Go service in WSL (run-server.sh); /api/health wait time is configured in Settings — Wait &amp; health tab.</sys:String>
+    <sys:String x:Key="Ui_Tooltip_Header_Stop">Stop the docklite-wsl process (scripts/stop-server.sh).</sys:String>
+    <sys:String x:Key="Ui_Tooltip_Header_Restart">Restart the service (scripts/restart-server.sh); /api/health wait time is configured in Settings — Wait &amp; health tab.</sys:String>
+    <sys:String x:Key="Ui_Tooltip_Header_Help">Feature overview and tips for the current page</sys:String>
+
+    <sys:String x:Key="Ui_Settings_PageTitle">Settings</sys:String>
+    <sys:String x:Key="Ui_Settings_Tab_Connection">Connection</sys:String>
+    <sys:String x:Key="Ui_Settings_Tab_Wsl">WSL &amp; service</sys:String>
+    <sys:String x:Key="Ui_Settings_Tab_Display">Display</sys:String>
+    <sys:String x:Key="Ui_Settings_Tab_HealthWait">Wait &amp; health</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_LanguageLabel">UI language</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_LanguageTooltip">Vietnamese or English. Save to apply shell strings and tab titles; detailed text inside each tab may stay in one language until more strings are translated.</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_ThemeLabel">Theme</sys:String>
+    <sys:String x:Key="Ui_Settings_Theme_Light">Light</sys:String>
+    <sys:String x:Key="Ui_Settings_Theme_Dark">Dark</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_ThemeTooltip">Light or Dark. Save to write settings and apply resource dictionaries; restart the app if some screens do not update.</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_TimeZoneLabel">Display time zone (app)</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_TimeZoneTooltip">Choose “Machine time” to use the current Windows time zone.</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_DateFormatLabel">Date/time format (.NET format string)</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_DateFormatTooltip">Examples: dd/MM/yyyy HH:mm:ss, G, g. Changes apply app-wide after Save.</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_PresetsLabel">Quick presets</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_PreviewLabel">Preview</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_DatePreviewPrefix">Current UTC → </sys:String>
+
+    <sys:String x:Key="Ui_Settings_Conn_BaseUrlLabel">Service base URL (WSL)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_BaseUrlTooltip">Default http://127.0.0.1:17890/. If Windows cannot reach the service even though it runs in WSL, use the button on the right to fill WSL IP.</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ApplyWslIp">Fill WSL IP</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TimeoutLabel">HTTP timeout (seconds, 30–600)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TimeoutTooltip">Applies to all REST calls (compose and prune may take longer).</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_CheckHint">Use the button on the bottom row for a full connection test (health + Docker).</sys:String>
+
+    <sys:String x:Key="Ui_Settings_Wsl_AutoStartLabel">Auto-start service in WSL</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_AutoStartCheck">When DockLite starts, if there is no response, run wsl-docker-service (bash scripts/run-server.sh; no chmod +x needed for .sh)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_ServiceDirLabel">wsl-docker-service folder (Windows path)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_ServiceDirTooltip">Folder containing scripts (run/build): UNC \\wsl.localhost\… if code lives only in WSL, or C:\…\wsl-docker-service if cloned on a drive. Empty: auto-detect next to DockLite.App.exe.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_DistroLabel">WSL distro (optional)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_DistroTooltip">Example: Ubuntu. Empty: use wsl.exe default distro.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncTitle">Sync Go source to WSL (Linux)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncIntro">Copy from “Windows source” (or the same folder as service if empty) to “Destination in WSL”. Uses rsync if available in the distro; otherwise cp -a.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncSourceLabel">Windows source</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncSourceTooltip">wsl-docker-service folder on Windows (e.g. C:\...\DockLite\wsl-docker-service). Empty: same path as the service folder above (after wslpath).</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncDestLabel">Destination in WSL (Unix path)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncDestTooltip">Example: /home/user/wsl-docker-service — absolute Linux path (not C:\ or /mnt/c/...). Fill before Sync; Save writes settings.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncDeleteExtra">Delete extra files at destination (rsync --delete; only when rsync is available in WSL)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncVersionEnforce">Sync only when source VERSION (Windows) is &gt;= destination VERSION (WSL); one-line VERSION file (e.g. 0.1.0) required in source</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncButton">Sync source to WSL</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_SyncButtonTooltip">Run rsync or cp in WSL from Windows source (wslpath) to destination. Uses current fields (Save not required first).</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_UnameTitle">Test distro (uname -a)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_UnameButton">Run uname -a in distro</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_PathSummaryTitle">Effective WSL path summary</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_PathSummaryRefresh">Refresh summary</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_QuickDiagTitle">Quick check (API + wslpath)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_QuickDiagIntro">Calls health and Docker info using the base URL (Connection tab), then wslpath for service folder, sync source, and Unix destination; Save not required first.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_QuickDiagButton">Run quick check</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_QuickDiagTooltip">Health + Docker + wslpath for current fields (WSL tab and URL above).</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_WslpathTitle">Try wslpath (Windows → Unix)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_WslpathTooltip">Windows path (file or folder). Use WSL distro above if needed.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_WslpathRunButton">Run wslpath</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_ServiceButtonsNote">Start / Stop / Restart service and health wait: use the bottom row (timeouts from Wait &amp; health tab).</sys:String>
+
+    <sys:String x:Key="Ui_Settings_Health_Intro">Applies to auto-start (open app), manual Start/Restart, and /api/health polling. Press Save to write settings.</sys:String>
+    <sys:String x:Key="Ui_Settings_Health_AutoWaitLabel">Health wait after auto-spawn WSL when opening app (seconds, 10–600)</sys:String>
+    <sys:String x:Key="Ui_Settings_Health_AutoWaitTooltip">After sending run-server.sh on app start, wait at most this many seconds for /api/health.</sys:String>
+    <sys:String x:Key="Ui_Settings_Health_ManualWaitLabel">Health wait for manual Start / Restart (seconds, 10–600)</sys:String>
+    <sys:String x:Key="Ui_Settings_Health_ManualWaitTooltip">Header or Settings Start/Restart: wait at most this many seconds for health.</sys:String>
+    <sys:String x:Key="Ui_Settings_Health_ProbeLabel">Timeout per GET /api/health when polling (seconds, 1–60)</sys:String>
+    <sys:String x:Key="Ui_Settings_Health_ProbeTooltip">Each health attempt during a long wait is cancelled after this many seconds to avoid hanging.</sys:String>
+    <sys:String x:Key="Ui_Settings_Health_PollLabel">Interval between health polls (ms, 100–5000)</sys:String>
+    <sys:String x:Key="Ui_Settings_Health_PollTooltip">During a long wait, wait this many ms between two /api/health calls.</sys:String>
+
+    <sys:String x:Key="Ui_Settings_Footer_Save">Save</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_SyncCode">Sync code → WSL</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_SyncCodeTooltip">Copy from Windows source to WSL destination (WSL &amp; service tab; Save not required first).</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_Build">Build WSL service</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_BuildTooltip">Run bash scripts/build-server.sh in wsl-docker-service (go mod tidy + go build). Output goes to app log.</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_Start">Start WSL service</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_StartTooltip">Apply URL from the field, run wsl bash -lc scripts/run-server.sh (go on PATH), then wait for /api/health per Wait &amp; health tab.</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_Stop">Stop WSL service</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_StopTooltip">Run bash scripts/stop-server.sh in wsl-docker-service (pkill docklite-wsl).</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_Restart">Restart WSL service</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_RestartTooltip">Run bash scripts/restart-server.sh (stop then run-server), then wait for /api/health per Wait &amp; health tab.</sys:String>
+    <sys:String x:Key="Ui_Settings_Footer_TestConnection">Test connection</sys:String>
+
+    <sys:String x:Key="Ui_Settings_Status_QuickDiagDone">Quick check finished (see the result block below).</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_CancelledAppExit">Cancelled (application is closing).</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_QuickDiagError">Quick check failed (see the result block).</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_WslIpFilledFormat">Filled address from WSL IP ({0}). Press Save to apply app-wide.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_WslIpLookupFailed">Could not get WSL IP (wsl hostname -I). Ensure WSL is running; if you have several distros, set Distro WSL and try again.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationHttpTimeout">HTTP timeout must be an integer from 30 to 600 seconds.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationAutoHealthWait">Auto-start WSL health wait: integer from 10 to 600 seconds.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationManualHealthWait">Manual Start/Restart health wait: integer from 10 to 600 seconds.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationHealthProbe">Single GET /api/health timeout: 1 to 60 seconds.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationHealthPollMs">Health poll interval: 100 to 5000 ms.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationDateFormatEmpty">Date/time format cannot be empty.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_SelectTheme">Select a theme (Light or Dark).</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_SelectLanguage">Select a UI language.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_SavedApply">Saved. Base URL, timeout, time display, theme, shell language, and health waits are applied.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_SavedThemeRestartHint"> Theme: resource dictionaries updated; restart the app if some screens still show old colors.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_SavedLanguagePartialI18n"> Language: UI dictionary updated; status lines and log text may stay partially untranslated until more strings are added.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_StartServiceProgress">Applying URL from the field and starting the service...</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_StopServiceProgress">Sending stop command to the service in WSL...</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_RestartServiceProgress">Restarting the service in WSL...</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_BuildServiceProgress">Sending Go build command in WSL...</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_SyncSourceProgress">Syncing source to WSL...</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_TestConnectionOkFormat">Service: {0} | {1}</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_DockerErrorGeneric">Docker error</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_TestConnectionHttpHint"> Tip: in WSL (distro with the project) run ./bin/docklite-wsl; go build alone is not enough. With multiple distros, set Distro WSL (e.g. Ubuntu-22.04) and Save so auto-start targets the right machine.</sys:String>
+
+    <sys:String x:Key="Ui_Status_Common_InvalidResponse">Invalid response.</sys:String>
+    <sys:String x:Key="Ui_Status_Common_ErrorShort">Error.</sys:String>
+    <sys:String x:Key="Ui_Status_Common_ErrorGeneric">error</sys:String>
+    <sys:String x:Key="Ui_Status_Common_OperationFailed">Operation failed.</sys:String>
+    <sys:String x:Key="Ui_Status_Common_ListLoadFailed">Could not load the list.</sys:String>
+    <sys:String x:Key="Ui_Status_Common_CancelledShort">Cancelled.</sys:String>
+    <sys:String x:Key="Ui_Status_Common_LoadedContainersCountFormat">Loaded {0} containers.</sys:String>
+    <sys:String x:Key="Ui_Status_Common_LabelColonMessageFormat">{0}: {1}</sys:String>
+    <sys:String x:Key="Ui_Status_Common_LabelDoneFormat">{0}: completed.</sys:String>
+
+    <sys:String x:Key="Ui_Compose_Status_CopyTerminalDone">Copied docker compose command (WSL terminal).</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_OpenTerminalOk">Opened WSL terminal in the project folder.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_OpenTerminalFailedFormat">Could not open WSL: {0}</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_LoadedProjectsCountFormat">Loaded {0} projects.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_EnterProjectPath">Enter the project folder path (Windows or /mnt/...).</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_AddFailed">Add failed.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_ProjectAdded">Project added.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_SelectProjectToDelete">Select a project to remove.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_DeleteFailed">Delete failed.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_DeletedFromList">Removed from the list.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_SelectProject">Select a project.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_SaveComposeFailed">Could not save.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_ComposeFilesUpdated">Compose files (-f) updated.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_LoadServicesFailed">Could not load service list.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_LoadedServicesCountFormat">Loaded {0} services.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_SelectService">Select a service.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_ServiceLogsLoaded">Service logs loaded.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_EnterExecCommand">Enter a command (e.g. uname -a).</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_ExecRan">Exec ran (non-TTY).</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_Done">Done.</sys:String>
+
+    <sys:String x:Key="Ui_Containers_Status_CopyExecDone">Copied docker exec command.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_CopyAttachDone">Copied docker attach command.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_LoadedContainersCountFormat">Loaded {0} containers.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_InspectFailed">Could not load inspect.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_StatsFailed">Could not load stats.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_DetailLoaded">Loaded details (inspect + stats).</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_NoRowsToStart">No selected rows need start (or already running).</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_StartFailed">Start failed.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_StartedCountFormat">Started {0} containers.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_NoRowsToStop">No selected running rows to stop.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_StopFailed">Stop failed.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_StoppedCountFormat">Stopped {0} containers.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_SelectAtLeastOne">Select at least one container (checkbox).</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_DeleteFailed">Delete failed.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_DeletedCountFormat">Deleted {0} containers.</sys:String>
+
+    <sys:String x:Key="Ui_Containers_Batch_Status_SelectAtLeastTwo">Select at least two containers for batch stats.</sys:String>
+    <sys:String x:Key="Ui_Containers_Batch_Status_BatchFailed">Batch stats failed.</sys:String>
+
+    <sys:String x:Key="Ui_Logs_Status_LoadingContainers">Loading container list...</sys:String>
+    <sys:String x:Key="Ui_Logs_Status_ListRequestTimeout">Timed out while loading the container list. Check the service or network.</sys:String>
+    <sys:String x:Key="Ui_Logs_Status_SelectContainer">Select a container.</sys:String>
+    <sys:String x:Key="Ui_Logs_Status_NoResponse">No response.</sys:String>
+    <sys:String x:Key="Ui_Logs_Status_TailLoaded">Log tail loaded.</sys:String>
+    <sys:String x:Key="Ui_Logs_Status_FollowWsProgress">Following log (WebSocket)...</sys:String>
+    <sys:String x:Key="Ui_Logs_Status_FollowEnded">Log stream ended.</sys:String>
+    <sys:String x:Key="Ui_Logs_Status_FollowStopped">Follow stopped.</sys:String>
+    <sys:String x:Key="Ui_Logs_Status_WebSocketPrefixFormat">WebSocket: {0}</sys:String>
+    <sys:String x:Key="Ui_Logs_Status_ClearedDisplay">Cleared on-screen content.</sys:String>
+
+    <sys:String x:Key="Ui_Images_Status_LoadedImagesCountFormat">Loaded {0} images.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_SelectAtLeastOne">Select at least one image (checkbox).</sys:String>
+    <sys:String x:Key="Ui_Images_Status_DeletedCountFormat">Deleted {0} images.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_SelectOneToRemove">Select an image to remove.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_RemovedOne">Image removed.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_DeleteFailed">Delete failed.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_PruneResultOkSuffixFormat">{0} succeeded.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_PruneResultDoneFormat">{0} completed.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_SelectForInspect">Select an image to load inspect.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_InspectLoadFailed">Could not load inspect.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_InspectLoaded">Inspect loaded.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_SelectForHistory">Select an image to load history.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_HistoryLoadFailed">Could not load history.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_HistoryLayersCountFormat">Loaded {0} history layers.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_EnterPullReference">Enter image reference (e.g. nginx:latest).</sys:String>
+    <sys:String x:Key="Ui_Images_Status_PullFailed">Pull failed.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_PullDone">Pull finished (see detail log).</sys:String>
+    <sys:String x:Key="Ui_Images_Status_SelectForExport">Select an image to export tar.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_ExportFailedFormat">Export tar failed: {0}</sys:String>
+    <sys:String x:Key="Ui_Images_Status_ExportUnknownError">unknown error</sys:String>
+    <sys:String x:Key="Ui_Images_Status_FileWrittenFormat">Wrote file: {0}</sys:String>
+    <sys:String x:Key="Ui_Images_Status_ImportFailed">Import failed.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_ImportDone">Import completed.</sys:String>
+    <sys:String x:Key="Ui_Images_Status_ImportWithMessageFormat">Import: {0}</sys:String>
+
+    <sys:String x:Key="Ui_NetVol_Status_NetworkLoadFailed">Could not load networks.</sys:String>
+    <sys:String x:Key="Ui_NetVol_Status_VolumeLoadFailed">Could not load volumes.</sys:String>
+    <sys:String x:Key="Ui_NetVol_Status_LoadedCountFormat">Loaded {0} networks, {1} volumes.</sys:String>
+
+    <sys:String x:Key="Ui_AppLog_Status_CopyOk">Copied to clipboard.</sys:String>
+    <sys:String x:Key="Ui_AppLog_Status_CopyFailedFormat">Could not copy: {0}</sys:String>
+    <sys:String x:Key="Ui_AppLog_Status_ExportFilteredFormat">Exported filtered view: {0}</sys:String>
+    <sys:String x:Key="Ui_AppLog_Status_ExportFullFormat">Exported full log tail: {0}</sys:String>
+    <sys:String x:Key="Ui_AppLog_Status_ExportFailedFormat">Could not write file: {0}</sys:String>
+
+    <sys:String x:Key="Ui_Help_DialogTitlePrefix">Help — </sys:String>
+    <sys:String x:Key="Ui_Help_Dashboard_Title">Dashboard</sys:String>
+    <sys:String x:Key="Ui_Help_Dashboard_Body" xml:space="preserve">The Dashboard shows WSL service status (health) and Docker Engine information from the API.
+
+Refresh: reloads data from the service. The Go service in WSL must be running and DockLite must use the correct address in Settings.
+
+If there is no response: check Settings (base URL, auto-start WSL), or run wsl-docker-service manually in WSL.</sys:String>
+    <sys:String x:Key="Ui_Help_Containers_Title">Containers</sys:String>
+    <sys:String x:Key="Ui_Help_Containers_Body" xml:space="preserve">Docker container list. Filter by state; search by name, image, ID.
+
+Select: pick multiple rows for bulk actions. Select all / Clear selection control the checkboxes.
+
+Start selected / Stop selected / Delete selected: only applies to checked rows; Start only when a container is stopped, Stop when it is running.
+
+Highlighted row: Start, Stop, Restart, Delete, Load details (inspect + stats). The expanded section can enable realtime stats: REST polling on an interval or a WebSocket stream (fewer requests).
+
+CPU and RAM % sparklines: update when realtime is on (or one point after Load details).
+
+Top RAM / Top CPU: snapshots from the server (not a full ranked list).</sys:String>
+    <sys:String x:Key="Ui_Help_Logs_Title">Container logs</sys:String>
+    <sys:String x:Key="Ui_Help_Logs_Body" xml:space="preserve">View container stdout/stderr. Pick a container, tail line count, optional search.
+
+Search: for very long lines, matching uses only the leading part (see tooltip). Line colouring by log level keywords also looks at the start of the line to avoid heavy work.
+
+Load containers: refresh the list to choose from. Load tail: fetch the log tail once.
+
+Follow (WS): streamed logs; how often lines appear on screen backs off when the buffer is large or processing a batch is slow. Clear view: clears the on-screen text only.</sys:String>
+    <sys:String x:Key="Ui_Help_Compose_Title">Docker Compose</sys:String>
+    <sys:String x:Key="Ui_Help_Compose_Body" xml:space="preserve">Manage Docker Compose project folders and run compose commands through the service in WSL.
+
+Add a project folder (Windows or WSL path), select a project in the grid, pick a service from the compose file.
+
+Multiple compose files: one relative path per line inside the project folder (like docker compose -f …); you can edit after adding with Save compose files.
+
+You can start/stop services, view service logs, run exec without a TTY. Compose command output appears in the panel below.
+
+Open WSL terminal in project folder: runs wsl.exe (distro from Settings if set) to open bash in the project folder — for compose exec -it or interactive shells outside DockLite.
+
+Refresh list: sync saved projects; compose up/down/ps: runs in WSL in the project folder.</sys:String>
+    <sys:String x:Key="Ui_Help_Images_Title">Images</sys:String>
+    <sys:String x:Key="Ui_Help_Images_Body" xml:space="preserve">Docker image list. Search by repository, tag, ID. Use Select to choose multiple images.
+
+Expanded block: inspect JSON, layer history, pull by reference (log may be truncated), export tar (docker save) and import tar (docker load). Pull, export and import run on a background thread so the UI stays responsive; the call may still take a long time until the server finishes.
+
+Delete selected rows / Delete image (highlighted row): remove images. Prune dangling / prune unused: calls prune via the API (data loss risk).
+
+Select all / Clear selection: similar to containers; use the buttons only when the right rows are selected.</sys:String>
+    <sys:String x:Key="Ui_Help_NetworkVolume_Title">Networks and volumes</sys:String>
+    <sys:String x:Key="Ui_Help_NetworkVolume_Body" xml:space="preserve">Lists networks and volumes from Docker Engine (GET /api/networks and /api/volumes). Refresh reloads both grids.
+
+View only; create or delete networks or volumes with the Docker CLI or Compose.</sys:String>
+    <sys:String x:Key="Ui_Help_Cleanup_Title">Cleanup</sys:String>
+    <sys:String x:Key="Ui_Help_Cleanup_Body" xml:space="preserve">Runs docker prune commands in WSL (container, image, volume, network, system prune). Each command can delete data permanently.
+
+Read the warnings in the README. System prune including volumes is especially dangerous.
+
+Output shows results from the service. Run only when you understand the impact.</sys:String>
+    <sys:String x:Key="Ui_Help_AppDebugLog_Title">Application log</sys:String>
+    <sys:String x:Key="Ui_Help_AppDebugLog_Body" xml:space="preserve">Reads DockLite’s own log files on Windows by day, with filters for category, level, and text.
+
+On-screen time columns use the time zone and format from Settings — Display (after Save).
+
+Refresh: reload; Open log folder: Explorer; Copy diagnostics / Export log: helps when reporting issues.
+
+The log folder path is read-only in the UI.</sys:String>
+    <sys:String x:Key="Ui_Help_Settings_Title">Settings</sys:String>
+    <sys:String x:Key="Ui_Help_Settings_Body" xml:space="preserve">Settings has tabs: Connection (base URL, HTTP timeout), WSL &amp; service (auto-start, service folder, distro, Windows source and Unix destination when syncing Go code, optional VERSION enforcement, uname/wslpath tests), Display (time zone, date/time format, preview), Wait &amp; health (wait after spawning WSL, manual Start/Restart wait, per-poll timeout, poll interval).
+
+Save writes everything to the settings file. Bottom row: Build service (go build in WSL), Start / Stop / Restart, Test connection.
+
+Fill in the WSL IP when localhost does not forward to WSL2. Health wait times are no longer fixed: adjust them on Wait &amp; health, then Save.</sys:String>
+    <sys:String x:Key="Ui_Help_DockLite_Title">DockLite</sys:String>
+    <sys:String x:Key="Ui_Help_NoPage_Body">No page is selected.</sys:String>
+    <sys:String x:Key="Ui_Help_Unknown_Body">There is no help text for this screen.</sys:String>
+</ResourceDictionary>

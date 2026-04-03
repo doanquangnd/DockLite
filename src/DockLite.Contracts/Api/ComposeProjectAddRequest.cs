@@ -12,4 +12,10 @@ public sealed class ComposeProjectAddRequest
 
     [JsonPropertyName("wslPath")]
     public string? WslPath { get; init; }
+
+    /// <summary>
+    /// Mỗi phần tử là một đường dẫn file tương đối (ví dụ docker-compose.yml, compose.override.yml).
+    /// </summary>
+    [JsonPropertyName("composeFiles")]
+    public List<string>? ComposeFiles { get; init; }
 }

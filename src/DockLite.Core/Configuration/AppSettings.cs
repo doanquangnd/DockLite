@@ -61,6 +61,16 @@ public sealed class AppSettings
     public string UiDateTimeFormat { get; set; } = "yyyy/MM/dd HH:mm:ss";
 
     /// <summary>
+    /// Chủ đề giao diện: Light hoặc Dark (áp dụng sau khi khởi động lại ứng dụng).
+    /// </summary>
+    public string UiTheme { get; set; } = "Light";
+
+    /// <summary>
+    /// Ngôn ngữ chuỗi giao diện: vi hoặc en (áp dụng sau Lưu hoặc khi load).
+    /// </summary>
+    public string UiLanguage { get; set; } = "vi";
+
+    /// <summary>
     /// Sau khi tự spawn WSL khi mở app, chờ /api/health tối đa bao nhiêu giây (10–600, mặc định 30).
     /// </summary>
     public int WslAutoStartHealthWaitSeconds { get; set; } = 30;

@@ -4,6 +4,74 @@
 
 ## [Chưa phát hành]
 
+### Thêm / đổi (i18n `StatusMessage` — các tab ngoài Cài đặt)
+
+- `Resources/UiStrings.vi.xaml`, `UiStrings.en.xaml`: khóa `Ui_Status_Common_*`, `Ui_Compose_Status_*`, `Ui_Containers_Status_*`, `Ui_Containers_Batch_Status_*`, `Ui_Logs_Status_*`, `Ui_Images_Status_*`, `Ui_NetVol_Status_*`, `Ui_AppLog_Status_*` (và các chuỗi chung cho nhãn/lỗi).
+- `UiLanguageManager`: `TryLocalizeCurrent`, `TryLocalizeFormat`, `TryLocalizeFormatCurrent` (định dạng theo `CultureInfo.CurrentUICulture`).
+- ViewModel: `ComposeViewModel`, `ContainersViewModel` (+ `ContainersViewModel.BatchStats`), `LogsViewModel`, `ImagesViewModel`, `NetworkVolumeViewModel`, `AppDebugLogViewModel`, `CleanupViewModel`, `SettingsViewModel` — thay literal tiếng Việt trong `StatusMessage` bằng khóa trên khi phù hợp; giữ nguyên `ex.Message` / thông báo từ API.
+
+### Thêm / đổi (tự khởi động WSL khi mở app)
+
+- `WslDockerServiceAutoStart.TryEnsureRunningAsync`: khi bật tự khởi động và `/api/health` lỗi, gọi `bash scripts/restart-server.sh` thay cho `run-server.sh` (dừng tiến trình cũ rồi chạy lại). Thiếu file `restart-server.sh` trả `WslEnsureFailureReason.MissingRestartScript`.
+- `ShellViewModel.ApplyWslStartupProgress`: chữ header phản ánh `restart-server.sh` và chờ health sau restart.
+- Gợi ý khi health timeout sau spawn WSL: làm rõ đã gọi restart service.
+
+### Tài liệu
+
+- `README.md`: luồng mở app (tự khởi động) và mục tìm thư mục dịch vụ — đồng bộ với `restart-server.sh`; nút **Khởi động service WSL** trong Cài đặt vẫn dùng `run-server.sh`.
+- `docs/docklite-optimization-and-extensions.md`: rà soát checklist — **[x] 1.2** (ListBox log + `VirtualizingStackPanel` đã có trong `LogsView` / `AppDebugLogView`), **[x] 2.1** (partial `ContainersViewModel.BatchStats.cs`), **[x] 5.5** (theme, `ServiceBaseUrlPortHint`, i18n vỏ + trợ giúp; backlog tùy chọn: i18n nội dung dòng log thô / API). Cập nhật mô tả §1.2, §2.1, §5.5.
+
+### Thêm / đổi (i18n StatusMessage — Cài đặt)
+
+- `SettingsViewModel`: `UiLanguageManager.TryLocalizeCurrent` / `TryLocalizeFormatCurrent` với khóa `Ui_Settings_Status_*` trong `UiStrings.vi/en.xaml` (kiểm tra nhanh, validation Lưu, tiến trình WSL, đồng bộ mã, kiểm tra kết nối, hủy khi đóng app). Chuỗi động từ `WslDockerServiceAutoStart` / ngoại lệ không ép dịch.
+
+### Thêm / đổi (header: tiến trình chờ health WSL)
+
+- `ShellViewModel`: `WslStartupProgressBarVisible` / `Indeterminate` / `Value` từ `ApplyWslStartupProgress`; `ClearWslStartupProgressBar` khi `RefreshServiceHeaderFromApiAsync`; toast Info một lần khi vào phase chờ health (sau spawn WSL).
+- `MainWindow`: `ProgressBar` dưới hàng nút header, căn phải.
+- `AppShellFactory`: truyền `INotificationService` vào `ShellViewModel`.
+
+### Thêm / đổi (i18n vỏ cửa sổ vi/en)
+
+- `AppSettings.UiLanguage` (vi/en), `AppSettingsDefaults.Normalize`.
+- `Resources/UiStrings.vi.xaml`, `Resources/UiStrings.en.xaml`; `UiLanguageManager` gộp từ điển và đặt `CultureInfo` UI.
+- `AppShellFactory`: gọi `ThemeManager` + `UiLanguageManager` sau khi load cài đặt (bỏ trùng `ThemeManager` trong `App.xaml.cs`).
+- Cài đặt: ComboBox ngôn ngữ + tab **Kết nối**, **WSL và service**, **Hiển thị**, **Chờ và health**, hàng nút dưới cùng — `DynamicResource`; `RebuildUiThemeTitles` cho nhãn Sáng/Tối; `MainWindow` giữ như trước.
+- Trợ giúp theo màn hình: `PageHelpTexts` đọc khóa `Ui_Help_*` trong `UiStrings.vi/en.xaml`; tiêu đề hộp thoại `Ui_Help_DialogTitlePrefix`; tiền tố xem trước ngày giờ `Ui_Settings_Display_DatePreviewPrefix`. `UiLanguageManager.TryLocalize` (fallback khi không có app/khóa).
+- Nội dung nhật ký ứng dụng và một số thông báo từ API hoặc `ex.Message` có thể không qua từ điển UI; `StatusMessage` trên nhiều màn đã đọc `UiStrings` theo ngôn ngữ giao diện.
+
+### Thêm / đổi (lazy tab VM, log ảo hóa, Compose terminal WSL, validate exec)
+
+- `AppShellFactory` / `ShellViewModel`: khởi tạo lười (`Lazy<T>`) cho 7 ViewModel tab (Container, Log, Compose, Image, Mạng và volume, Dọn dẹp, Nhật ký ứng dụng); Tổng quan và Cài đặt tạo ngay; `OnCurrentPageChanged` dùng `IsValueCreated` để không tạo VM khi chưa vào tab.
+- `LogsView` / `AppDebugLogView`: `VirtualizingStackPanel` tường minh với `CacheLength` (page) và `ScrollUnit="Pixel"` cùng recycling.
+- Trang **Compose**: nút **Mở terminal WSL trong thư mục project** — `wsl.exe` (và `-d` distro từ Cài đặt nếu có) mở bash tại `WslPath` của project đã chọn.
+- Service Go: `validateComposeServiceName` từ chối `..`; `parseExecCommandParts` từ chối thêm `> < ' "` trong từng đối số.
+
+### Thêm / đổi (UI stats batch, test, README TLS, partial ViewModel)
+
+- Trang **Container**: nút **Stats batch (chọn)** — `POST /api/containers/stats-batch` khi có ít nhất một ô đã chọn trên hai hàng (tối đa 32); kết quả tóm tắt CPU/RAM trong ô trạng thái. `ContainersViewModel.BatchStats.cs` (partial).
+- `docs/docklite-optimization-and-extensions.md`: checklist 2.1, 2.2, mục 6 TLS.
+- README: mục «TLS và truy cập ngoài máy cục bộ» — gợi ý HTTPS qua reverse proxy.
+- `DockLite.Tests`: `Deserialize_success_envelope_stats_batch`.
+
+### Thêm / đổi (API batch stats, timeout context, tab state, gợi ý cổng)
+
+- Go: POST `/api/containers/stats-batch` (tối đa 32 id); `snapshotStatsForContainer` + `statsSnapshotFromStatsJSON` dùng chung cho GET stats đơn và batch.
+- Go: `internal/httpserver/context_timeout.go` — `RequestContextTimeout`: deadline context cho inspect (2 phút), GET `/stats` (90 giây), POST stats-batch (3 phút); bỏ qua `/ws/*`.
+- Contracts + `IDockLiteApiClient` + `DockLiteApiClient`: `ContainerStatsBatchRequest` / `ContainerStatsBatchData`, `GetContainerStatsBatchAsync`.
+- `AppShellActivityState`: `SetComposePageVisible`, `SetImagesPageVisible`, `SetNetworkVolumePageVisible`; `ShellViewModel` cập nhật khi đổi tab.
+- Cài đặt: khi Base URL dùng cổng mặc định 17890, `ServiceBaseUrlPortHint` gợi ý đổi `DOCKLITE_ADDR` và Base URL nếu cổng bị chiếm.
+
+### Thêm / đổi (Compose — cache danh sách project trong RAM)
+
+- Go `internal/compose`: bộ nhớ đệm có `sync.RWMutex` cho danh sách project sau lần đọc `compose_projects.json` đầu tiên; `saveProjects` cập nhật cache (sao chép sâu `ComposeFiles`); mọi `loadProjects` trả bản sao để caller vẫn sửa an toàn như trước.
+
+### Thêm / đổi (Đồng bộ header và log HTTP service)
+
+- `WslServiceHealthCache`: tham số `forceNotify` trên `SetFromHealthResponse` và `RefreshAsync` — khi «Kiểm tra kết nối», «Kiểm tra nhanh WSL» hoặc sau start/stop/restart service thủ công, vẫn làm mới dòng header dù trạng thái healthy (true/false) không đổi (ví dụ cập nhật phiên bản từ `/api/health`).
+- `SettingsViewModel`: truyền `forceNotify: true` cho các lệnh trên.
+- Service Go: `internal/httpserver/logging.go` — middleware `LogRequests` dùng `log/slog` với `req_id` (hex ngẫu nhiên) và thời gian xử lý (`http_request` / `http_request_done`); `cmd/server/main.go` ghi `docklite-wsl_listen` bằng slog.
+
 ### Thêm / đổi (Đồng bộ mã nguồn Go vào WSL)
 
 - `AppSettings`: `WslDockerServiceLinuxSyncPath` (đích Unix trong WSL), `WslDockerServiceSyncSourceWindowsPath` (nguồn Windows riêng cho đồng bộ; để trống = cùng thư mục với ô dịch vụ), `WslDockerServiceSyncDeleteExtra` (rsync `--delete` khi có rsync), `WslDockerServiceSyncEnforceVersionGe` (chỉ đồng bộ khi `VERSION` nguồn >= đích).
@@ -17,6 +85,10 @@
 - `AppShellActivityState` (singleton DI): biết cửa sổ chính có đang foreground và không thu nhỏ hay không, và sidebar có đang mở trang **Container** hay không. `MainWindow` cập nhật khi `Activated` / `Deactivated` / `StateChanged`; `ShellViewModel` cập nhật khi `CurrentPage` đổi. `ContainersViewModel` chỉ chạy timer **stats realtime** (polling API) khi cả hai điều kiện cho phép, để giảm tải khi chuyển tab hoặc sang app khác.
 - Trang **Tổng quan**: làm mới định kỳ khi tab đang mở và cửa sổ tương tác — chu kỳ ngắn hơn khi lần làm mới trước lỗi, dài hơn khi ổn định (`DashboardViewModel` + `DispatcherTimer`).
 - Trang **Container**: bộ đếm số lần gọi API stats (realtime); khối **Inspect (tóm tắt)** (`ContainerInspectSummaryFormatter`) đọc các trường thường gặp từ JSON inspect; khối JSON thô và Stats giữ như trước.
+- Trang **Container**: `GET /api/containers` trả `labels`; cột **Nhãn** (rút gọn) và ô **Tìm** khớp khóa/giá trị nhãn; panel **Gợi ý lệnh terminal** với `docker exec` / `docker attach` và nút sao chép.
+- Service Go: `GET /api/images/{id}/inspect`, `GET /api/images/{id}/history`, `POST /api/images/pull`, `POST /api/images/load`, `GET /api/images/{id}/export` (tar); `GET /api/networks`, `GET /api/volumes`. Trang **Image**: Expander inspect/history/pull/export-import; trang **Mạng và volume** (sidebar).
+- Trang **Image**: pull / xuất tar / nhập tar chạy trên thread pool (`Task.Run`) để không chặn UI; sau import gọi làm mới danh sách nhẹ (`ReloadImageListAsync`).
+- Trang **Log**: giới hạn quét tiền tố cho phân loại mức và ô tìm; chu kỳ flush follow tự điều chỉnh theo backlog và thời gian tick (`LogsViewModel`, `LogLineClassifier`).
 - **Cài đặt**: cảnh báo khi base URL có host không phải localhost (HTTP trên LAN).
 - `WslDockerServiceAutoStart`: backoff khoảng chờ giữa các lần thử `/api/health` sau khi spawn WSL (thay vì cố định từng vòng).
 - Service Go: `GET /api/metrics` (text/plain, bộ đếm request HTTP đơn giản); middleware tăng bộ đếm.
@@ -95,26 +167,13 @@
 
 ### Chưa làm (hẹn tiếp)
 
-- Stream stats chuyên biệt qua WebSocket (thay hoặc bổ sung cho polling hiện tại).
-- `docker compose exec -it` / shell tương tác trong UI (hiện ghi chú dùng terminal ngoài).
-- Rà thêm các ViewModel hoặc lệnh chạy lâu nếu sau này bổ sung mà chưa gắn `IAppShutdownToken`.
-
-### Sửa (kỹ thuật)
-
-- `ShellViewModel` / `WslServiceHealthCache`: đồng bộ dòng trạng thái service trên header với cache health (khi `LastHealthy` đổi, ví dụ sau «Kiểm tra kết nối» hoặc khi `SetFromHealthResponse` từ Cài đặt); tránh trường hợp header vẫn hiển thị trạng thái ổn trong khi không kết nối được tới service WSL. `WslServiceHealthCache` chỉ raise `Changed` khi giá trị healthy thực sự thay đổi; `RefreshServiceHeaderFromApiAsync` bọc cập nhật cache bằng cờ nội bộ để không kích hoạt handler lặp vô hạn.
-- `LogsViewModel`: thêm `using DockLite.App.Services` để resolve `IAppShutdownToken` sau khi inject token shutdown.
+- `docker compose exec -it` / terminal tương tác nhúng trong UI (ConPTY); đã có nút mở terminal WSL trong thư mục project và khối gợi ý lệnh / sao chép.
+- Rà thêm ViewModel hoặc lệnh chạy lâu khi bổ sung tính năng mới: gắn `IAppShutdownToken` / `CancellationToken` nhất quán.
+- Tuỳ chọn: API batch stats một lần nhiều container; TLS khi expose service ra LAN/WAN.
 
 ### Tài liệu
 
-- `docs/docklite-improvement-plan.md`: đồng bộ checklist (stats top CPU/RAM, blkio, token shutdown trên nhiều ViewModel).
-
-### Bổ sung (tiếp theo kế hoạch)
-
-- Service Go `wsl-docker-service`: phân tách theo `docs/docklite-improvement-plan.md` mức 3 — `internal/httpserver`, `internal/docker`, `internal/dockerengine`, `internal/compose`, `internal/ws`, `internal/settings`; `cmd/server/main.go` gọn; xóa các file `compose.go` / `containers.go` / … cũ trong `cmd/server`.
-- `WslDockerServiceAutoStart.TryEnsureRunningAsync`: trả về `(bool, WslEnsureFailureReason)`; health trước khi spawn WSL: `IsHealthOkWithRetryAsync` (3 lần, cách 250 ms); sau khi spawn: mỗi vòng chờ chỉ `IsHealthOkOnceAsync`.
-- `AppStartupCoordinator`: nếu `HealthTimeoutAfterWslStart`, `INotificationService.ShowInfoAsync` gợi ý xem file log (đường dẫn thư mục).
-- `IDialogService.ShowInfoAsync`; `WpfDialogService` triển khai; DI đăng ký `IDialogService` singleton, `AppShellFactory` nhận `IDialogService`.
-- Trang **Nhật ký ứng dụng**: virtualized viewer; lọc theo category/level (bổ sung cho lọc dòng hiện có).
+- `docs/docklite-improvement-plan.md` và `docs/docklite-optimization-and-extensions.md`: cập nhật checklist khi đổi hạng mục backlog.
 
 ## [0.1.0] — 2026-03-30
 

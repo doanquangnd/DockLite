@@ -19,7 +19,7 @@ func normalizeComposeWslPath(p string) string {
 	return strings.TrimRight(strings.TrimSpace(p), "/")
 }
 
-func validateComposeProjectDir(wslPath string) error {
+func validateDefaultComposeFileInDir(wslPath string) error {
 	norm := normalizeComposeWslPath(wslPath)
 	if norm == "" {
 		return fmt.Errorf("đường dẫn trống")
@@ -44,6 +44,62 @@ func validateComposeProjectDir(wslPath string) error {
 	return fmt.Errorf("không tìm thấy docker-compose.yml hoặc compose.yml trong thư mục")
 }
 
+func validateComposeFilesInDir(wslPath string, files []string) error {
+	norm := normalizeComposeWslPath(wslPath)
+	if norm == "" {
+		return fmt.Errorf("đường dẫn trống")
+	}
+	st, err := os.Stat(norm)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("thư mục không tồn tại: %s", norm)
+		}
+		return fmt.Errorf("không truy cập được thư mục: %v", err)
+	}
+	if !st.IsDir() {
+		return fmt.Errorf("không phải thư mục: %s", norm)
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("danh sách file compose rỗng")
+	}
+	if len(files) > 16 {
+		return fmt.Errorf("tối đa 16 file -f")
+	}
+	for _, rel := range files {
+		rel = strings.TrimSpace(rel)
+		if rel == "" {
+			return fmt.Errorf("tên file compose rỗng")
+		}
+		if filepath.IsAbs(rel) {
+			return fmt.Errorf("chỉ dùng đường dẫn tương đối trong thư mục project (không dùng đường dẫn tuyệt đối): %s", rel)
+		}
+		clean := filepath.Clean(rel)
+		fp := filepath.Join(norm, clean)
+		rel2, err := filepath.Rel(norm, fp)
+		if err != nil || strings.HasPrefix(rel2, "..") {
+			return fmt.Errorf("file không nằm trong thư mục project: %s", rel)
+		}
+		st2, err := os.Stat(fp)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("không thấy file: %s", rel)
+			}
+			return fmt.Errorf("không đọc được file %s: %v", rel, err)
+		}
+		if st2.IsDir() {
+			return fmt.Errorf("không phải file: %s", rel)
+		}
+	}
+	return nil
+}
+
+func validateComposeProjectDirOrFiles(wslPath string, composeFiles []string) error {
+	if len(composeFiles) == 0 {
+		return validateDefaultComposeFileInDir(wslPath)
+	}
+	return validateComposeFilesInDir(wslPath, composeFiles)
+}
+
 func hasDuplicateComposePath(items []Project, wslPath string) bool {
 	n := normalizeComposeWslPath(wslPath)
 	for _, it := range items {
@@ -59,9 +115,10 @@ const storeFile = "compose_projects.json"
 
 // Project là một mục trong file JSON lưu trên đĩa.
 type Project struct {
-	ID      string `json:"id"`
-	WslPath string `json:"wslPath"`
-	Name    string `json:"name"`
+	ID           string   `json:"id"`
+	WslPath      string   `json:"wslPath"`
+	Name         string   `json:"name"`
+	ComposeFiles []string `json:"composeFiles,omitempty"`
 }
 
 type projectsPayload struct {
@@ -69,8 +126,13 @@ type projectsPayload struct {
 }
 
 type addBody struct {
-	WindowsPath string `json:"windowsPath"`
-	WslPath     string `json:"wslPath"`
+	WindowsPath  string   `json:"windowsPath"`
+	WslPath      string   `json:"wslPath"`
+	ComposeFiles []string `json:"composeFiles,omitempty"`
+}
+
+type patchBody struct {
+	ComposeFiles []string `json:"composeFiles"`
 }
 
 type idBody struct {
@@ -89,7 +151,8 @@ func storePath() (string, error) {
 	return filepath.Join(dir, storeFile), nil
 }
 
-func loadProjects() ([]Project, error) {
+// loadProjectsFromDisk đọc file JSON; chỉ gọi khi cache chưa có (trong mutex ghi).
+func loadProjectsFromDisk() ([]Project, error) {
 	path, err := storePath()
 	if err != nil {
 		return nil, err
@@ -108,6 +171,30 @@ func loadProjects() ([]Project, error) {
 	return p.Items, nil
 }
 
+// loadProjects trả về bản sao danh sách project; dùng cache RAM sau lần đọc đĩa đầu tiên hoặc sau save.
+func loadProjects() ([]Project, error) {
+	projectCacheMu.RLock()
+	if projectCacheLoaded {
+		out := cloneProjects(projectCache)
+		projectCacheMu.RUnlock()
+		return out, nil
+	}
+	projectCacheMu.RUnlock()
+
+	projectCacheMu.Lock()
+	defer projectCacheMu.Unlock()
+	if projectCacheLoaded {
+		return cloneProjects(projectCache), nil
+	}
+	items, err := loadProjectsFromDisk()
+	if err != nil {
+		return nil, err
+	}
+	projectCache = cloneProjects(items)
+	projectCacheLoaded = true
+	return cloneProjects(projectCache), nil
+}
+
 func saveProjects(items []Project) error {
 	path, err := storePath()
 	if err != nil {
@@ -118,7 +205,14 @@ func saveProjects(items []Project) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return err
+	}
+	projectCacheMu.Lock()
+	projectCache = cloneProjects(items)
+	projectCacheLoaded = true
+	projectCacheMu.Unlock()
+	return nil
 }
 
 // uncWslNetworkToUnixPath chuyển UNC \\wsl.localhost\<distro>\... hoặc \\wsl$\<distro>\... (đã đổi \ thành /)
@@ -221,7 +315,14 @@ func projectsCollection(w http.ResponseWriter, r *http.Request) {
 			name = "project"
 		}
 		wslPath = normalizeComposeWslPath(wslPath)
-		if err := validateComposeProjectDir(wslPath); err != nil {
+		var composeFiles []string
+		for _, f := range body.ComposeFiles {
+			f = strings.TrimSpace(f)
+			if f != "" {
+				composeFiles = append(composeFiles, f)
+			}
+		}
+		if err := validateComposeProjectDirOrFiles(wslPath, composeFiles); err != nil {
 			apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -235,9 +336,10 @@ func projectsCollection(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		proj := Project{
-			ID:      randomID(),
-			WslPath: wslPath,
-			Name:    name,
+			ID:           randomID(),
+			WslPath:      wslPath,
+			Name:         name,
+			ComposeFiles: composeFiles,
 		}
 		items = append(items, proj)
 		if err := saveProjects(items); err != nil {
@@ -251,16 +353,23 @@ func projectsCollection(w http.ResponseWriter, r *http.Request) {
 }
 
 func projectItem(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	id := strings.TrimPrefix(r.URL.Path, "/api/compose/projects/")
 	id = strings.TrimSpace(id)
 	if id == "" {
 		http.NotFound(w, r)
 		return
 	}
+	switch r.Method {
+	case http.MethodDelete:
+		deleteComposeProject(w, id)
+	case http.MethodPatch:
+		patchComposeProject(w, r, id)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func deleteComposeProject(w http.ResponseWriter, id string) {
 	items, err := loadProjects()
 	if err != nil {
 		apiresponse.WriteError(w, apiresponse.CodeInternal, err.Error(), http.StatusInternalServerError)
@@ -286,19 +395,57 @@ func projectItem(w http.ResponseWriter, r *http.Request) {
 	apiresponse.WriteSuccess(w, struct{}{}, http.StatusOK)
 }
 
+func patchComposeProject(w http.ResponseWriter, r *http.Request, id string) {
+	var body patchBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	var composeFiles []string
+	for _, f := range body.ComposeFiles {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			composeFiles = append(composeFiles, f)
+		}
+	}
+	items, err := loadProjects()
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeInternal, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for i := range items {
+		if items[i].ID != id {
+			continue
+		}
+		wslPath := items[i].WslPath
+		if err := validateComposeProjectDirOrFiles(wslPath, composeFiles); err != nil {
+			apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
+			return
+		}
+		items[i].ComposeFiles = composeFiles
+		if err := saveProjects(items); err != nil {
+			apiresponse.WriteError(w, apiresponse.CodeInternal, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		apiresponse.WriteSuccess(w, map[string]interface{}{"project": items[i]}, http.StatusOK)
+		return
+	}
+	apiresponse.WriteError(w, apiresponse.CodeNotFound, "không tìm thấy project", http.StatusNotFound)
+}
+
 func composeUp(w http.ResponseWriter, r *http.Request) {
-	runComposeCommand(w, r, []string{"compose", "up", "-d"})
+	runComposeCommand(w, r, "up", "-d")
 }
 
 func composeDown(w http.ResponseWriter, r *http.Request) {
-	runComposeCommand(w, r, []string{"compose", "down"})
+	runComposeCommand(w, r, "down")
 }
 
 func composePs(w http.ResponseWriter, r *http.Request) {
-	runComposeCommand(w, r, []string{"compose", "ps"})
+	runComposeCommand(w, r, "ps")
 }
 
-func runComposeCommand(w http.ResponseWriter, r *http.Request, dockerArgs []string) {
+func runComposeCommand(w http.ResponseWriter, r *http.Request, rest ...string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -318,20 +465,21 @@ func runComposeCommand(w http.ResponseWriter, r *http.Request, dockerArgs []stri
 		apiresponse.WriteError(w, apiresponse.CodeInternal, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	var dir string
-	for _, it := range items {
-		if it.ID == id {
-			dir = it.WslPath
+	var proj *Project
+	for i := range items {
+		if items[i].ID == id {
+			proj = &items[i]
 			break
 		}
 	}
-	if dir == "" {
+	if proj == nil {
 		apiresponse.WriteError(w, apiresponse.CodeNotFound, "không tìm thấy project", http.StatusNotFound)
 		return
 	}
 	ctx := r.Context()
-	cmd := exec.CommandContext(ctx, "docker", dockerArgs...)
-	cmd.Dir = dir
+	fullArgs := dockerComposeArgs(*proj, rest...)
+	cmd := exec.CommandContext(ctx, "docker", fullArgs...)
+	cmd.Dir = proj.WslPath
 	out, err := cmd.CombinedOutput()
 	output := string(out)
 	if err != nil {

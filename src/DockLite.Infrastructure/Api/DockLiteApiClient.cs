@@ -1,4 +1,6 @@
+using System.IO;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DockLite.Contracts.Api;
@@ -152,6 +154,26 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
     }
 
     /// <inheritdoc />
+    public async Task<ApiResult<ContainerStatsBatchData>> GetContainerStatsBatchAsync(
+        IReadOnlyList<string> containerIds,
+        CancellationToken cancellationToken = default)
+    {
+        return await HttpReadRetry.ExecuteAsync(
+            async () =>
+            {
+                var body = new ContainerStatsBatchRequest { Ids = new List<string>(containerIds) };
+                using var response = await _session.Client.PostAsJsonAsync(
+                        "api/containers/stats-batch",
+                        body,
+                        JsonOptions,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                return await ReadEnvelopeAsync<ContainerStatsBatchData>(response, cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<ApiResult<ComposeProjectListData>> GetComposeProjectsAsync(CancellationToken cancellationToken = default)
     {
         return await HttpReadRetry.ExecuteAsync(
@@ -179,6 +201,22 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
                 cancellationToken)
             .ConfigureAwait(false);
         return await ReadEnvelopeAsync<EmptyApiPayload>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ComposeProjectPatchData>> PatchComposeProjectAsync(
+        string projectId,
+        ComposeProjectPatchRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var message = new HttpRequestMessage(
+            HttpMethod.Patch,
+            $"api/compose/projects/{Uri.EscapeDataString(projectId)}")
+        {
+            Content = JsonContent.Create(request, mediaType: null, options: JsonOptions),
+        };
+        using var response = await _session.Client.SendAsync(message, cancellationToken).ConfigureAwait(false);
+        return await ReadEnvelopeAsync<ComposeProjectPatchData>(response, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -308,6 +346,94 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
         using var response = await _session.Client.PostAsJsonAsync("api/system/prune", request, JsonOptions, cancellationToken)
             .ConfigureAwait(false);
         return await ReadEnvelopeAsync<ComposeCommandData>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ImageInspectData>> GetImageInspectAsync(string imageId, CancellationToken cancellationToken = default)
+    {
+        string url = $"api/images/{Uri.EscapeDataString(imageId)}/inspect";
+        return await HttpReadRetry.ExecuteAsync(
+            async () =>
+            {
+                using var response = await _session.Client.GetAsync(url, cancellationToken).ConfigureAwait(false);
+                return await ReadEnvelopeAsync<ImageInspectData>(response, cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ImageHistoryData>> GetImageHistoryAsync(string imageId, CancellationToken cancellationToken = default)
+    {
+        string url = $"api/images/{Uri.EscapeDataString(imageId)}/history";
+        return await HttpReadRetry.ExecuteAsync(
+            async () =>
+            {
+                using var response = await _session.Client.GetAsync(url, cancellationToken).ConfigureAwait(false);
+                return await ReadEnvelopeAsync<ImageHistoryData>(response, cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ImagePullResultData>> PullImageAsync(ImagePullRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await _session.Client.PostAsJsonAsync("api/images/pull", request, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+        return await ReadEnvelopeAsync<ImagePullResultData>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ImageLoadResultData>> UploadImageLoadAsync(Stream tarStream, CancellationToken cancellationToken = default)
+    {
+        using var content = new StreamContent(tarStream);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/x-tar");
+        using var response = await _session.Client.PostAsync("api/images/load", content, cancellationToken).ConfigureAwait(false);
+        return await ReadEnvelopeAsync<ImageLoadResultData>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<(bool Success, string? ErrorMessage)> DownloadImageExportAsync(
+        string imageId,
+        Stream destination,
+        CancellationToken cancellationToken = default)
+    {
+        string url = $"api/images/{Uri.EscapeDataString(imageId)}/export";
+        using var response = await _session.Client
+            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            string err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return (false, string.IsNullOrWhiteSpace(err) ? $"HTTP {(int)response.StatusCode}" : err);
+        }
+
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await stream.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+        return (true, null);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<NetworkListData>> GetNetworksAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpReadRetry.ExecuteAsync(
+            async () =>
+            {
+                using var response = await _session.Client.GetAsync("api/networks", cancellationToken).ConfigureAwait(false);
+                return await ReadEnvelopeAsync<NetworkListData>(response, cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<VolumeListData>> GetVolumesAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpReadRetry.ExecuteAsync(
+            async () =>
+            {
+                using var response = await _session.Client.GetAsync("api/volumes", cancellationToken).ConfigureAwait(false);
+                return await ReadEnvelopeAsync<VolumeListData>(response, cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

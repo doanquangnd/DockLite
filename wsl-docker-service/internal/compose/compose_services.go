@@ -33,6 +33,9 @@ func validateComposeServiceName(s string) error {
 	if s == "" {
 		return fmt.Errorf("thiếu tên service")
 	}
+	if strings.Contains(s, "..") {
+		return fmt.Errorf("tên service không hợp lệ")
+	}
 	if strings.ContainsAny(s, ";&|`$\n\r") {
 		return fmt.Errorf("tên service không hợp lệ")
 	}
@@ -50,24 +53,25 @@ func parseServiceLines(output string) []string {
 	return out
 }
 
-func resolveComposeProjectDir(w http.ResponseWriter, projectID string) (string, bool) {
+func resolveComposeProject(w http.ResponseWriter, projectID string) (Project, bool) {
+	var zero Project
 	id := strings.TrimSpace(projectID)
 	if id == "" {
 		apiresponse.WriteError(w, apiresponse.CodeValidation, "thiếu id", http.StatusBadRequest)
-		return "", false
+		return zero, false
 	}
 	items, err := loadProjects()
 	if err != nil {
 		apiresponse.WriteError(w, apiresponse.CodeInternal, err.Error(), http.StatusInternalServerError)
-		return "", false
+		return zero, false
 	}
 	for _, it := range items {
 		if it.ID == id {
-			return it.WslPath, true
+			return it, true
 		}
 	}
 	apiresponse.WriteError(w, apiresponse.CodeNotFound, "không tìm thấy project", http.StatusNotFound)
-	return "", false
+	return zero, false
 }
 
 // composeConfigServices xử lý POST /api/compose/config/services — `docker compose config --services`.
@@ -81,13 +85,14 @@ func composeConfigServices(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
 	}
-	dir, ok := resolveComposeProjectDir(w, body.ID)
+	proj, ok := resolveComposeProject(w, body.ID)
 	if !ok {
 		return
 	}
 	ctx := r.Context()
-	cmd := exec.CommandContext(ctx, "docker", "compose", "config", "--services")
-	cmd.Dir = dir
+	args := dockerComposeArgs(proj, "config", "--services")
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Dir = proj.WslPath
 	out, err := cmd.CombinedOutput()
 	output := string(out)
 	if err != nil {
@@ -106,11 +111,11 @@ func composeConfigServices(w http.ResponseWriter, r *http.Request) {
 }
 
 func composeServiceStart(w http.ResponseWriter, r *http.Request) {
-	runComposeServiceAction(w, r, []string{"compose", "start"})
+	runComposeServiceAction(w, r, "start")
 }
 
 func composeServiceStop(w http.ResponseWriter, r *http.Request) {
-	runComposeServiceAction(w, r, []string{"compose", "stop"})
+	runComposeServiceAction(w, r, "stop")
 }
 
 func composeServiceExec(w http.ResponseWriter, r *http.Request) {
@@ -132,13 +137,13 @@ func composeServiceExec(w http.ResponseWriter, r *http.Request) {
 		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 		return
 	}
-	dir, ok := resolveComposeProjectDir(w, body.ID)
+	proj, ok := resolveComposeProject(w, body.ID)
 	if !ok {
 		return
 	}
 	svc := strings.TrimSpace(body.Service)
-	args := append([]string{"compose", "exec", "-T", svc}, parts...)
-	execComposeInDir(w, r, dir, args)
+	args := dockerComposeArgs(proj, append([]string{"exec", "-T", svc}, parts...)...)
+	execComposeInDir(w, r, proj, args)
 }
 
 func parseExecCommandParts(cmd string) ([]string, error) {
@@ -153,7 +158,7 @@ func parseExecCommandParts(cmd string) ([]string, error) {
 	if len(parts) > 48 {
 		return nil, fmt.Errorf("quá nhiều đối số")
 	}
-	forbidden := []string{";", "|", "&", "`", "$", "(", ")", "\n", "\r"}
+	forbidden := []string{";", "|", "&", "`", "$", "(", ")", "\n", "\r", ">", "<", "'", "\""}
 	for _, p := range parts {
 		if len(p) > 512 {
 			return nil, fmt.Errorf("đối số quá dài")
@@ -181,7 +186,7 @@ func composeServiceLogs(w http.ResponseWriter, r *http.Request) {
 		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 		return
 	}
-	dir, ok := resolveComposeProjectDir(w, body.ID)
+	proj, ok := resolveComposeProject(w, body.ID)
 	if !ok {
 		return
 	}
@@ -189,11 +194,11 @@ func composeServiceLogs(w http.ResponseWriter, r *http.Request) {
 	if tail <= 0 || tail > 10000 {
 		tail = 200
 	}
-	args := []string{"compose", "logs", "--tail", strconv.Itoa(tail), strings.TrimSpace(body.Service)}
-	execComposeInDir(w, r, dir, args)
+	args := dockerComposeArgs(proj, "logs", "--tail", strconv.Itoa(tail), strings.TrimSpace(body.Service))
+	execComposeInDir(w, r, proj, args)
 }
 
-func runComposeServiceAction(w http.ResponseWriter, r *http.Request, prefix []string) {
+func runComposeServiceAction(w http.ResponseWriter, r *http.Request, action string) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -207,19 +212,19 @@ func runComposeServiceAction(w http.ResponseWriter, r *http.Request, prefix []st
 		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 		return
 	}
-	dir, ok := resolveComposeProjectDir(w, body.ID)
+	proj, ok := resolveComposeProject(w, body.ID)
 	if !ok {
 		return
 	}
 	svc := strings.TrimSpace(body.Service)
-	args := append(append([]string{}, prefix...), svc)
-	execComposeInDir(w, r, dir, args)
+	args := dockerComposeArgs(proj, action, svc)
+	execComposeInDir(w, r, proj, args)
 }
 
-func execComposeInDir(w http.ResponseWriter, r *http.Request, dir string, dockerArgs []string) {
+func execComposeInDir(w http.ResponseWriter, r *http.Request, p Project, dockerArgs []string) {
 	ctx := r.Context()
 	cmd := exec.CommandContext(ctx, "docker", dockerArgs...)
-	cmd.Dir = dir
+	cmd.Dir = p.WslPath
 	out, err := cmd.CombinedOutput()
 	output := string(out)
 	if err != nil {

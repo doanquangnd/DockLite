@@ -19,19 +19,22 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
                    Text="Docker Compose"
                    FontSize="22"
                    FontWeight="SemiBold"
-                   Foreground="#0F172A"
+                   Foreground="{DynamicResource ThemePageTitleBrush}"
                    Margin="0,0,0,16" />
 
         <StackPanel Grid.Row="1"
                     Margin="0,0,0,10">
             <TextBlock Text="Thêm thư mục project (Windows: C:\... hoặc WSL: /mnt/c/...)"
-                       Margin="0,0,0,4" />
+                       Margin="0,0,0,4"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}" />
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -56,6 +59,20 @@
                         Command="{Binding AddProjectCommand}"
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
             </Grid>
+            <TextBlock Margin="0,10,0,4"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                       FontSize="12"
+                       Text="File compose tùy chọn (mỗi dòng một đường dẫn tương đối trong thư mục project, ví dụ docker-compose.yml rồi compose.override.yml). Để trống: Docker tự tìm compose mặc định." />
+            <TextBox MinHeight="56"
+                     MaxHeight="120"
+                     Padding="8"
+                     FontFamily="Consolas"
+                     FontSize="12"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="True"
+                     VerticalScrollBarVisibility="Auto"
+                     Text="{Binding NewProjectComposeFilesText, UpdateSourceTrigger=PropertyChanged}" />
         </StackPanel>
 
         <Border Grid.Row="2"
@@ -68,8 +85,7 @@
                       CanUserAddRows="False"
                       SelectionMode="Single"
                       HeadersVisibility="Column"
-                      GridLinesVisibility="Horizontal"
-                      AlternatingRowBackground="#F8FAFC">
+                      GridLinesVisibility="Horizontal">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Tên"
                                         Binding="{Binding Name}"
@@ -80,14 +96,52 @@
                     <DataGridTextColumn Header="Id"
                                         Binding="{Binding Id}"
                                         Width="120" />
+                    <DataGridTextColumn Header="File -f"
+                                        Binding="{Binding ComposeFilesSummary}"
+                                        Width="200" />
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
 
         <Border Grid.Row="3"
+                Margin="0,0,0,8"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
+                BorderThickness="1"
+                Padding="14"
+                CornerRadius="12">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
+                           Text="File compose cho project đang chọn (-f)" />
+                <TextBlock Margin="0,4,0,8"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                           FontSize="12"
+                           Text="Mỗi dòng một file tương đối trong thư mục project. Để trống và Lưu: dùng lại compose mặc định trong thư mục." />
+                <TextBox MinHeight="72"
+                         MaxHeight="160"
+                         Padding="8"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         Text="{Binding ComposeFilesEditorText, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Margin="0,10,0,0"
+                        Padding="12,6"
+                        HorizontalAlignment="Left"
+                        MinWidth="160"
+                        Content="Lưu file compose (-f)"
+                        Command="{Binding SaveComposeFilesCommand}"
+                        IsEnabled="{Binding CanSaveComposeFiles}" />
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="4"
                 Margin="0,8,0,0"
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="1"
                 Padding="14"
                 CornerRadius="12">
@@ -100,6 +154,7 @@
                 <DockPanel Grid.Column="0">
                     <TextBlock DockPanel.Dock="Top"
                                FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
                                Text="Service (theo compose file)"
                                Margin="0,0,0,6" />
                     <ListBox MinHeight="140"
@@ -135,6 +190,7 @@
                                 IsEnabled="{Binding CanComposeServiceAction}" />
                         <TextBlock Text="tail:"
                                    VerticalAlignment="Center"
+                                   Foreground="{DynamicResource ThemeBodyTextBrush}"
                                    Margin="12,0,8,0" />
                         <TextBox MinWidth="56"
                                  Padding="6,4"
@@ -142,10 +198,11 @@
                     </StackPanel>
                     <TextBlock Margin="0,10,0,4"
                                FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
                                Text="Exec không TTY (docker compose exec -T)" />
                     <TextBlock Margin="0,0,0,4"
                                TextWrapping="Wrap"
-                               Foreground="#666"
+                               Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                FontSize="11"
                                Text="Nhập lệnh: các từ cách nhau bằng khoảng trắng (ví dụ: uname -a). Shell tương tác (-it) cần terminal bên ngoài." />
                     <StackPanel Orientation="Horizontal"
@@ -164,7 +221,48 @@
             </Grid>
         </Border>
 
-        <WrapPanel Grid.Row="4"
+        <Border Grid.Row="5"
+                Margin="0,8,0,8"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
+                BorderThickness="1"
+                Padding="14"
+                CornerRadius="12">
+            <StackPanel>
+                <TextBlock FontWeight="SemiBold"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
+                           Text="Terminal WSL (gợi ý lệnh)" />
+                <TextBlock Margin="0,4,0,8"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
+                           FontSize="12"
+                           Text="Chọn project và service ở trên, rồi dán lệnh dưới vào terminal Windows (PowerShell hoặc cmd). Chạy trong đúng distro có Docker và project." />
+                <TextBox MinHeight="56"
+                         Padding="8"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         TextWrapping="Wrap"
+                         IsReadOnly="True"
+                         VerticalScrollBarVisibility="Auto"
+                         Text="{Binding SuggestedWslTerminalComposeExecLine, Mode=OneWay}" />
+                <Button Margin="0,10,0,0"
+                        Padding="12,6"
+                        HorizontalAlignment="Left"
+                        MinWidth="200"
+                        Content="Sao chép lệnh terminal"
+                        Command="{Binding CopySuggestedTerminalComposeLineCommand}"
+                        IsEnabled="{Binding CanCopySuggestedTerminalComposeLine}" />
+                <Button Margin="0,8,0,0"
+                        Padding="12,6"
+                        HorizontalAlignment="Left"
+                        MinWidth="280"
+                        Content="Mở terminal WSL trong thư mục project"
+                        Command="{Binding OpenTerminalInProjectFolderCommand}"
+                        IsEnabled="{Binding CanOpenTerminalInProjectFolder}" />
+            </StackPanel>
+        </Border>
+
+        <WrapPanel Grid.Row="6"
                    Margin="0,10,0,8">
             <Button Content="Làm mới danh sách"
                     Margin="0,0,8,4"
@@ -193,17 +291,17 @@
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
         </WrapPanel>
 
-        <DockPanel Grid.Row="5"
+        <DockPanel Grid.Row="7"
                    MinHeight="200"
                    Margin="0,8,0,12"
                    LastChildFill="True">
             <TextBlock DockPanel.Dock="Top"
                        Text="Output lệnh"
                        FontWeight="SemiBold"
-                       Foreground="#334155"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
                        Margin="0,0,0,8" />
-            <Border Background="{StaticResource CardBackgroundBrush}"
-                    BorderBrush="{StaticResource CardBorderBrush}"
+            <Border Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     Padding="12"
                     CornerRadius="10">
@@ -212,17 +310,18 @@
                                TextWrapping="Wrap"
                                FontFamily="Cascadia Mono, Consolas"
                                FontSize="12"
-                               Foreground="#334155" />
+                               Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}" />
                 </ScrollViewer>
             </Border>
         </DockPanel>
 
-        <Border Grid.Row="6"
-                BorderBrush="#EEE"
+        <Border Grid.Row="8"
+                BorderBrush="{DynamicResource ThemeSeparatorBorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="0,8,0,0">
             <TextBlock Text="{Binding StatusMessage}"
-                       TextWrapping="Wrap" />
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}" />
         </Border>
     </Grid>
 </UserControl>

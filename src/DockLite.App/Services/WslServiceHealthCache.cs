@@ -17,10 +17,18 @@ public sealed class WslServiceHealthCache
 
     public event EventHandler? Changed;
 
-    public void SetFromHealthResponse(HealthResponse? health)
+    /// <summary>
+    /// Cập nhật cache từ phản hồi health (hoặc null khi lỗi).
+    /// </summary>
+    /// <param name="forceNotify">
+    /// Khi true: luôn gọi <see cref="Changed"/> sau khi cập nhật (ví dụ sau «Kiểm tra kết nối» khi trạng thái healthy không đổi
+    /// nhưng cần làm mới dòng header từ GET /api/health).
+    /// </param>
+    public void SetFromHealthResponse(HealthResponse? health, bool forceNotify = false)
     {
         bool newValue = health is not null;
-        if (_lastHealthy.HasValue && _lastHealthy.Value == newValue)
+        bool unchanged = _lastHealthy.HasValue && _lastHealthy.Value == newValue;
+        if (unchanged && !forceNotify)
         {
             return;
         }
@@ -29,12 +37,16 @@ public sealed class WslServiceHealthCache
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    public async Task RefreshAsync(IDockLiteApiClient apiClient, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Gọi GET /api/health và cập nhật cache.
+    /// </summary>
+    /// <param name="forceNotify">True sau thao tác thủ công (start/stop WSL) để header đồng bộ kể khi healthy không đổi.</param>
+    public async Task RefreshAsync(IDockLiteApiClient apiClient, CancellationToken cancellationToken = default, bool forceNotify = false)
     {
         try
         {
             HealthResponse? health = await apiClient.GetHealthAsync(cancellationToken).ConfigureAwait(false);
-            SetFromHealthResponse(health);
+            SetFromHealthResponse(health, forceNotify);
         }
         catch (OperationCanceledException)
         {
@@ -42,7 +54,7 @@ public sealed class WslServiceHealthCache
         }
         catch
         {
-            SetFromHealthResponse(null);
+            SetFromHealthResponse(null, forceNotify);
         }
     }
 }

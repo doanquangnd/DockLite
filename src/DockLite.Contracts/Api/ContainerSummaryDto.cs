@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Text.Json.Serialization;
 
 namespace DockLite.Contracts.Api;
@@ -30,4 +33,44 @@ public sealed class ContainerSummaryDto
 
     [JsonPropertyName("createdAt")]
     public string? CreatedAt { get; init; }
+
+    /// <summary>
+    /// Nhãn Docker (map key/value), từ API list containers.
+    /// </summary>
+    [JsonPropertyName("labels")]
+    public Dictionary<string, string>? Labels { get; init; }
+
+    /// <summary>
+    /// Chuỗi nhãn rút gọn cho cột lưới (không đọc từ JSON).
+    /// </summary>
+    [JsonIgnore]
+    public string LabelsSummary
+    {
+        get
+        {
+            if (Labels is null || Labels.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            const int maxLen = 160;
+            var sb = new StringBuilder();
+            foreach (KeyValuePair<string, string> kv in Labels.OrderBy(x => x.Key))
+            {
+                if (sb.Length > 0)
+                {
+                    sb.Append(", ");
+                }
+
+                sb.Append(kv.Key).Append('=').Append(kv.Value);
+                if (sb.Length >= maxLen)
+                {
+                    sb.Append('…');
+                    break;
+                }
+            }
+
+            return sb.ToString();
+        }
+    }
 }

@@ -314,11 +314,14 @@ public partial class AppDebugLogViewModel : ObservableObject
             sb.AppendLine("--- Nội dung đang hiển thị ---");
             sb.Append(string.Join(Environment.NewLine, VisibleLines));
             System.Windows.Clipboard.SetText(sb.ToString());
-            StatusMessage = "Đã sao chép vào clipboard.";
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_AppLog_Status_CopyOk", "Đã sao chép vào clipboard.");
         }
         catch (Exception ex)
         {
-            StatusMessage = "Không sao chép được: " + ex.Message;
+            StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                "Ui_AppLog_Status_CopyFailedFormat",
+                "Không sao chép được: {0}",
+                ex.Message);
         }
     }
 
@@ -349,12 +352,21 @@ public partial class AppDebugLogViewModel : ObservableObject
                 : string.Join(Environment.NewLine, SplitLines(_rawLogText).Select(FormatLogLineForDisplay));
             File.WriteAllText(dlg.FileName, body, Encoding.UTF8);
             StatusMessage = anyFilter
-                ? "Đã xuất phần đang lọc: " + dlg.FileName
-                : "Đã xuất toàn bộ đuôi log: " + dlg.FileName;
+                ? UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_AppLog_Status_ExportFilteredFormat",
+                    "Đã xuất phần đang lọc: {0}",
+                    dlg.FileName)
+                : UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_AppLog_Status_ExportFullFormat",
+                    "Đã xuất toàn bộ đuôi log: {0}",
+                    dlg.FileName);
         }
         catch (Exception ex)
         {
-            StatusMessage = "Không ghi được file: " + ex.Message;
+            StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                "Ui_AppLog_Status_ExportFailedFormat",
+                "Không ghi được file: {0}",
+                ex.Message);
         }
     }
 

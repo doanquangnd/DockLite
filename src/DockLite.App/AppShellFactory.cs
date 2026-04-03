@@ -1,3 +1,4 @@
+using System.Windows;
 using DockLite.App.Services;
 using DockLite.App.ViewModels;
 using DockLite.Core.Configuration;
@@ -40,32 +41,47 @@ public sealed class AppShellFactory : IAppShellFactory
         var store = new AppSettingsStore();
         AppSettings loaded = store.Load();
         _uiDisplay.Apply(loaded);
+        if (Application.Current is not null)
+        {
+            ThemeManager.Apply(Application.Current, loaded);
+            UiLanguageManager.Apply(Application.Current, loaded);
+        }
 
         var httpSession = new DockLiteHttpSession(loaded);
 
         IDockLiteApiClient apiClient = new DockLiteApiClient(httpSession);
         ILogStreamClient logStream = new LogStreamClient(httpSession);
+        IStatsStreamClient statsStream = new StatsStreamClient(httpSession);
         IDialogService dialogService = _dialogService;
         var healthCache = new WslServiceHealthCache();
         var dashboardVm = new DashboardViewModel(apiClient, _notificationService, _shellActivity, _shutdownToken);
-        var containersVm = new ContainersViewModel(apiClient, dialogService, _shutdownToken, _shellActivity);
-        var logsVm = new LogsViewModel(apiClient, logStream, _shutdownToken);
-        var composeVm = new ComposeViewModel(apiClient, _notificationService, _shutdownToken);
-        var imagesVm = new ImagesViewModel(apiClient, dialogService, _notificationService, _shutdownToken);
-        var cleanupVm = new CleanupViewModel(apiClient, dialogService, _shutdownToken);
         var settingsVm = new SettingsViewModel(store, httpSession, apiClient, appBaseDirectory, loaded, _shutdownToken, healthCache, _uiDisplay, _notificationService);
-        var appDebugLogVm = new AppDebugLogViewModel(_uiDisplay);
+        var containersLazy = new Lazy<ContainersViewModel>(() =>
+            new ContainersViewModel(apiClient, dialogService, _shutdownToken, _shellActivity, statsStream));
+        var logsLazy = new Lazy<LogsViewModel>(() =>
+            new LogsViewModel(apiClient, logStream, _shutdownToken, _shellActivity));
+        var composeLazy = new Lazy<ComposeViewModel>(() =>
+            new ComposeViewModel(apiClient, _notificationService, _shutdownToken, loaded.WslDistribution));
+        var imagesLazy = new Lazy<ImagesViewModel>(() =>
+            new ImagesViewModel(apiClient, dialogService, _notificationService, _shutdownToken));
+        var networkVolumeLazy = new Lazy<NetworkVolumeViewModel>(() =>
+            new NetworkVolumeViewModel(apiClient, _shutdownToken));
+        var cleanupLazy = new Lazy<CleanupViewModel>(() =>
+            new CleanupViewModel(apiClient, dialogService, _shutdownToken));
+        var appDebugLogLazy = new Lazy<AppDebugLogViewModel>(() => new AppDebugLogViewModel(_uiDisplay));
         var shellVm = new ShellViewModel(
             dashboardVm,
-            containersVm,
-            logsVm,
-            composeVm,
-            imagesVm,
-            cleanupVm,
+            containersLazy,
+            logsLazy,
+            composeLazy,
+            imagesLazy,
+            networkVolumeLazy,
+            cleanupLazy,
             settingsVm,
-            appDebugLogVm,
+            appDebugLogLazy,
             apiClient,
             dialogService,
+            _notificationService,
             httpSession,
             healthCache,
             _shellActivity,

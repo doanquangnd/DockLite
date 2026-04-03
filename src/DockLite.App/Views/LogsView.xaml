@@ -5,11 +5,11 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:converters="clr-namespace:DockLite.App.Converters"
              xmlns:models="clr-namespace:DockLite.App.Models"
+             xmlns:behaviors="clr-namespace:DockLite.App.Behaviors"
              d:DesignHeight="520"
              d:DesignWidth="720"
              mc:Ignorable="d">
     <UserControl.Resources>
-        <converters:LogSeverityToBrushConverter x:Key="LogSeverityToBrushConverter" />
         <converters:InvertBooleanConverter x:Key="InvertBooleanConverter" />
     </UserControl.Resources>
     <Grid>
@@ -25,7 +25,7 @@
                    Text="Log container"
                    FontSize="22"
                    FontWeight="SemiBold"
-                   Foreground="#0F172A"
+                   Foreground="{DynamicResource ThemePageTitleBrush}"
                    Margin="0,0,0,16" />
 
         <Grid Grid.Row="1"
@@ -45,36 +45,33 @@
                        Grid.Column="0"
                        Text="Container:"
                        VerticalAlignment="Center"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
                        Margin="0,0,8,6" />
-            <Border Grid.Row="0"
-                    Grid.Column="1"
-                    Margin="0,0,12,6"
-                    Style="{StaticResource InputChromeBorderStyle}">
-                <ComboBox BorderThickness="0"
-                          Background="Transparent"
-                          Padding="8,6"
-                          MinHeight="34"
-                          VerticalAlignment="Center"
-                          ItemsSource="{Binding ContainerOptions}"
-                          SelectedItem="{Binding SelectedContainer}">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Name}"
-                                           FontWeight="SemiBold"
-                                           Margin="0,0,8,0" />
-                                <TextBlock Text="{Binding ShortId}"
-                                           Foreground="#64748B" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-            </Border>
+            <ComboBox Grid.Row="0"
+                      Grid.Column="1"
+                      Margin="0,0,12,6"
+                      VerticalAlignment="Center"
+                      ItemsSource="{Binding ContainerOptions}"
+                      SelectedItem="{Binding SelectedContainer}">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Name}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource ThemeBodyTextBrush}"
+                                       Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding ShortId}"
+                                       Foreground="{DynamicResource ThemeMutedForegroundBrush}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
 
             <TextBlock Grid.Row="0"
                        Grid.Column="2"
                        Text="Tail:"
                        VerticalAlignment="Center"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
                        Margin="0,0,8,6" />
             <TextBox Grid.Row="0"
                      Grid.Column="3"
@@ -85,12 +82,14 @@
                        Grid.Column="0"
                        Text="Tìm:"
                        VerticalAlignment="Center"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
                        Margin="0,0,8,0" />
             <TextBox Grid.Row="1"
                      Grid.Column="1"
                      Grid.ColumnSpan="3"
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                     Padding="6,4" />
+                     Padding="6,4"
+                     ToolTip="Lọc dòng chứa chuỗi. Với dòng rất dài (&gt;65536 ký tự) chỉ khớp trong phần đầu dòng." />
         </Grid>
 
         <!-- MaxHeight: cuộn nội dung log trong khung; ScrollViewer MainWindow vẫn cuộn cả trang -->
@@ -98,6 +97,7 @@
               MinHeight="240"
               MaxHeight="520">
             <ListBox VerticalAlignment="Stretch"
+                     behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
                      ItemsSource="{Binding Lines}"
                      VirtualizingPanel.IsVirtualizing="True"
                      VirtualizingPanel.VirtualizationMode="Recycling"
@@ -105,14 +105,40 @@
                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                      FontFamily="Cascadia Mono, Consolas"
                      FontSize="12"
-                     Background="{StaticResource CardBackgroundBrush}"
-                     BorderBrush="{StaticResource CardBorderBrush}"
+                     Background="{DynamicResource CardBackgroundBrush}"
+                     BorderBrush="{DynamicResource CardBorderBrush}"
                      BorderThickness="1">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel VirtualizingPanel.CacheLengthUnit="Page"
+                                                VirtualizingPanel.CacheLength="1,1"
+                                                VirtualizingPanel.ScrollUnit="Pixel" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
                 <ListBox.ItemTemplate>
                     <DataTemplate DataType="{x:Type models:LogLineViewModel}">
                         <TextBlock Text="{Binding Text}"
-                                   TextWrapping="NoWrap"
-                                   Foreground="{Binding Severity, Converter={StaticResource LogSeverityToBrushConverter}}" />
+                                   TextWrapping="NoWrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{DynamicResource ThemeLogSeverityDefaultBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Severity}" Value="{x:Static models:LogSeverity.Error}">
+                                            <Setter Property="Foreground" Value="{DynamicResource ThemeLogSeverityErrorBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Severity}" Value="{x:Static models:LogSeverity.Warn}">
+                                            <Setter Property="Foreground" Value="{DynamicResource ThemeLogSeverityWarnBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Severity}" Value="{x:Static models:LogSeverity.Info}">
+                                            <Setter Property="Foreground" Value="{DynamicResource ThemeLogSeverityInfoBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Severity}" Value="{x:Static models:LogSeverity.Debug}">
+                                            <Setter Property="Foreground" Value="{DynamicResource ThemeLogSeverityDebugBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
@@ -146,14 +172,15 @@
         </WrapPanel>
 
         <Border Grid.Row="4"
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="1"
                 Padding="12"
                 Margin="0,12,0,0"
                 CornerRadius="10">
             <TextBlock Text="{Binding StatusMessage}"
-                       TextWrapping="Wrap" />
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}" />
         </Border>
     </Grid>
 </UserControl>

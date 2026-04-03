@@ -15,4 +15,19 @@ public sealed class ComposeProjectDto
 
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Đường dẫn tương đối trong thư mục project cho từng <c>docker compose -f</c>; rỗng = tự tìm compose mặc định.
+    /// </summary>
+    [JsonPropertyName("composeFiles")]
+    public List<string>? ComposeFiles { get; init; }
+
+    /// <summary>
+    /// Hiển thị trong lưới; không nằm trong JSON từ server.
+    /// </summary>
+    [JsonIgnore]
+    public string ComposeFilesSummary =>
+        ComposeFiles is null || ComposeFiles.Count == 0
+            ? "(mặc định)"
+            : string.Join(", ", ComposeFiles);
 }

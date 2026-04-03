@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:behaviors="clr-namespace:DockLite.App.Behaviors"
              d:DesignHeight="480"
              d:DesignWidth="720"
              mc:Ignorable="d">
@@ -21,7 +22,7 @@
                    Text="Container"
                    FontSize="22"
                    FontWeight="SemiBold"
-                   Foreground="#0F172A"
+                   Foreground="{DynamicResource ThemePageTitleBrush}"
                    Margin="0,0,0,16" />
 
         <Grid Grid.Row="1"
@@ -36,30 +37,27 @@
             <TextBlock Grid.Column="0"
                        Text="Lọc:"
                        VerticalAlignment="Center"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
                        Margin="0,0,8,0" />
-            <Border Grid.Column="1"
-                    Style="{StaticResource InputChromeBorderStyle}">
-                <ComboBox BorderThickness="0"
-                          Background="Transparent"
-                          Padding="8,6"
-                          MinHeight="34"
-                          VerticalAlignment="Center"
-                          ItemsSource="{Binding FilterKinds}"
-                          SelectedItem="{Binding FilterKind}" />
-            </Border>
+            <ComboBox Grid.Column="1"
+                      VerticalAlignment="Center"
+                      ItemsSource="{Binding FilterKinds}"
+                      SelectedItem="{Binding FilterKind}" />
             <TextBlock Grid.Column="3"
                        Text="Tìm:"
                        VerticalAlignment="Center"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
                        Margin="0,0,8,0" />
             <TextBox Grid.Column="4"
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                     Padding="6,4" />
+                     Padding="6,4"
+                     ToolTip="Tìm trên tên, image, ID, trạng thái, cổng, lệnh, nhãn (khóa hoặc giá trị)" />
         </Grid>
 
         <Border Grid.Row="2"
                 Margin="0,0,0,12"
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="1"
                 Padding="14"
                 CornerRadius="10">
@@ -80,26 +78,29 @@
                 </WrapPanel>
                 <TextBlock Margin="0,0,0,4"
                            FontWeight="SemiBold"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
                            Text="Theo RAM" />
                 <TextBlock Text="{Binding TopMemorySummaryText}"
                            TextWrapping="Wrap"
                            FontFamily="Consolas"
                            FontSize="12"
-                           Foreground="#333" />
+                           Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}" />
                 <TextBlock Margin="0,12,0,4"
                            FontWeight="SemiBold"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
                            Text="Theo CPU %" />
                 <TextBlock Text="{Binding TopCpuSummaryText}"
                            TextWrapping="Wrap"
                            FontFamily="Consolas"
                            FontSize="12"
-                           Foreground="#333" />
+                           Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}" />
             </StackPanel>
         </Border>
 
         <Border Grid.Row="3"
                 MinHeight="300"
                 Margin="0,0,0,8"
+                behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
                 Style="{StaticResource RoundedTableChromeStyle}">
             <DataGrid ItemsSource="{Binding FilteredItems}"
                       SelectedItem="{Binding SelectedContainerRow}"
@@ -108,8 +109,7 @@
                       CanUserAddRows="False"
                       SelectionMode="Single"
                       HeadersVisibility="Column"
-                      GridLinesVisibility="Horizontal"
-                      AlternatingRowBackground="#F8FAFC">
+                      GridLinesVisibility="Horizontal">
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Width="48"
                                             Header="Chọn">
@@ -140,43 +140,138 @@
                                         Binding="{Binding Model.Ports}"
                                         Header="Cổng"
                                         IsReadOnly="True" />
+                    <DataGridTextColumn Width="220"
+                                        MinWidth="120"
+                                        Binding="{Binding Model.LabelsSummary}"
+                                        Header="Nhãn"
+                                        IsReadOnly="True" />
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
 
         <Expander Grid.Row="4"
                   Margin="0,8,0,0"
+                  Foreground="{DynamicResource ThemeBodyTextBrush}"
                   Header="Chi tiết container (inspect + stats)">
-            <ScrollViewer MaxHeight="420"
+            <ScrollViewer MaxHeight="720"
+                          behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
                           VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="0,8,0,0">
-                    <StackPanel Margin="0,0,0,8"
-                                Orientation="Horizontal">
-                        <CheckBox VerticalAlignment="Center"
-                                  Content="Stats realtime (polling API)"
-                                  IsChecked="{Binding IsStatsRealtimeEnabled}" />
-                        <TextBlock Margin="12,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Foreground="#64748B"
-                                   FontSize="12"
-                                   Text="{Binding StatsRealtimePollCount, StringFormat='Đã gọi stats: {0} lần'}" />
-                        <TextBlock Margin="16,0,8,0"
-                                   VerticalAlignment="Center"
-                                   Text="Chu kỳ (giây):" />
-                        <Border MinWidth="80"
-                                Style="{StaticResource InputChromeBorderStyle}"
-                                VerticalAlignment="Center">
+                    <StackPanel Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal">
+                            <CheckBox VerticalAlignment="Center"
+                                      Content="Stats realtime"
+                                      IsChecked="{Binding IsStatsRealtimeEnabled}" />
+                            <TextBlock Margin="12,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                       FontSize="12"
+                                       Text="{Binding StatsRealtimePollCount, StringFormat='Mẫu stats: {0}'}" />
+                        </StackPanel>
+                        <CheckBox Margin="0,6,0,0"
+                                  Content="Dùng WebSocket stream (thay polling REST)"
+                                  IsChecked="{Binding UseStatsWebSocket}"
+                                  IsEnabled="{Binding IsStatsRealtimeEnabled}" />
+                        <StackPanel Margin="0,6,0,0"
+                                    Orientation="Horizontal">
+                            <TextBlock VerticalAlignment="Center"
+                                       Margin="0,0,8,0"
+                                       Foreground="{DynamicResource ThemeBodyTextBrush}"
+                                       Text="Chu kỳ REST (giây):" />
                             <ComboBox MinWidth="72"
-                                      BorderThickness="0"
-                                      Background="Transparent"
-                                      Padding="8,6"
-                                      MinHeight="34"
                                       VerticalAlignment="Center"
                                       ItemsSource="{Binding StatsRealtimeIntervalChoices}"
-                                      SelectedItem="{Binding StatsRealtimeIntervalSeconds}" />
-                        </Border>
+                                      SelectedItem="{Binding StatsRealtimeIntervalSeconds}"
+                                      IsEnabled="{Binding CanEditPollingInterval}" />
+                            <TextBlock Margin="16,0,8,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource ThemeBodyTextBrush}"
+                                       Text="Interval WS (ms):" />
+                            <ComboBox MinWidth="72"
+                                      VerticalAlignment="Center"
+                                      ItemsSource="{Binding StatsWebSocketIntervalChoices}"
+                                      SelectedItem="{Binding StatsWebSocketIntervalMs}"
+                                      IsEnabled="{Binding CanConfigureWebSocketInterval}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,10,0,4"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource ThemeBodyTextBrush}"
+                                   Text="Sparkline (CPU % và RAM % — tối đa 90 điểm)" />
+                        <StackPanel Orientation="Horizontal">
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock FontSize="11"
+                                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                           Text="CPU %" />
+                                <Canvas Width="300"
+                                        Height="72"
+                                        Background="{DynamicResource ThemeSurfaceSubtleBrush}">
+                                    <Polyline Stroke="{DynamicResource ThemeSparklineCpuStrokeBrush}"
+                                              StrokeThickness="1.5"
+                                              Points="{Binding CpuSparklinePoints}" />
+                                </Canvas>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock FontSize="11"
+                                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                           Text="RAM % (dùng/giới hạn)" />
+                                <Canvas Width="300"
+                                        Height="72"
+                                        Background="{DynamicResource ThemeSurfaceSubtleBrush}">
+                                    <Polyline Stroke="{DynamicResource ThemeSparklineMemStrokeBrush}"
+                                              StrokeThickness="1.5"
+                                              Points="{Binding MemorySparklinePoints}" />
+                                </Canvas>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                    <TextBlock Margin="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
+                               Text="Gợi ý lệnh terminal (docker trên máy hoặc WSL)" />
+                    <TextBlock Margin="0,0,0,8"
+                                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Text="Mở PowerShell hoặc WSL, dán lệnh. Lệnh attach thường cần container chạy với TTY; exec dùng shell mặc định sh (đổi thành bash hoặc cmd nếu image không có sh)." />
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Margin="0,0,0,4"
+                                   FontSize="11"
+                                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   Text="docker exec -it …" />
+                        <StackPanel Margin="0,0,0,6"
+                                    Orientation="Horizontal">
+                            <TextBox MinWidth="280"
+                                     Margin="0,0,8,0"
+                                     Padding="6,4"
+                                     FontFamily="Consolas"
+                                     FontSize="12"
+                                     IsReadOnly="True"
+                                     Text="{Binding SuggestedExecCommandText, Mode=OneWay}" />
+                            <Button Padding="10,6"
+                                    VerticalAlignment="Center"
+                                    Content="Sao chép"
+                                    Command="{Binding CopySuggestedExecCommandCommand}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,0,0,4"
+                                   FontSize="11"
+                                    Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   Text="docker attach …" />
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox MinWidth="280"
+                                     Margin="0,0,8,0"
+                                     Padding="6,4"
+                                     FontFamily="Consolas"
+                                     FontSize="12"
+                                     IsReadOnly="True"
+                                     Text="{Binding SuggestedAttachCommandText, Mode=OneWay}" />
+                            <Button Padding="10,6"
+                                    VerticalAlignment="Center"
+                                    Content="Sao chép"
+                                    Command="{Binding CopySuggestedAttachCommandCommand}" />
+                        </StackPanel>
                     </StackPanel>
                     <TextBlock FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
                                Text="Inspect (tóm tắt)" />
                     <TextBox MinHeight="100"
                              Margin="0,4,0,0"
@@ -188,6 +283,140 @@
                              VerticalScrollBarVisibility="Auto" />
                     <TextBlock Margin="0,12,0,0"
                                FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
+                               Text="Inspect (bảng chi tiết)" />
+                    <TextBlock Margin="0,4,0,8"
+                                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Text="Mount, cổng (publish), mạng, biến môi trường và nhãn — sau khi nhấn «Tải chi tiết». Ô lọc chỉ áp dụng cho bảng nhãn." />
+                    <TextBlock Margin="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
+                               Text="Mount" />
+                    <DataGrid MaxHeight="160"
+                              Margin="0,0,0,8"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding DetailInspectMounts}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="80"
+                                                Binding="{Binding Type}"
+                                                Header="Loại" />
+                            <DataGridTextColumn Width="*"
+                                                MinWidth="120"
+                                                Binding="{Binding Source}"
+                                                Header="Nguồn" />
+                            <DataGridTextColumn Width="*"
+                                                MinWidth="120"
+                                                Binding="{Binding Destination}"
+                                                Header="Đích" />
+                            <DataGridTextColumn Width="72"
+                                                Binding="{Binding Mode}"
+                                                Header="Mode" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Margin="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
+                               Text="Cổng (publish)" />
+                    <DataGrid MaxHeight="140"
+                              Margin="0,0,0,8"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding DetailInspectPorts}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="120"
+                                                Binding="{Binding ContainerPort}"
+                                                Header="Cổng container" />
+                            <DataGridTextColumn Width="120"
+                                                Binding="{Binding HostIp}"
+                                                Header="Host IP" />
+                            <DataGridTextColumn Width="*"
+                                                MinWidth="80"
+                                                Binding="{Binding HostPort}"
+                                                Header="Host port" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Margin="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
+                               Text="Mạng" />
+                    <DataGrid MaxHeight="140"
+                              Margin="0,0,0,8"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding DetailInspectNetworks}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="120"
+                                                Binding="{Binding Name}"
+                                                Header="Tên" />
+                            <DataGridTextColumn Width="*"
+                                                MinWidth="100"
+                                                Binding="{Binding IpAddress}"
+                                                Header="IP" />
+                            <DataGridTextColumn Width="120"
+                                                Binding="{Binding Gateway}"
+                                                Header="Gateway" />
+                            <DataGridTextColumn Width="140"
+                                                Binding="{Binding MacAddress}"
+                                                Header="MAC" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Margin="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
+                               Text="Biến môi trường (Env)" />
+                    <DataGrid MaxHeight="180"
+                              Margin="0,0,0,8"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding DetailInspectEnv}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="200"
+                                                Binding="{Binding Key}"
+                                                Header="Khóa" />
+                            <DataGridTextColumn Width="*"
+                                                MinWidth="160"
+                                                Binding="{Binding Value}"
+                                                Header="Giá trị" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Margin="0,0,0,4"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
+                               Text="Nhãn (Labels)" />
+                    <TextBox Margin="0,0,0,6"
+                             Text="{Binding InspectLabelFilterText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="Lọc theo chuỗi trong tên hoặc giá trị nhãn (không phân biệt hoa thường)." />
+                    <DataGrid MaxHeight="160"
+                              Margin="0,0,0,8"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              IsReadOnly="True"
+                              ItemsSource="{Binding DetailInspectLabels}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="220"
+                                                Binding="{Binding Key}"
+                                                Header="Tên" />
+                            <DataGridTextColumn Width="*"
+                                                MinWidth="160"
+                                                Binding="{Binding Value}"
+                                                Header="Giá trị" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Margin="0,12,0,0"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
                                Text="Inspect (JSON thô)" />
                     <TextBox MinHeight="120"
                              Margin="0,4,0,0"
@@ -199,6 +428,7 @@
                              VerticalScrollBarVisibility="Auto" />
                     <TextBlock Margin="0,12,0,0"
                                FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
                                Text="Stats" />
                     <TextBox MinHeight="72"
                              Margin="0,4,0,0"
@@ -245,6 +475,13 @@
                     Padding="12,6"
                     Command="{Binding BatchRemoveCheckedCommand}"
                     IsEnabled="{Binding CanBatchRemove}" />
+            <Button Content="Stats batch (chọn)"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    MinWidth="140"
+                    Command="{Binding BatchStatsSnapshotCommand}"
+                    IsEnabled="{Binding CanBatchStats}"
+                    ToolTip="POST /api/containers/stats-batch — chọn ít nhất 2 hàng, tối đa 32; hiển thị CPU/RAM trong ô trạng thái." />
             <Button Content="Tải chi tiết"
                     Margin="0,0,8,4"
                     Padding="12,6"
@@ -278,14 +515,14 @@
         </WrapPanel>
 
         <Border Grid.Row="6"
-                Background="{StaticResource CardBackgroundBrush}"
-                BorderBrush="{StaticResource CardBorderBrush}"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="1"
                 Padding="12"
                 CornerRadius="10">
             <TextBlock Text="{Binding StatusMessage}"
                        TextWrapping="Wrap"
-                       Foreground="#334155" />
+                       Foreground="{DynamicResource ThemeBodyTextBrush}" />
         </Border>
     </Grid>
 </UserControl>

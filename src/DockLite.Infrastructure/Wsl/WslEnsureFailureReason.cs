@@ -14,8 +14,11 @@ public enum WslEnsureFailureReason
     /// <summary>Không xác định được thư mục wsl-docker-service.</summary>
     MissingServiceRoot,
 
-    /// <summary>Thiếu scripts/run-server.sh.</summary>
+    /// <summary>Thiếu scripts/run-server.sh (khởi động thủ công từ Cài đặt).</summary>
     MissingRunScript,
+
+    /// <summary>Thiếu scripts/restart-server.sh (tự khởi động khi mở app).</summary>
+    MissingRestartScript,
 
     /// <summary>Không chuyển được đường dẫn sang Unix (wslpath).</summary>
     WslPathConversionFailed,

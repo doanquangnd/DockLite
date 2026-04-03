@@ -1,12 +1,14 @@
 package docker
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 
 	"docklite-wsl/internal/apiresponse"
 	"docklite-wsl/internal/dockerengine"
@@ -92,29 +94,11 @@ func sumBlkioReadWrite(b types.BlkioStats) (read, write uint64) {
 	return read, write
 }
 
-// containerStatsSnapshot trả một snapshot CPU/RAM/mạng (GET /api/containers/{id}/stats).
-func containerStatsSnapshot(w http.ResponseWriter, r *http.Request, id string) {
-	ctx := r.Context()
-	dc, err := dockerengine.Client()
-	if err != nil {
-		apiresponse.WriteError(w, apiresponse.CodeDockerUnavailable, err.Error(), http.StatusServiceUnavailable)
-		return
-	}
-	st, err := dc.ContainerStatsOneShot(ctx, id)
-	if err != nil {
-		dockerengine.WriteError(w, err)
-		return
-	}
-	defer st.Body.Close()
-	body, err := io.ReadAll(st.Body)
-	if err != nil {
-		apiresponse.WriteError(w, apiresponse.CodeInternal, err.Error(), http.StatusInternalServerError)
-		return
-	}
+// statsSnapshotFromStatsJSON parse thân JSON một lần chụp từ ContainerStatsOneShot.
+func statsSnapshotFromStatsJSON(body []byte) (statsSnapshot, error) {
 	var wire statsWire
 	if err := json.Unmarshal(body, &wire); err != nil {
-		apiresponse.WriteError(w, apiresponse.CodeInternal, "json stats: "+err.Error(), http.StatusInternalServerError)
-		return
+		return statsSnapshot{}, err
 	}
 	rx, tx := sumNetworks(wire)
 	br, bw := sumBlkioReadWrite(wire.BlkioStats)
@@ -127,6 +111,36 @@ func containerStatsSnapshot(w http.ResponseWriter, r *http.Request, id string) {
 		NetworkTxBytes:   tx,
 		BlockReadBytes:   br,
 		BlockWriteBytes:  bw,
+	}
+	return out, nil
+}
+
+// snapshotStatsForContainer dùng cho GET stats đơn và POST stats-batch.
+func snapshotStatsForContainer(ctx context.Context, dc *client.Client, id string) (statsSnapshot, error) {
+	st, err := dc.ContainerStatsOneShot(ctx, id)
+	if err != nil {
+		return statsSnapshot{}, err
+	}
+	defer st.Body.Close()
+	body, err := io.ReadAll(st.Body)
+	if err != nil {
+		return statsSnapshot{}, err
+	}
+	return statsSnapshotFromStatsJSON(body)
+}
+
+// containerStatsSnapshot trả một snapshot CPU/RAM/mạng (GET /api/containers/{id}/stats).
+func containerStatsSnapshot(w http.ResponseWriter, r *http.Request, id string) {
+	ctx := r.Context()
+	dc, err := dockerengine.Client()
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeDockerUnavailable, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	out, err := snapshotStatsForContainer(ctx, dc, id)
+	if err != nil {
+		dockerengine.WriteError(w, err)
+		return
 	}
 	apiresponse.WriteSuccess(w, out, http.StatusOK)
 }

@@ -5,6 +5,11 @@ namespace DockLite.App.Models;
 /// </summary>
 public static class LogLineClassifier
 {
+    /// <summary>
+    /// Chỉ quét tiền tố dòng để tránh ToUpperInvariant/Contains trên chuỗi cực dài (một dòng JSON/Base64 hàng MB).
+    /// </summary>
+    private const int MaxClassifyScanChars = 4096;
+
     public static LogSeverity Classify(string line)
     {
         if (string.IsNullOrEmpty(line))
@@ -12,7 +17,8 @@ public static class LogLineClassifier
             return LogSeverity.Normal;
         }
 
-        string u = line.ToUpperInvariant();
+        string scan = line.Length <= MaxClassifyScanChars ? line : line.Substring(0, MaxClassifyScanChars);
+        string u = scan.ToUpperInvariant();
         if (u.Contains("ERROR") || u.Contains("FATAL"))
         {
             return LogSeverity.Error;

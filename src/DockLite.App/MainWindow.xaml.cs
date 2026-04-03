@@ -8,13 +8,20 @@ public partial class MainWindow : Window
 {
     private readonly AppShellActivityState _shellActivity;
 
+    /// <summary>
+    /// Panel xếp toast (góc phải dưới); dùng bởi <see cref="MainWindowAccessor"/>.
+    /// </summary>
+    public System.Windows.Controls.Panel ToastHostPanel => ToastStackPanel;
+
     public MainWindow(
         ShellViewModel shellViewModel,
         IAppStartupService startupService,
         IAppShutdownToken shutdownToken,
-        AppShellActivityState shellActivity)
+        AppShellActivityState shellActivity,
+        MainWindowAccessor mainWindowHost)
     {
         InitializeComponent();
+        mainWindowHost.Attach(this);
         _shellActivity = shellActivity;
         DataContext = shellViewModel;
         Closed += (_, _) => shutdownToken.Cancel();
