@@ -174,4 +174,9 @@ public interface IDockLiteApiClient
     /// GET /api/volumes
     /// </summary>
     Task<ApiResult<VolumeListData>> GetVolumesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// POST /api/volumes/remove — xóa một volume theo tên.
+    /// </summary>
+    Task<ApiResult<EmptyApiPayload>> RemoveVolumeAsync(VolumeRemoveRequest request, CancellationToken cancellationToken = default);
 }

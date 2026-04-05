@@ -1,7 +1,8 @@
+using System;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using DockLite.App.Services;
-using DockLite.Core;
 using DockLite.Core.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,13 +16,8 @@ public partial class App : Application
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
-        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-        {
-            if (args.ExceptionObject is Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine(ex);
-            }
-        };
+        AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
         var services = new ServiceCollection();
         services.AddDockLiteUi(AppContext.BaseDirectory);
@@ -44,9 +40,39 @@ public partial class App : Application
         System.Diagnostics.Debug.WriteLine(e.Exception);
         AppFileLog.WriteException("UI", e.Exception);
         MessageBox.Show(
-            ExceptionMessages.FormatForUser(e.Exception),
-            "DockLite",
+            NetworkErrorMessageMapper.FormatForUser(e.Exception),
+            UiLanguageManager.TryLocalize(Application.Current, "Ui_MainWindow_Title", "DockLite"),
             MessageBoxButton.OK,
             MessageBoxImage.Error);
+    }
+
+    private static void OnAppDomainUnhandledException(object? sender, UnhandledExceptionEventArgs args)
+    {
+        try
+        {
+            if (args.ExceptionObject is Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex);
+                AppFileLog.WriteException("AppDomain", ex);
+            }
+        }
+        catch
+        {
+            // bỏ qua: lỗi ghi log không được làm hỏng quy trình tắt.
+        }
+    }
+
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        try
+        {
+            AppFileLog.WriteException("UnobservedTask", e.Exception);
+        }
+        catch
+        {
+            // bỏ qua
+        }
+
+        e.SetObserved();
     }
 }

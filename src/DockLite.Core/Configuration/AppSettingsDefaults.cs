@@ -12,6 +12,21 @@ public static class AppSettingsDefaults
             s.ServiceBaseUrl = DockLiteDefaults.ServiceBaseUrl;
         }
 
+        if (string.IsNullOrWhiteSpace(s.ServiceApiToken))
+        {
+            s.ServiceApiToken = null;
+        }
+        else
+        {
+            string tok = s.ServiceApiToken.Trim();
+            if (tok.Length > 8192)
+            {
+                tok = tok.Substring(0, 8192);
+            }
+
+            s.ServiceApiToken = tok;
+        }
+
         s.HttpTimeoutSeconds = Clamp(s.HttpTimeoutSeconds, 30, 600, 120);
         s.WslAutoStartHealthWaitSeconds = Clamp(s.WslAutoStartHealthWaitSeconds, 10, 600, 45);
         s.WslManualHealthWaitSeconds = Clamp(s.WslManualHealthWaitSeconds, 10, 600, 90);

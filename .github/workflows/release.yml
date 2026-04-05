@@ -1,0 +1,67 @@
+# Bản phát hành khi đẩy tag semver v* (ví dụ v0.1.0): binary Linux, SBOM CycloneDX, checksum SHA256, ký Cosign (keyless OIDC).
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: wsl-docker-service/go.mod
+          cache-dependency-path: wsl-docker-service/go.sum
+
+      - name: Build docklite-wsl (linux/amd64)
+        working-directory: wsl-docker-service
+        env:
+          CGO_ENABLED: "0"
+        run: go build -trimpath -ldflags="-s -w" -o ../docklite-wsl-linux-amd64 ./cmd/server
+
+      - name: Cài Syft (SBOM)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: SBOM CycloneDX (service Go)
+        working-directory: wsl-docker-service
+        run: |
+          syft . -o cyclonedx-json="${GITHUB_WORKSPACE}/sbom-docklite-wsl.cdx.json"
+
+      - name: Checksum SHA256
+        run: |
+          sha256sum docklite-wsl-linux-amd64 sbom-docklite-wsl.cdx.json > checksums-sha256.txt
+          cat checksums-sha256.txt
+
+      - uses: sigstore/cosign-installer@v3.7.0
+        with:
+          cosign-release: v2.4.1
+
+      - name: Ký nhị phân (Cosign keyless / Sigstore)
+        run: |
+          cosign sign-blob --yes \
+            --output-signature=docklite-wsl-linux-amd64.sig \
+            --bundle=docklite-wsl-linux-amd64.cosign.bundle \
+            docklite-wsl-linux-amd64
+
+      - name: Tạo GitHub Release và đính kèm
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: true
+          files: |
+            docklite-wsl-linux-amd64
+            docklite-wsl-linux-amd64.sig
+            docklite-wsl-linux-amd64.cosign.bundle
+            sbom-docklite-wsl.cdx.json
+            checksums-sha256.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

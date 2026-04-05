@@ -11,6 +11,11 @@ public sealed class AppSettings
     public string ServiceBaseUrl { get; set; } = DockLiteDefaults.ServiceBaseUrl;
 
     /// <summary>
+    /// Token tùy chọn gửi kèm <c>Authorization: Bearer</c> tới service Go khi biến môi trường <c>DOCKLITE_API_TOKEN</c> được đặt phía WSL. Để trống = không gửi (tương thích cấu hình cũ).
+    /// </summary>
+    public string? ServiceApiToken { get; set; }
+
+    /// <summary>
     /// Thời gian chờ HTTP (giây), khoảng 30–600. Mặc định 120.
     /// </summary>
     public int HttpTimeoutSeconds { get; set; } = 120;
@@ -89,4 +94,9 @@ public sealed class AppSettings
     /// Khoảng cách giữa các lần poll health khi chờ WSL (100–5000 ms, mặc định 500).
     /// </summary>
     public int WslHealthPollIntervalMilliseconds { get; set; } = 500;
+
+    /// <summary>
+    /// Khi bật: ghi file <c>docklite-diagnostic-*.log</c> cùng thư mục log ứng dụng — sự kiện kết nối/health tối giản, không gửi mạng, không chứa mật khẩu hay thân API.
+    /// </summary>
+    public bool DiagnosticLocalTelemetryEnabled { get; set; }
 }

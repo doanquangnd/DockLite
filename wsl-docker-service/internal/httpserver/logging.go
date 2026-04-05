@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"log/slog"
@@ -17,10 +18,17 @@ func requestID() string {
 }
 
 // LogRequests ghi nhật ký HTTP có req_id và thời gian xử lý (slog, key-value).
+// Chấp nhận header X-Request-ID từ client (sau chuẩn hóa); luôn ghi X-Request-ID trên response.
 func LogRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		IncRequestCount()
-		id := requestID()
+		id := normalizeIncomingRequestID(r.Header.Get("X-Request-ID"))
+		if id == "" {
+			id = requestID()
+		}
+		w.Header().Set("X-Request-ID", id)
+		ctx := context.WithValue(r.Context(), ctxKeyRequestID{}, id)
+		r = r.WithContext(ctx)
 		start := time.Now()
 		slog.Info("http_request", "method", r.Method, "path", r.URL.Path, "req_id", id)
 		next.ServeHTTP(w, r)

@@ -1,10 +1,9 @@
+using System.Threading;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
-using DockLite.Core;
-using DockLite.Core.Services;
 
 namespace DockLite.App.ViewModels;
 
@@ -16,10 +15,11 @@ public partial class DashboardViewModel : ObservableObject
     private static readonly TimeSpan AutoRefreshIntervalWhenOk = TimeSpan.FromSeconds(55);
     private static readonly TimeSpan AutoRefreshIntervalWhenError = TimeSpan.FromSeconds(14);
 
-    private readonly IDockLiteApiClient _apiClient;
+    private readonly ISystemDiagnosticsScreenApi _systemDiagnosticsApi;
     private readonly INotificationService _notificationService;
     private readonly AppShellActivityState _shellActivity;
     private readonly IAppShutdownToken _shutdownToken;
+    private readonly WslServiceHealthCache _healthCache;
 
     /// <summary>
     /// Trạng thái kết nối lần trước: null = chưa có lần làm mới thành công.
@@ -32,17 +32,20 @@ public partial class DashboardViewModel : ObservableObject
     private bool _lastRefreshOk = true;
 
     private DispatcherTimer? _autoRefreshTimer;
+    private readonly SemaphoreSlim _dashboardRefreshGate = new(1, 1);
 
     public DashboardViewModel(
-        IDockLiteApiClient apiClient,
+        ISystemDiagnosticsScreenApi systemDiagnosticsApi,
         INotificationService notificationService,
         AppShellActivityState shellActivity,
-        IAppShutdownToken shutdownToken)
+        IAppShutdownToken shutdownToken,
+        WslServiceHealthCache healthCache)
     {
-        _apiClient = apiClient;
+        _systemDiagnosticsApi = systemDiagnosticsApi;
         _notificationService = notificationService;
         _shellActivity = shellActivity;
         _shutdownToken = shutdownToken;
+        _healthCache = healthCache;
         _shellActivity.Changed += OnShellActivityChanged;
         RestartAutoRefreshTimer();
     }
@@ -98,7 +101,9 @@ public partial class DashboardViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    private string _serviceHealthText = "Chưa kiểm tra";
+    private string _serviceHealthText = UiLanguageManager.TryLocalizeCurrent(
+        "Ui_Dashboard_ServiceHealth_NotChecked",
+        "Chưa kiểm tra");
 
     [ObservableProperty]
     private string _dockerInfoText = string.Empty;
@@ -112,45 +117,67 @@ public partial class DashboardViewModel : ObservableObject
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        IsBusy = true;
-        DockerInfoText = string.Empty;
-        bool refreshOk = false;
+        if (!await _dashboardRefreshGate.WaitAsync(0).ConfigureAwait(true))
+        {
+            return;
+        }
+
         try
         {
-            Task<HealthResponse?> healthTask = _apiClient.GetHealthAsync();
-            Task<ApiResult<DockerInfoData>> dockerTask = _apiClient.GetDockerInfoAsync();
-            await Task.WhenAll(healthTask, dockerTask).ConfigureAwait(true);
-
-            HealthResponse? health = await healthTask.ConfigureAwait(true);
-            ApiResult<DockerInfoData> docker = await dockerTask.ConfigureAwait(true);
-
-            if (health is null)
+            IsBusy = true;
+            DockerInfoText = string.Empty;
+            bool refreshOk = false;
+            try
             {
-                ServiceHealthText = "Không có dữ liệu service.";
-            }
-            else
-            {
-                ServiceHealthText = $"{health.Service} — {health.Status} (phiên bản service: {health.Version})";
-            }
+                Task<HealthResponse?> healthTask = _systemDiagnosticsApi.GetHealthAsync();
+                Task<ApiResult<DockerInfoData>> dockerTask = _systemDiagnosticsApi.GetDockerInfoAsync();
+                await Task.WhenAll(healthTask, dockerTask).ConfigureAwait(true);
 
-            DockerInfoText = FormatDockerInfo(docker);
-            bool ok = IsConnectivityOk(health, docker);
-            refreshOk = ok;
-            await NotifyConnectivityChangeAsync(ok, health, docker).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            string msg = ExceptionMessages.FormatForUser(ex);
-            ServiceHealthText = "Không tải được trạng thái.";
-            DockerInfoText = msg;
-            var fail = ApiResult<DockerInfoData>.Fail(new ApiErrorBody { Message = msg });
-            await NotifyConnectivityChangeAsync(false, null, fail).ConfigureAwait(true);
+                HealthResponse? health = await healthTask.ConfigureAwait(true);
+                ApiResult<DockerInfoData> docker = await dockerTask.ConfigureAwait(true);
+
+                if (health is null)
+                {
+                    ServiceHealthText = UiLanguageManager.TryLocalizeCurrent(
+                        "Ui_Dashboard_ServiceHealth_NoData",
+                        "Không có dữ liệu service.");
+                }
+                else
+                {
+                    ServiceHealthText = UiLanguageManager.TryLocalizeFormatCurrent(
+                        "Ui_Dashboard_ServiceHealth_LineFormat",
+                        "{0} — {1} (phiên bản service: {2})",
+                        health.Service,
+                        health.Status,
+                        health.Version);
+                }
+
+                DockerInfoText = FormatDockerInfo(docker);
+                bool ok = IsConnectivityOk(health, docker);
+                refreshOk = ok;
+                await NotifyConnectivityChangeAsync(ok, health, docker).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                string msg = NetworkErrorMessageMapper.FormatForUser(ex);
+                ServiceHealthText = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Dashboard_Status_LoadFailed",
+                    "Không tải được trạng thái.");
+                DockerInfoText = msg;
+                var fail = ApiResult<DockerInfoData>.Fail(new ApiErrorBody { Message = msg });
+                await NotifyConnectivityChangeAsync(false, null, fail).ConfigureAwait(true);
+                await ApiErrorUiFeedback.ShowNetworkExceptionToastAsync(_notificationService, ex).ConfigureAwait(true);
+            }
+            finally
+            {
+                IsBusy = false;
+                _lastRefreshOk = refreshOk;
+                RestartAutoRefreshTimer();
+            }
         }
         finally
         {
-            IsBusy = false;
-            _lastRefreshOk = refreshOk;
-            RestartAutoRefreshTimer();
+            _dashboardRefreshGate.Release();
         }
     }
 
@@ -162,6 +189,18 @@ public partial class DashboardViewModel : ObservableObject
         HealthResponse? health,
         ApiResult<DockerInfoData> docker)
     {
+        if (currentOk)
+        {
+            if (health is not null)
+            {
+                _healthCache.SetFromHealthResponse(health);
+            }
+        }
+        else
+        {
+            _healthCache.SetFromHealthResponse(null);
+        }
+
         bool first = _previousConnectivityOk is null;
         bool wasOk = _previousConnectivityOk == true;
 
@@ -171,8 +210,10 @@ public partial class DashboardViewModel : ObservableObject
             {
                 await _notificationService
                     .ShowAsync(
-                        "DockLite",
-                        "Đã kết nối lại Docker.",
+                        UiLanguageManager.TryLocalizeCurrent("Ui_MainWindow_Title", "DockLite"),
+                        UiLanguageManager.TryLocalizeCurrent(
+                            "Ui_Dashboard_Notify_Reconnected",
+                            "Đã kết nối lại Docker."),
                         NotificationDisplayKind.Success,
                         CancellationToken.None)
                     .ConfigureAwait(true);
@@ -186,7 +227,9 @@ public partial class DashboardViewModel : ObservableObject
         {
             await _notificationService
                 .ShowAsync(
-                    "DockLite — mất kết nối",
+                    UiLanguageManager.TryLocalizeCurrent(
+                        "Ui_Dashboard_Notify_DisconnectedTitle",
+                        "DockLite — mất kết nối"),
                     BuildConnectivityFailureMessage(health, docker),
                     NotificationDisplayKind.Warning,
                     CancellationToken.None)
@@ -200,41 +243,64 @@ public partial class DashboardViewModel : ObservableObject
     {
         if (health is null)
         {
-            return "Service WSL không phản hồi (HTTP). Kiểm tra dịch vụ đã chạy và địa chỉ/cổng trong cài đặt.";
+            return UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Dashboard_Failure_ServiceNoHttp",
+                "Service WSL không phản hồi (HTTP). Kiểm tra dịch vụ đã chạy và địa chỉ/cổng trong cài đặt.");
         }
 
         if (!docker.Success)
         {
-            string m = string.IsNullOrWhiteSpace(docker.Error?.Message) ? "Docker không khả dụng." : docker.Error!.Message;
-            return "Docker Engine: " + m;
+            string m = string.IsNullOrWhiteSpace(docker.Error?.Message)
+                ? UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Dashboard_Error_DockerUnavailable",
+                    "Docker không khả dụng.")
+                : docker.Error!.Message;
+            return UiLanguageManager.TryLocalizeFormatCurrent(
+                "Ui_Dashboard_Failure_DockerEngineLine",
+                "Docker Engine: {0}",
+                m);
         }
 
         if (docker.Data is null)
         {
-            return "Không có dữ liệu Docker từ service.";
+            return UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Dashboard_Failure_NoDockerData",
+                "Không có dữ liệu Docker từ service.");
         }
 
-        return "Kết nối không ổn định.";
+        return UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Dashboard_Failure_Unstable",
+            "Kết nối không ổn định.");
     }
 
     private static string FormatDockerInfo(ApiResult<DockerInfoData> docker)
     {
         if (!docker.Success)
         {
-            return string.IsNullOrWhiteSpace(docker.Error?.Message) ? "Docker không sẵn sàng." : docker.Error!.Message;
+            return string.IsNullOrWhiteSpace(docker.Error?.Message)
+                ? UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Dashboard_Docker_NotReady",
+                    "Docker không sẵn sàng.")
+                : docker.Error!.Message;
         }
 
         DockerInfoData? d = docker.Data;
         if (d is null)
         {
-            return "Không có phản hồi Docker.";
+            return UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Dashboard_Docker_NoResponse",
+                "Không có phản hồi Docker.");
         }
 
-        return
-            $"Engine: {d.ServerVersion}\n" +
-            $"OS: {d.OperatingSystem} ({d.OsType})\n" +
-            $"Kernel: {d.KernelVersion}\n" +
-            $"Container: {d.ContainersRunning} đang chạy / {d.Containers} tổng\n" +
-            $"Image: {d.Images}";
+        return UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Dashboard_Docker_InfoFormat",
+            "Engine: {0}\nOS: {1} ({2})\nKernel: {3}\nContainer: {4} đang chạy / {5} tổng\nImage: {6}",
+            d.ServerVersion ?? string.Empty,
+            d.OperatingSystem ?? string.Empty,
+            d.OsType ?? string.Empty,
+            d.KernelVersion ?? string.Empty,
+            d.ContainersRunning,
+            d.Containers,
+            d.Images);
     }
 }

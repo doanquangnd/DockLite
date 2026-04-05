@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// RequestContextTimeout gắn context có deadline cho một số đường dẫn (inspect/stats/batch); 0 = không đổi.
+// RequestContextTimeout gắn context có deadline cho một số đường dẫn (inspect/stats/batch, compose, image pull/load, system prune); 0 = không đổi.
 func RequestContextTimeout(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		d := timeoutForRequest(r.URL.Path, r.Method)
@@ -31,7 +31,30 @@ func timeoutForRequest(path, method string) time.Duration {
 		return 2 * time.Minute
 	case strings.Contains(path, "/api/containers/") && strings.HasSuffix(path, "/stats"):
 		return 90 * time.Second
+	case composeLongTimeoutPOST(path, method):
+		return 30 * time.Minute
+	case path == "/api/images/pull" && method == http.MethodPost:
+		return 30 * time.Minute
+	case path == "/api/images/load" && method == http.MethodPost:
+		return 30 * time.Minute
+	case path == "/api/system/prune" && method == http.MethodPost:
+		return 15 * time.Minute
 	default:
 		return 0
+	}
+}
+
+func composeLongTimeoutPOST(path, method string) bool {
+	if method != http.MethodPost {
+		return false
+	}
+	switch path {
+	case "/api/compose/up", "/api/compose/down", "/api/compose/ps",
+		"/api/compose/config/services",
+		"/api/compose/service/start", "/api/compose/service/stop",
+		"/api/compose/service/logs", "/api/compose/service/exec":
+		return true
+	default:
+		return false
 	}
 }

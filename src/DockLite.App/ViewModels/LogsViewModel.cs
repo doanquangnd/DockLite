@@ -10,7 +10,6 @@ using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Models;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
-using DockLite.Core;
 using DockLite.Core.Services;
 
 namespace DockLite.App.ViewModels;
@@ -36,8 +35,9 @@ public partial class LogsViewModel : ObservableObject
     /// </summary>
     private static readonly TimeSpan _listRequestTimeout = TimeSpan.FromSeconds(30);
 
-    private readonly IDockLiteApiClient _apiClient;
+    private readonly ILogsScreenApi _logsApi;
     private readonly ILogStreamClient _logStream;
+    private readonly INotificationService _notificationService;
     private readonly IAppShutdownToken _shutdownToken;
     private readonly AppShellActivityState _shellActivity;
     private readonly Dispatcher _dispatcher;
@@ -47,23 +47,39 @@ public partial class LogsViewModel : ObservableObject
     private readonly object _streamChunkLock = new();
     private DispatcherTimer? _followFlushTimer;
     private CancellationTokenSource? _followCts;
+    private readonly SearchDebounceHelper _searchDebounce;
+    private readonly SemaphoreSlim _loadContainersGate = new(1, 1);
 
     public LogsViewModel(
-        IDockLiteApiClient apiClient,
+        ILogsScreenApi logsApi,
         ILogStreamClient logStream,
+        INotificationService notificationService,
         IAppShutdownToken shutdownToken,
         AppShellActivityState shellActivity)
     {
-        _apiClient = apiClient;
+        _logsApi = logsApi;
         _logStream = logStream;
+        _notificationService = notificationService;
         _shutdownToken = shutdownToken;
         _shellActivity = shellActivity;
         _dispatcher = Application.Current.Dispatcher;
+        _searchDebounce = new SearchDebounceHelper(ApplySearchFilter);
         _shellActivity.Changed += OnShellActivityChangedForLogs;
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        NotifyEmptyLogContainerHint();
     }
 
     private void OnShellActivityChangedForLogs(object? sender, EventArgs e)
     {
+        // Rời tab Log: hủy WebSocket follow để giảm tải mạng (quay lại tab có thể bật follow lại).
+        if (IsFollowing && !_shellActivity.IsLogsPageVisible)
+        {
+            StopFollow();
+        }
+
         SyncFollowFlushTimerWithShellActivity();
     }
 
@@ -105,6 +121,14 @@ public partial class LogsViewModel : ObservableObject
 
     public ObservableCollection<ContainerSummaryDto> ContainerOptions { get; } = new();
 
+    /// <summary>Không có container để chọn (sau khi tải xong).</summary>
+    public bool ShowEmptyContainerOptionsHint => !IsBusy && ContainerOptions.Count == 0;
+
+    private void NotifyEmptyLogContainerHint()
+    {
+        OnPropertyChanged(nameof(ShowEmptyContainerOptionsHint));
+    }
+
     [ObservableProperty]
     private ContainerSummaryDto? _selectedContainer;
 
@@ -135,7 +159,7 @@ public partial class LogsViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value)
     {
-        ApplySearchFilter();
+        _searchDebounce.Schedule();
     }
 
     /// <summary>
@@ -144,60 +168,81 @@ public partial class LogsViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadContainersAsync()
     {
-        IsBusy = true;
-        StatusMessage = UiLanguageManager.TryLocalizeCurrent(
-            "Ui_Logs_Status_LoadingContainers",
-            "Đang tải danh sách container...");
+        if (!_shellActivity.ShouldRefreshLogsContainerList)
+        {
+            return;
+        }
+
+        if (!await _loadContainersGate.WaitAsync(0).ConfigureAwait(true))
+        {
+            return;
+        }
+
         try
         {
-            using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken.Token);
-            requestCts.CancelAfter(_listRequestTimeout);
+            IsBusy = true;
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Logs_Status_LoadingContainers",
+                "Đang tải danh sách container...");
+            try
+            {
+                using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken.Token);
+                requestCts.CancelAfter(_listRequestTimeout);
 
-            ApiResult<ContainerListData> list = await _apiClient.GetContainersAsync(requestCts.Token).ConfigureAwait(true);
-            ContainerOptions.Clear();
-            if (!list.Success)
-            {
-                StatusMessage = list.Error?.Message
-                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ListLoadFailed", "Không đọc được danh sách.");
-            }
-            else if (list.Data?.Items is not null)
-            {
-                foreach (ContainerSummaryDto c in list.Data.Items)
+                ApiResult<ContainerListData> list = await _logsApi.GetContainersAsync(requestCts.Token).ConfigureAwait(true);
+                ContainerOptions.Clear();
+                if (!list.Success)
                 {
-                    ContainerOptions.Add(c);
+                    string err = list.Error?.Message
+                        ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ListLoadFailed", "Không đọc được danh sách.");
+                    StatusMessage = err;
+                    _ = ApiErrorUiFeedback.ShowWarningToastAsync(_notificationService, err);
+                }
+                else if (list.Data?.Items is not null)
+                {
+                    foreach (ContainerSummaryDto c in list.Data.Items)
+                    {
+                        ContainerOptions.Add(c);
+                    }
+
+                    StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                        "Ui_Status_Common_LoadedContainersCountFormat",
+                        "Đã tải {0} container.",
+                        ContainerOptions.Count);
+                }
+                else
+                {
+                    StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                        "Ui_Status_Common_LoadedContainersCountFormat",
+                        "Đã tải {0} container.",
+                        ContainerOptions.Count);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                if (_shutdownToken.Token.IsCancellationRequested)
+                {
+                    throw;
                 }
 
-                StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
-                    "Ui_Status_Common_LoadedContainersCountFormat",
-                    "Đã tải {0} container.",
-                    ContainerOptions.Count);
+                StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Logs_Status_ListRequestTimeout",
+                    "Hết thời gian chờ khi tải danh sách container. Kiểm tra service hoặc mạng.");
             }
-            else
+            catch (Exception ex)
             {
-                StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
-                    "Ui_Status_Common_LoadedContainersCountFormat",
-                    "Đã tải {0} container.",
-                    ContainerOptions.Count);
+                StatusMessage = NetworkErrorMessageMapper.FormatForUser(ex);
+                _ = ApiErrorUiFeedback.ShowNetworkExceptionToastAsync(_notificationService, ex);
             }
-        }
-        catch (OperationCanceledException)
-        {
-            if (_shutdownToken.Token.IsCancellationRequested)
+            finally
             {
-                throw;
+                IsBusy = false;
+                NotifyEmptyLogContainerHint();
             }
-
-            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
-                "Ui_Logs_Status_ListRequestTimeout",
-                "Hết thời gian chờ khi tải danh sách container. Kiểm tra service hoặc mạng.");
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
         }
         finally
         {
-            IsBusy = false;
+            _loadContainersGate.Release();
         }
     }
 
@@ -215,13 +260,15 @@ public partial class LogsViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            ApiResult<ContainerLogsData> res = await _apiClient
+            ApiResult<ContainerLogsData> res = await _logsApi
                 .GetContainerLogsAsync(SelectedContainer.Id, tail, _shutdownToken.Token)
                 .ConfigureAwait(true);
             if (!res.Success)
             {
-                StatusMessage = res.Error?.Message
+                string err = res.Error?.Message
                     ?? UiLanguageManager.TryLocalizeCurrent("Ui_Logs_Status_NoResponse", "Không có phản hồi.");
+                StatusMessage = err;
+                _ = ApiErrorUiFeedback.ShowWarningToastAsync(_notificationService, err);
                 return;
             }
 
@@ -230,7 +277,8 @@ public partial class LogsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ex.Message;
+            StatusMessage = NetworkErrorMessageMapper.FormatForUser(ex);
+            _ = ApiErrorUiFeedback.ShowNetworkExceptionToastAsync(_notificationService, ex);
         }
         finally
         {
@@ -294,12 +342,16 @@ public partial class LogsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            string msg = ExceptionMessages.FormatForUser(ex);
+            string msg = NetworkErrorMessageMapper.FormatForUser(ex);
             _ = _dispatcher.BeginInvoke(
-                () => StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
-                    "Ui_Logs_Status_WebSocketPrefixFormat",
-                    "WebSocket: {0}",
-                    msg),
+                () =>
+                {
+                    StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                        "Ui_Logs_Status_WebSocketPrefixFormat",
+                        "WebSocket: {0}",
+                        msg);
+                    _ = ApiErrorUiFeedback.ShowNetworkExceptionToastAsync(_notificationService, ex);
+                },
                 DispatcherPriority.Background);
         }
         finally

@@ -2,14 +2,13 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
-using DockLite.Core;
-using DockLite.Core.Services;
+using DockLite.Core.Compose;
 using DockLite.Infrastructure.Wsl;
 using Microsoft.Win32;
 
@@ -22,16 +21,38 @@ public partial class ComposeViewModel : ObservableObject
 {
     private const int ToastMessageMaxChars = 520;
 
-    private readonly IDockLiteApiClient _apiClient;
+    /// <summary>
+    /// Giới hạn độ dài output hiển thị (ký tự) — tránh chuỗi quá lớn trong RAM UI.
+    /// </summary>
+    private const int MaxCommandOutputChars = 524_288;
+
+    private readonly IComposeScreenApi _composeApi;
     private readonly INotificationService _notificationService;
     private readonly IAppShutdownToken _shutdownToken;
+    private readonly AppShellActivityState _shellActivity;
 
     /// <summary>
     /// Distro WSL từ cài đặt (tùy chọn), dùng trong lệnh gợi ý <c>wsl -d</c>.
     /// </summary>
     private readonly string? _wslDistribution;
 
+    private readonly SemaphoreSlim _loadProjectsGate = new(1, 1);
+
     public ObservableCollection<ComposeProjectDto> Projects { get; } = new();
+
+    /// <summary>Chưa có project Compose đã lưu (sau khi tải xong).</summary>
+    public bool ShowEmptyProjectsHint => !IsBusy && Projects.Count == 0;
+
+    private void NotifyEmptyProjectsHint()
+    {
+        OnPropertyChanged(nameof(ShowEmptyProjectsHint));
+    }
+
+    private void ReportComposeNetworkError(Exception ex)
+    {
+        StatusMessage = NetworkErrorMessageMapper.FormatForUser(ex);
+        _ = ApiErrorUiFeedback.ShowNetworkExceptionToastAsync(_notificationService, ex);
+    }
 
     /// <summary>
     /// Tên service trong file compose (sau khi tải bằng «Tải danh sách service»).
@@ -90,14 +111,16 @@ public partial class ComposeViewModel : ObservableObject
     private bool _canSaveComposeFiles;
 
     public ComposeViewModel(
-        IDockLiteApiClient apiClient,
+        IComposeScreenApi composeApi,
         INotificationService notificationService,
         IAppShutdownToken shutdownToken,
+        AppShellActivityState shellActivity,
         string? wslDistributionFromSettings)
     {
-        _apiClient = apiClient;
+        _composeApi = composeApi;
         _notificationService = notificationService;
         _shutdownToken = shutdownToken;
+        _shellActivity = shellActivity;
         _wslDistribution = string.IsNullOrWhiteSpace(wslDistributionFromSettings)
             ? null
             : wslDistributionFromSettings.Trim();
@@ -123,16 +146,16 @@ public partial class ComposeViewModel : ObservableObject
                 return string.Empty;
             }
 
-            string composeArgs = BuildComposeFileArgsForDockerCli(p.ComposeFiles);
+            string composeArgs = ComposeComposePaths.BuildComposeFileArgsForDockerCli(p.ComposeFiles);
             string svc = SelectedService.Trim();
-            string inner = $"cd {BashSingleQuote(dir)} && docker compose{composeArgs} exec -it {svc} sh";
-            string bashC = BashSingleQuote(inner);
+            string inner = $"cd {ComposeComposePaths.BashSingleQuote(dir)} && docker compose{composeArgs} exec -it {svc} sh";
+            string bashC = ComposeComposePaths.BashSingleQuote(inner);
             if (string.IsNullOrWhiteSpace(_wslDistribution))
             {
                 return $"wsl -- bash -c {bashC}";
             }
 
-            return $"wsl -d {BashSingleQuote(_wslDistribution)} -- bash -c {bashC}";
+            return $"wsl -d {ComposeComposePaths.BashSingleQuote(_wslDistribution)} -- bash -c {bashC}";
         }
     }
 
@@ -148,31 +171,6 @@ public partial class ComposeViewModel : ObservableObject
         SelectedProject is not null
         && !string.IsNullOrWhiteSpace(SelectedProject.WslPath)
         && !IsBusy;
-
-    private static string BashSingleQuote(string s)
-    {
-        return "'" + s.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
-    }
-
-    private static string BuildComposeFileArgsForDockerCli(IReadOnlyList<string>? files)
-    {
-        if (files is null || files.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        var sb = new StringBuilder();
-        foreach (string f in files)
-        {
-            string t = f?.Trim() ?? string.Empty;
-            if (t.Length > 0)
-            {
-                sb.Append(" -f ").Append(BashSingleQuote(t));
-            }
-        }
-
-        return sb.ToString();
-    }
 
     /// <summary>
     /// Sao chép <see cref="SuggestedWslTerminalComposeExecLine"/> vào clipboard (Windows).
@@ -217,7 +215,7 @@ public partial class ComposeViewModel : ObservableObject
                 UseShellExecute = false,
                 CreateNoWindow = false,
             };
-            string inner = $"cd {BashSingleQuote(dir)} && exec bash -l";
+            string inner = $"cd {ComposeComposePaths.BashSingleQuote(dir)} && exec bash -l";
             if (string.IsNullOrWhiteSpace(_wslDistribution))
             {
                 psi.ArgumentList.Add("-e");
@@ -259,7 +257,7 @@ public partial class ComposeViewModel : ObservableObject
     {
         Services.Clear();
         SelectedService = null;
-        ComposeFilesEditorText = FormatComposeFilesForEditor(value?.ComposeFiles);
+        ComposeFilesEditorText = ComposeComposePaths.FormatComposeFilesForEditor(value?.ComposeFiles);
         UpdateComposeServiceUiState();
         NotifyTerminalComposeHints();
     }
@@ -272,6 +270,7 @@ public partial class ComposeViewModel : ObservableObject
 
     partial void OnIsBusyChanged(bool value)
     {
+        NotifyEmptyProjectsHint();
         UpdateComposeServiceUiState();
     }
 
@@ -285,72 +284,82 @@ public partial class ComposeViewModel : ObservableObject
         OnPropertyChanged(nameof(CanOpenTerminalInProjectFolder));
     }
 
-    private static string FormatComposeFilesForEditor(IReadOnlyList<string>? files)
+    /// <summary>
+    /// Cắt bớt chuỗi output trước khi gán vào ô hiển thị.
+    /// </summary>
+    private static string ClampCommandOutput(string? text)
     {
-        if (files is null || files.Count == 0)
+        if (string.IsNullOrEmpty(text))
         {
             return string.Empty;
         }
 
-        return string.Join(Environment.NewLine, files);
-    }
-
-    private static List<string> ParseComposeFileLines(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
+        if (text.Length <= MaxCommandOutputChars)
         {
-            return new List<string>();
+            return text;
         }
 
-        var lines = new List<string>();
-        foreach (string line in text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-        {
-            string t = line.Trim();
-            if (t.Length > 0)
-            {
-                lines.Add(t);
-            }
-        }
-
-        return lines;
+        const string suffix = "\n...\n[DockLite: đã cắt bớt output quá dài để giới hạn bộ nhớ UI.]";
+        int take = Math.Max(0, MaxCommandOutputChars - suffix.Length);
+        return text[..take] + suffix;
     }
 
     [RelayCommand]
     private async Task LoadProjectsAsync()
     {
-        IsBusy = true;
-        StatusMessage = string.Empty;
+        if (!_shellActivity.ShouldRefreshComposeProjectList)
+        {
+            return;
+        }
+
+        if (!await _loadProjectsGate.WaitAsync(0).ConfigureAwait(true))
+        {
+            return;
+        }
+
         try
         {
-            ApiResult<ComposeProjectListData> res = await _apiClient.GetComposeProjectsAsync(_shutdownToken.Token).ConfigureAwait(true);
-            Projects.Clear();
-            if (!res.Success)
+            IsBusy = true;
+            StatusMessage = string.Empty;
+            try
             {
-                StatusMessage = res.Error?.Message
-                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_InvalidResponse", "Phản hồi không hợp lệ.");
-                return;
-            }
-
-            if (res.Data?.Items is not null)
-            {
-                foreach (ComposeProjectDto p in res.Data.Items)
+                ApiResult<ComposeProjectListData> res = await _composeApi.GetComposeProjectsAsync(_shutdownToken.Token).ConfigureAwait(true);
+                Projects.Clear();
+                if (!res.Success)
                 {
-                    Projects.Add(p);
+                    string err = res.Error?.Message
+                        ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_InvalidResponse", "Phản hồi không hợp lệ.");
+                    StatusMessage = err;
+                    _ = ApiErrorUiFeedback.ShowWarningToastAsync(_notificationService, err);
+                    return;
                 }
-            }
 
-            StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
-                "Ui_Compose_Status_LoadedProjectsCountFormat",
-                "Đã tải {0} project.",
-                Projects.Count);
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+                if (res.Data?.Items is not null)
+                {
+                    foreach (ComposeProjectDto p in res.Data.Items)
+                    {
+                        Projects.Add(p);
+                    }
+                }
+
+                StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_Compose_Status_LoadedProjectsCountFormat",
+                    "Đã tải {0} project.",
+                    Projects.Count);
+            }
+            catch (Exception ex)
+            {
+                ReportComposeNetworkError(ex);
+            }
+            finally
+            {
+                IsBusy = false;
+                NotifyEmptyProjectsHint();
+            }
         }
         finally
         {
-            IsBusy = false;
+            _loadProjectsGate.Release();
         }
     }
 
@@ -415,9 +424,9 @@ public partial class ComposeViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            List<string> composeFiles = ParseComposeFileLines(NewProjectComposeFilesText);
+            List<string> composeFiles = ComposeComposePaths.ParseComposeFileLines(NewProjectComposeFilesText);
             ComposeProjectAddRequest req = CreateComposeAddRequest(path, composeFiles);
-            ApiResult<ComposeProjectAddData> res = await _apiClient.AddComposeProjectAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<ComposeProjectAddData> res = await _composeApi.AddComposeProjectAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {
                 StatusMessage = res.Error?.Message
@@ -432,7 +441,7 @@ public partial class ComposeViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportComposeNetworkError(ex);
         }
         finally
         {
@@ -454,7 +463,7 @@ public partial class ComposeViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            ApiResult<EmptyApiPayload> res = await _apiClient.RemoveComposeProjectAsync(SelectedProject.Id, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<EmptyApiPayload> res = await _composeApi.RemoveComposeProjectAsync(SelectedProject.Id, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {
                 StatusMessage = res.Error?.Message
@@ -469,7 +478,7 @@ public partial class ComposeViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportComposeNetworkError(ex);
         }
         finally
         {
@@ -491,9 +500,9 @@ public partial class ComposeViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            List<string> files = ParseComposeFileLines(ComposeFilesEditorText);
+            List<string> files = ComposeComposePaths.ParseComposeFileLines(ComposeFilesEditorText);
             var req = new ComposeProjectPatchRequest { ComposeFiles = files };
-            ApiResult<ComposeProjectPatchData> res = await _apiClient
+            ApiResult<ComposeProjectPatchData> res = await _composeApi
                 .PatchComposeProjectAsync(id, req, _shutdownToken.Token)
                 .ConfigureAwait(true);
             if (!res.Success)
@@ -515,7 +524,7 @@ public partial class ComposeViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportComposeNetworkError(ex);
         }
         finally
         {
@@ -526,19 +535,19 @@ public partial class ComposeViewModel : ObservableObject
     [RelayCommand]
     private async Task ComposeUpAsync()
     {
-        await RunComposeAsync(id => _apiClient.ComposeUpAsync(id, _shutdownToken.Token));
+        await RunComposeAsync(id => _composeApi.ComposeUpAsync(id, _shutdownToken.Token));
     }
 
     [RelayCommand]
     private async Task ComposeDownAsync()
     {
-        await RunComposeAsync(id => _apiClient.ComposeDownAsync(id, _shutdownToken.Token));
+        await RunComposeAsync(id => _composeApi.ComposeDownAsync(id, _shutdownToken.Token));
     }
 
     [RelayCommand]
     private async Task ComposePsAsync()
     {
-        await RunComposeAsync(id => _apiClient.ComposePsAsync(id, _shutdownToken.Token));
+        await RunComposeAsync(id => _composeApi.ComposePsAsync(id, _shutdownToken.Token));
     }
 
     [RelayCommand]
@@ -555,7 +564,7 @@ public partial class ComposeViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
-            ApiResult<ComposeServiceListData> res = await _apiClient
+            ApiResult<ComposeServiceListData> res = await _composeApi
                 .ListComposeServicesAsync(SelectedProject.Id, _shutdownToken.Token)
                 .ConfigureAwait(true);
             if (!res.Success)
@@ -576,7 +585,7 @@ public partial class ComposeViewModel : ObservableObject
                 }
             }
 
-            CommandOutput = res.Data?.Output ?? string.Empty;
+            CommandOutput = ClampCommandOutput(res.Data?.Output);
             StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
                 "Ui_Compose_Status_LoadedServicesCountFormat",
                 "Đã tải {0} service.",
@@ -584,7 +593,7 @@ public partial class ComposeViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportComposeNetworkError(ex);
         }
         finally
         {
@@ -595,13 +604,13 @@ public partial class ComposeViewModel : ObservableObject
     [RelayCommand]
     private async Task ComposeServiceStartAsync()
     {
-        await RunComposeServiceAsync(req => _apiClient.ComposeServiceStartAsync(req, _shutdownToken.Token));
+        await RunComposeServiceAsync(req => _composeApi.ComposeServiceStartAsync(req, _shutdownToken.Token));
     }
 
     [RelayCommand]
     private async Task ComposeServiceStopAsync()
     {
-        await RunComposeServiceAsync(req => _apiClient.ComposeServiceStopAsync(req, _shutdownToken.Token));
+        await RunComposeServiceAsync(req => _composeApi.ComposeServiceStopAsync(req, _shutdownToken.Token));
     }
 
     [RelayCommand]
@@ -640,26 +649,26 @@ public partial class ComposeViewModel : ObservableObject
                 Service = SelectedService.Trim(),
                 Tail = tail,
             };
-            ApiResult<ComposeCommandData> res = await _apiClient.ComposeServiceLogsAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<ComposeCommandData> res = await _composeApi.ComposeServiceLogsAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {
                 string part = res.Error?.Details ?? string.Empty;
                 string msg = res.Error?.Message
                     ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
-                CommandOutput = string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg;
+                CommandOutput = ClampCommandOutput(string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg);
                 StatusMessage = msg;
                 return;
             }
 
-            CommandOutput = res.Data?.Output ?? string.Empty;
+            CommandOutput = ClampCommandOutput(res.Data?.Output);
             StatusMessage = UiLanguageManager.TryLocalizeCurrent(
                 "Ui_Compose_Status_ServiceLogsLoaded",
                 "Đã tải logs service.");
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
-            CommandOutput = ex.ToString();
+            ReportComposeNetworkError(ex);
+            CommandOutput = ClampCommandOutput(ex.ToString());
         }
         finally
         {
@@ -701,26 +710,25 @@ public partial class ComposeViewModel : ObservableObject
                 Service = SelectedService.Trim(),
                 Command = cmd,
             };
-            ApiResult<ComposeCommandData> res = await _apiClient.ComposeServiceExecAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<ComposeCommandData> res = await _composeApi.ComposeServiceExecAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {
                 string part = res.Error?.Details ?? string.Empty;
                 string msg = res.Error?.Message
                     ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
-                CommandOutput = string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg;
+                CommandOutput = ClampCommandOutput(string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg);
                 StatusMessage = msg;
                 NotifyComposeFailure(msg);
                 return;
             }
 
-            CommandOutput = res.Data?.Output ?? string.Empty;
+            CommandOutput = ClampCommandOutput(res.Data?.Output);
             StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_ExecRan", "Đã chạy exec (không TTY).");
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
-            CommandOutput = ex.ToString();
-            NotifyComposeFailure(StatusMessage);
+            ReportComposeNetworkError(ex);
+            CommandOutput = ClampCommandOutput(ex.ToString());
         }
         finally
         {
@@ -757,20 +765,19 @@ public partial class ComposeViewModel : ObservableObject
                 string part = res.Error?.Details ?? string.Empty;
                 string msg = res.Error?.Message
                     ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
-                CommandOutput = string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg;
+                CommandOutput = ClampCommandOutput(string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg);
                 StatusMessage = msg;
                 NotifyComposeFailure(msg);
                 return;
             }
 
-            CommandOutput = res.Data?.Output ?? string.Empty;
+            CommandOutput = ClampCommandOutput(res.Data?.Output);
             StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_Done", "Xong.");
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
-            CommandOutput = ex.ToString();
-            NotifyComposeFailure(StatusMessage);
+            ReportComposeNetworkError(ex);
+            CommandOutput = ClampCommandOutput(ex.ToString());
         }
         finally
         {
@@ -796,20 +803,19 @@ public partial class ComposeViewModel : ObservableObject
                 string part = res.Error?.Details ?? string.Empty;
                 string msg = res.Error?.Message
                     ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
-                CommandOutput = string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg;
+                CommandOutput = ClampCommandOutput(string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg);
                 StatusMessage = msg;
                 NotifyComposeFailure(msg);
                 return;
             }
 
-            CommandOutput = res.Data?.Output ?? string.Empty;
+            CommandOutput = ClampCommandOutput(res.Data?.Output);
             StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_Done", "Xong.");
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
-            CommandOutput = ex.ToString();
-            NotifyComposeFailure(StatusMessage);
+            ReportComposeNetworkError(ex);
+            CommandOutput = ClampCommandOutput(ex.ToString());
         }
         finally
         {

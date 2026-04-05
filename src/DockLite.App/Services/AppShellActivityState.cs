@@ -13,6 +13,12 @@ public sealed class AppShellActivityState
     private bool _imagesPageVisible;
     private bool _networkVolumePageVisible;
 
+    /// <summary>Cửa sổ không thu nhỏ và đang foreground (hoặc tương tác).</summary>
+    public bool IsMainWindowInteractive => _mainWindowInteractive;
+
+    /// <summary>Đang mở tab Log container.</summary>
+    public bool IsLogsPageVisible => _logsPageVisible;
+
     /// <summary>
     /// Có nên chạy timer / gọi API làm mới stats realtime hay không.
     /// </summary>
@@ -27,6 +33,31 @@ public sealed class AppShellActivityState
     /// Timer gộp chunk log (follow WebSocket) chỉ chạy khi tab Log đang mở và cửa sổ tương tác — tránh tải UI khi chuyển tab hoặc sang app khác.
     /// </summary>
     public bool ShouldProcessLogsFollowFlush => _mainWindowInteractive && _logsPageVisible;
+
+    /// <summary>
+    /// Có nên gọi API tải danh sách container (tab Container) không — chỉ khi tab đang mở và cửa sổ tương tác.
+    /// </summary>
+    public bool ShouldRefreshContainerList => _mainWindowInteractive && _containersPageVisible;
+
+    /// <summary>
+    /// Có nên gọi API tải danh sách image (tab Image) không.
+    /// </summary>
+    public bool ShouldRefreshImageList => _mainWindowInteractive && _imagesPageVisible;
+
+    /// <summary>
+    /// Có nên gọi API tải danh sách container cho ComboBox (tab Log) không.
+    /// </summary>
+    public bool ShouldRefreshLogsContainerList => _mainWindowInteractive && _logsPageVisible;
+
+    /// <summary>
+    /// Có nên gọi API tải danh sách project Compose (tab Compose) không.
+    /// </summary>
+    public bool ShouldRefreshComposeProjectList => _mainWindowInteractive && _composePageVisible;
+
+    /// <summary>
+    /// Có nên gọi API tải mạng và volume (tab Mạng và volume) không.
+    /// </summary>
+    public bool ShouldRefreshNetworkVolumeList => _mainWindowInteractive && _networkVolumePageVisible;
 
     public event EventHandler? Changed;
 

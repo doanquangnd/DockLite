@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"docklite-wsl/internal/httpserver"
 	_ "docklite-wsl/internal/settings" // gói dành cho cấu hình server sau này
@@ -20,7 +21,12 @@ func main() {
 	mux := http.NewServeMux()
 	httpserver.Register(mux)
 
-	handler := httpserver.LogRequests(httpserver.RequestContextTimeout(httpserver.LimitRequestBody(mux)))
+	inner := http.Handler(mux)
+	if t := strings.TrimSpace(os.Getenv("DOCKLITE_API_TOKEN")); t != "" {
+		inner = httpserver.RequireBearerToken(t, inner)
+	}
+
+	handler := httpserver.LogRequests(httpserver.RequestContextTimeout(httpserver.LimitRequestBody(inner)))
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,

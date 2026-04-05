@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Help;
@@ -7,7 +9,6 @@ using DockLite.App.Services;
 using DockLite.Contracts.Api;
 using DockLite.Core.Configuration;
 using DockLite.Core.Diagnostics;
-using DockLite.Core.Services;
 using DockLite.Infrastructure.Api;
 using DockLite.Infrastructure.Wsl;
 
@@ -18,7 +19,18 @@ namespace DockLite.App.ViewModels;
 /// </summary>
 public partial class ShellViewModel : ObservableObject
 {
-    private readonly IDockLiteApiClient _apiClient;
+    private static readonly SolidColorBrush SidebarConnectionOkBrush = FreezeBrush(34, 197, 94);
+    private static readonly SolidColorBrush SidebarConnectionOfflineBrush = FreezeBrush(239, 68, 68);
+    private static readonly SolidColorBrush SidebarConnectionUnknownBrush = FreezeBrush(148, 163, 184);
+
+    private static SolidColorBrush FreezeBrush(byte r, byte g, byte b)
+    {
+        var br = new SolidColorBrush(Color.FromRgb(r, g, b));
+        br.Freeze();
+        return br;
+    }
+
+    private readonly ISystemDiagnosticsScreenApi _systemDiagnosticsApi;
     private readonly IDialogService _dialogService;
     private readonly INotificationService _notificationService;
     private readonly DockLiteHttpSession _httpSession;
@@ -53,7 +65,7 @@ public partial class ShellViewModel : ObservableObject
         Lazy<CleanupViewModel> cleanup,
         SettingsViewModel settings,
         Lazy<AppDebugLogViewModel> appDebugLog,
-        IDockLiteApiClient apiClient,
+        ISystemDiagnosticsScreenApi systemDiagnosticsApi,
         IDialogService dialogService,
         INotificationService notificationService,
         DockLiteHttpSession httpSession,
@@ -62,7 +74,7 @@ public partial class ShellViewModel : ObservableObject
         string appBaseDirectory,
         IAppShutdownToken shutdownToken)
     {
-        _apiClient = apiClient;
+        _systemDiagnosticsApi = systemDiagnosticsApi;
         _dialogService = dialogService;
         _notificationService = notificationService;
         _httpSession = httpSession;
@@ -81,6 +93,7 @@ public partial class ShellViewModel : ObservableObject
         Dashboard = dashboard;
         Settings = settings;
         CurrentPage = dashboard;
+        UpdateSidebarConnectionIndicator();
     }
 
     partial void OnCurrentPageChanged(object? value)
@@ -154,6 +167,22 @@ public partial class ShellViewModel : ObservableObject
         }
     }
 
+    private static string LocalizedShellServiceHeaderNoResponse() =>
+        UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Shell_ServiceHeader_NoResponse",
+            "Service WSL: không phản hồi");
+
+    private void UpdateSidebarConnectionIndicator()
+    {
+        bool? h = _healthCache.LastHealthy;
+        SidebarConnectionDotFill = h switch
+        {
+            true => SidebarConnectionOkBrush,
+            false => SidebarConnectionOfflineBrush,
+            _ => SidebarConnectionUnknownBrush,
+        };
+    }
+
     public DashboardViewModel Dashboard { get; }
 
     public ContainersViewModel Containers => _containersLazy.Value;
@@ -173,7 +202,9 @@ public partial class ShellViewModel : ObservableObject
     public AppDebugLogViewModel AppDebugLog => _appDebugLogLazy.Value;
 
     [ObservableProperty]
-    private string _serviceHeaderPrimaryText = "Đang khởi động…";
+    private string _serviceHeaderPrimaryText = UiLanguageManager.TryLocalizeCurrent(
+        "Ui_Shell_ServiceHeader_Starting",
+        "Đang khởi động…");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasServiceHeaderSecondary))]
@@ -204,6 +235,11 @@ public partial class ShellViewModel : ObservableObject
 
     public bool CanHeaderRestartWslService => !IsWslServiceCommandBusy && _healthCache.LastHealthy == true;
 
+    /// <summary>
+    /// Hiển thị banner khi cache health báo không kết nối được tới service (thay vì chỉ dựa vào lỗi rải rác trên từng nút).
+    /// </summary>
+    public bool ShowServiceDisconnectedBanner => _healthCache.LastHealthy == false;
+
     [ObservableProperty]
     private object? _currentPage;
 
@@ -212,6 +248,12 @@ public partial class ShellViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string _navHighlightKey = "dashboard";
+
+    /// <summary>
+    /// Chấm tròn cạnh tiêu đề sidebar: xanh (health OK), đỏ (mất kết nối), xám (chưa biết).
+    /// </summary>
+    [ObservableProperty]
+    private Brush _sidebarConnectionDotFill = SidebarConnectionUnknownBrush;
 
     partial void OnIsWslServiceCommandBusyChanged(bool value)
     {
@@ -228,6 +270,8 @@ public partial class ShellViewModel : ObservableObject
     private void OnHealthCacheChanged(object? sender, EventArgs e)
     {
         NotifyHeaderWslServiceButtons();
+        UpdateSidebarConnectionIndicator();
+        OnPropertyChanged(nameof(ShowServiceDisconnectedBanner));
         if (_suppressHealthCacheHeaderSync)
         {
             return;
@@ -235,7 +279,7 @@ public partial class ShellViewModel : ObservableObject
 
         if (_healthCache.LastHealthy == false)
         {
-            ServiceHeaderPrimaryText = "Service WSL: không phản hồi";
+            ServiceHeaderPrimaryText = LocalizedShellServiceHeaderNoResponse();
             ServiceHeaderSecondaryText = "";
             return;
         }
@@ -255,24 +299,34 @@ public partial class ShellViewModel : ObservableObject
         {
             case WslStartupPhase.CheckingInitialHealth:
                 _wslStartupHealthWaitToastSent = false;
-                ServiceHeaderPrimaryText = "Đang kiểm tra kết nối tới service WSL…";
+                ServiceHeaderPrimaryText = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Shell_WslStartup_CheckingHealth",
+                    "Đang kiểm tra kết nối tới service WSL…");
                 ServiceHeaderSecondaryText = "";
                 WslStartupProgressBarVisible = true;
                 WslStartupProgressBarIndeterminate = true;
                 WslStartupProgressBarValue = 0;
                 break;
             case WslStartupPhase.LaunchingWslScript:
-                ServiceHeaderPrimaryText = "Đang gửi lệnh tới WSL (restart-server.sh)…";
+                ServiceHeaderPrimaryText = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Shell_WslStartup_LaunchingScript",
+                    "Đang gửi lệnh tới WSL (restart-server.sh)…");
                 ServiceHeaderSecondaryText = "";
                 WslStartupProgressBarVisible = true;
                 WslStartupProgressBarIndeterminate = true;
                 WslStartupProgressBarValue = 0;
                 break;
             case WslStartupPhase.WaitingHealthAfterWsl:
-                ServiceHeaderPrimaryText = "Chờ phản hồi /api/health sau khi restart service trong WSL";
+                ServiceHeaderPrimaryText = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Shell_WslStartup_WaitingHealthAfterRestart",
+                    "Chờ phản hồi /api/health sau khi restart service trong WSL");
                 int total = WslDockerServiceAutoStart.GetHealthWaitAfterWslSeconds(Settings.GetSettingsSnapshotForWslCommands());
                 int sec = p.SecondsRemaining ?? 0;
-                ServiceHeaderSecondaryText = $"Còn ~{sec}s / {total}s (timeout)";
+                ServiceHeaderSecondaryText = UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_Shell_Header_HealthWaitSecondaryFormat",
+                    "Còn ~{0}s / {1}s (timeout)",
+                    sec,
+                    total);
                 WslStartupProgressBarVisible = true;
                 WslStartupProgressBarIndeterminate = false;
                 if (total > 0)
@@ -315,8 +369,13 @@ public partial class ShellViewModel : ObservableObject
         {
             await _notificationService
                 .ShowAsync(
-                    "DockLite — WSL",
-                    $"Đang chờ phản hồi /api/health (tối đa {totalSeconds}s). Tiến trình hiển thị trên header.",
+                    UiLanguageManager.TryLocalizeCurrent(
+                        "Ui_Shell_Toast_HealthWaitTitle",
+                        "DockLite — WSL"),
+                    UiLanguageManager.TryLocalizeFormatCurrent(
+                        "Ui_Shell_Toast_HealthWaitBodyFormat",
+                        "Đang chờ phản hồi /api/health (tối đa {0}s). Tiến trình hiển thị trên header.",
+                        totalSeconds),
                     NotificationDisplayKind.Info,
                     _shutdownToken.Token)
                 .ConfigureAwait(true);
@@ -328,7 +387,16 @@ public partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Đồng bộ dòng trạng thái với GET /api/health (sau khởi động hoặc khi cần làm mới).
+    /// Thử lại kết nối tới service (từ banner «mất kết nối»).
+    /// </summary>
+    [RelayCommand]
+    private async Task RetryServiceConnection()
+    {
+        await RefreshServiceHeaderFromApiAsync(_shutdownToken.Token).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Đồng bộ dòng trạng thái với GET /api/health và GET /api/docker/info (cùng tiêu chí với trang Tổng quan).
     /// </summary>
     public async Task RefreshServiceHeaderFromApiAsync(CancellationToken cancellationToken = default)
     {
@@ -336,13 +404,47 @@ public partial class ShellViewModel : ObservableObject
         ServiceHeaderSecondaryText = "";
         try
         {
-            HealthResponse? health = await _apiClient.GetHealthAsync(cancellationToken).ConfigureAwait(true);
-            if (health is null)
+            Task<HealthResponse?> healthTask = _systemDiagnosticsApi.GetHealthAsync(cancellationToken);
+            Task<ApiResult<DockerInfoData>> dockerTask = _systemDiagnosticsApi.GetDockerInfoAsync(cancellationToken);
+            await Task.WhenAll(healthTask, dockerTask).ConfigureAwait(true);
+
+            HealthResponse? health = await healthTask.ConfigureAwait(true);
+            ApiResult<DockerInfoData> docker = await dockerTask.ConfigureAwait(true);
+
+            bool connectivityOk = health is not null && docker.Success && docker.Data is not null;
+            if (!connectivityOk)
             {
-                ServiceHeaderPrimaryText = "Service WSL: không phản hồi";
+                if (health is null)
+                {
+                    ServiceHeaderPrimaryText = LocalizedShellServiceHeaderNoResponse();
+                    _suppressHealthCacheHeaderSync = true;
+                    try
+                    {
+                        _healthCache.SetFromHealthResponse(null);
+                    }
+                    finally
+                    {
+                        _suppressHealthCacheHeaderSync = false;
+                    }
+
+                    return;
+                }
+
+                string v = string.IsNullOrWhiteSpace(health.Version)
+                    ? ""
+                    : UiLanguageManager.TryLocalizeFormatCurrent(
+                        "Ui_Shell_ServiceHeader_VersionSuffixFormat",
+                        " — v{0}",
+                        health.Version.Trim());
                 _suppressHealthCacheHeaderSync = true;
                 try
                 {
+                    ServiceHeaderPrimaryText = UiLanguageManager.TryLocalizeFormatCurrent(
+                        "Ui_Shell_ServiceHeader_HealthOkDockerDownFormat",
+                        "{0}: {1}{2} — Docker: không kết nối",
+                        health.Service,
+                        health.Status,
+                        v);
                     _healthCache.SetFromHealthResponse(null);
                 }
                 finally
@@ -353,12 +455,23 @@ public partial class ShellViewModel : ObservableObject
                 return;
             }
 
-            string v = string.IsNullOrWhiteSpace(health.Version) ? "" : $" — v{health.Version.Trim()}";
-            ServiceHeaderPrimaryText = $"{health.Service}: {health.Status}{v}";
+            HealthResponse healthOk = health!;
+            string vOk = string.IsNullOrWhiteSpace(healthOk.Version)
+                ? ""
+                : UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_Shell_ServiceHeader_VersionSuffixFormat",
+                    " — v{0}",
+                    healthOk.Version.Trim());
+            ServiceHeaderPrimaryText = UiLanguageManager.TryLocalizeFormatCurrent(
+                "Ui_Shell_ServiceHeader_HealthLineFormat",
+                "{0}: {1}{2}",
+                healthOk.Service,
+                healthOk.Status,
+                vOk);
             _suppressHealthCacheHeaderSync = true;
             try
             {
-                _healthCache.SetFromHealthResponse(health);
+                _healthCache.SetFromHealthResponse(healthOk);
             }
             finally
             {
@@ -371,7 +484,7 @@ public partial class ShellViewModel : ObservableObject
         }
         catch
         {
-            ServiceHeaderPrimaryText = "Service WSL: không phản hồi";
+            ServiceHeaderPrimaryText = LocalizedShellServiceHeaderNoResponse();
             _suppressHealthCacheHeaderSync = true;
             try
             {
@@ -395,6 +508,7 @@ public partial class ShellViewModel : ObservableObject
             (bool sent, bool healthOk, string msg) = await WslDockerServiceAutoStart
                 .TryStartServiceManuallyAndWaitForHealthAsync(_httpSession, snapshot, _appBaseDirectory, _shutdownToken.Token)
                 .ConfigureAwait(true);
+            DiagnosticTelemetry.WriteManualWslLifecycle(snapshot, "header", "start", sent, healthOk);
             AppFileLog.Write("WSL header", msg + (sent && healthOk ? " [health OK]" : ""));
             await RefreshServiceHeaderFromApiAsync(_shutdownToken.Token).ConfigureAwait(true);
         }
@@ -418,11 +532,17 @@ public partial class ShellViewModel : ObservableObject
             _httpSession.Reconfigure(snapshot);
             if (!WslDockerServiceAutoStart.TryStopServiceManually(snapshot, _appBaseDirectory, out string msg))
             {
-                await _dialogService.ShowInfoAsync(msg, "DockLite").ConfigureAwait(true);
+                DiagnosticTelemetry.WriteManualWslLifecycle(snapshot, "header", "stop", false);
+                await _dialogService
+                    .ShowInfoAsync(
+                        msg,
+                        UiLanguageManager.TryLocalizeCurrent("Ui_MainWindow_Title", "DockLite"))
+                    .ConfigureAwait(true);
                 await RefreshServiceHeaderFromApiAsync(_shutdownToken.Token).ConfigureAwait(true);
                 return;
             }
 
+            DiagnosticTelemetry.WriteManualWslLifecycle(snapshot, "header", "stop", true);
             await Task.Delay(800, _shutdownToken.Token).ConfigureAwait(true);
             await RefreshServiceHeaderFromApiAsync(_shutdownToken.Token).ConfigureAwait(true);
         }
@@ -447,6 +567,7 @@ public partial class ShellViewModel : ObservableObject
             (bool sent, bool healthOk, string msg) = await WslDockerServiceAutoStart
                 .TryRestartServiceManuallyAndWaitForHealthAsync(_httpSession, snapshot, _appBaseDirectory, _shutdownToken.Token)
                 .ConfigureAwait(true);
+            DiagnosticTelemetry.WriteManualWslLifecycle(snapshot, "header", "restart", sent, healthOk);
             AppFileLog.Write("WSL header restart", msg + (sent && healthOk ? " [health OK]" : ""));
             await RefreshServiceHeaderFromApiAsync(_shutdownToken.Token).ConfigureAwait(true);
         }
@@ -538,6 +659,70 @@ public partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Làm mới dữ liệu trang hiện tại (F5).
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshCurrentPageAsync()
+    {
+        object? p = CurrentPage;
+        if (p is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(p, Dashboard))
+        {
+            await Dashboard.RefreshCommand.ExecuteAsync(null).ConfigureAwait(true);
+            return;
+        }
+
+        if (_containersLazy.IsValueCreated && ReferenceEquals(p, _containersLazy.Value))
+        {
+            await Containers.RefreshCommand.ExecuteAsync(null).ConfigureAwait(true);
+            return;
+        }
+
+        if (_logsLazy.IsValueCreated && ReferenceEquals(p, _logsLazy.Value))
+        {
+            await Logs.LoadContainersCommand.ExecuteAsync(null).ConfigureAwait(true);
+            return;
+        }
+
+        if (_composeLazy.IsValueCreated && ReferenceEquals(p, _composeLazy.Value))
+        {
+            await Compose.LoadProjectsCommand.ExecuteAsync(null).ConfigureAwait(true);
+            return;
+        }
+
+        if (_imagesLazy.IsValueCreated && ReferenceEquals(p, _imagesLazy.Value))
+        {
+            await Images.RefreshCommand.ExecuteAsync(null).ConfigureAwait(true);
+            return;
+        }
+
+        if (_networkVolumeLazy.IsValueCreated && ReferenceEquals(p, _networkVolumeLazy.Value))
+        {
+            await NetworkVolume.RefreshCommand.ExecuteAsync(null).ConfigureAwait(true);
+            return;
+        }
+
+        if (ReferenceEquals(p, Settings))
+        {
+            return;
+        }
+
+        if (ReferenceEquals(p, Cleanup))
+        {
+            return;
+        }
+
+        if (_appDebugLogLazy.IsValueCreated && ReferenceEquals(p, _appDebugLogLazy.Value))
+        {
+            AppDebugLog.RefreshCommand.Execute(null);
+        }
+    }
+
+    /// <summary>
     /// Hiển thị hộp thoại trợ giúp theo màn hình đang mở (CurrentPage).
     /// </summary>
     [RelayCommand]
@@ -545,6 +730,10 @@ public partial class ShellViewModel : ObservableObject
     {
         (string shortTitle, string body) = PageHelpTexts.GetForCurrentPage(CurrentPage);
         string titlePrefix = UiLanguageManager.TryLocalize(Application.Current, "Ui_Help_DialogTitlePrefix", "Trợ giúp — ");
-        await _dialogService.ShowInfoAsync(body, titlePrefix + shortTitle).ConfigureAwait(true);
+        Uri? apiBase = _httpSession.Client.BaseAddress;
+        IReadOnlyList<HelpHyperlink> links = PageHelpTexts.GetHelpLinksForPage(CurrentPage, apiBase);
+        await _dialogService
+            .ShowHelpAsync(body, titlePrefix + shortTitle, links.Count > 0 ? links : null)
+            .ConfigureAwait(true);
     }
 }

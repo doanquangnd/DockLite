@@ -16,6 +16,7 @@ packages/
 artifacts/
 
 # Go
+wsl-docker-service/.env
 wsl-docker-service/bin/
 wsl-docker-service/dist/
 *.exe
@@ -26,3 +27,5 @@ wsl-docker-service/dist/
 .vs/
 .idea/
 *.DotSettings.user
+
+docs/*.md

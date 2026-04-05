@@ -6,6 +6,7 @@ import (
 )
 
 // Timeout đọc/ghi toàn bộ request/response (image load, compose dài). WebSocket sau Upgrade không dùng giới hạn này.
+// Số kết nối WebSocket đồng thời: biến môi trường DOCKLITE_WS_MAX_CONNECTIONS (mặc định 64, tối đa 4096), gói internal/wslimit.
 const (
 	ReadTimeout  = 30 * time.Minute
 	WriteTimeout = 30 * time.Minute

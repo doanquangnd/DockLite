@@ -1,15 +1,16 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Models;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
-using DockLite.Core;
-using DockLite.Core.Services;
 using Microsoft.Win32;
 
 namespace DockLite.App.ViewModels;
@@ -21,22 +22,47 @@ public partial class ImagesViewModel : ObservableObject
 {
     private const int ToastMessageMaxChars = 600;
 
-    private readonly IDockLiteApiClient _apiClient;
+    private readonly IImageScreenApi _imageApi;
     private readonly IDialogService _dialogService;
     private readonly INotificationService _notificationService;
     private readonly IAppShutdownToken _shutdownToken;
+    private readonly AppShellActivityState _shellActivity;
     private List<ImageSummaryDto> _allItems = new();
+    private readonly SearchDebounceHelper _searchDebounce;
+    private readonly SemaphoreSlim _imageListRefreshGate = new(1, 1);
 
     public ImagesViewModel(
-        IDockLiteApiClient apiClient,
+        IImageScreenApi imageApi,
         IDialogService dialogService,
         INotificationService notificationService,
-        IAppShutdownToken shutdownToken)
+        IAppShutdownToken shutdownToken,
+        AppShellActivityState shellActivity)
     {
-        _apiClient = apiClient;
+        _imageApi = imageApi;
         _dialogService = dialogService;
         _notificationService = notificationService;
         _shutdownToken = shutdownToken;
+        _shellActivity = shellActivity;
+        _searchDebounce = new SearchDebounceHelper(ApplyFilter);
+        UpdateBatchToolbarState();
+    }
+
+    /// <summary>Không có image sau khi tải xong.</summary>
+    public bool ShowEmptyImageListHint => !IsBusy && _allItems.Count == 0;
+
+    /// <summary>Có image nhưng ô tìm không khớp dòng nào.</summary>
+    public bool ShowImageFilterEmptyHint => !IsBusy && _allItems.Count > 0 && FilteredItems.Count == 0;
+
+    private void ReportNetworkException(Exception ex)
+    {
+        StatusMessage = NetworkErrorMessageMapper.FormatForUser(ex);
+        _ = ApiErrorUiFeedback.ShowNetworkExceptionToastAsync(_notificationService, ex);
+    }
+
+    private void NotifyEmptyImageHints()
+    {
+        OnPropertyChanged(nameof(ShowEmptyImageListHint));
+        OnPropertyChanged(nameof(ShowImageFilterEmptyHint));
     }
 
     [ObservableProperty]
@@ -50,6 +76,22 @@ public partial class ImagesViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isBusy;
+
+    /// <summary>Còn dòng chưa tick trong danh sách đã lọc: Chọn tất cả.</summary>
+    [ObservableProperty]
+    private bool _canSelectAllFiltered;
+
+    /// <summary>Có ít nhất một ô đã chọn: Bỏ chọn, Sao chép ID, Xóa đã chọn.</summary>
+    [ObservableProperty]
+    private bool _canClearSelection;
+
+    /// <summary>Có ít nhất một dòng đã tick: sao chép ID image vào clipboard.</summary>
+    [ObservableProperty]
+    private bool _canCopySelectedIds;
+
+    /// <summary>Có ít nhất một dòng đã tick: xóa hàng loạt.</summary>
+    [ObservableProperty]
+    private bool _canBatchRemove;
 
     /// <summary>
     /// Đang tải inspect/history/pull hoặc export/import (không dùng chung IsBusy của prune/xóa để tránh khóa toàn trang khi chỉ cần khóa khối chi tiết).
@@ -79,25 +121,48 @@ public partial class ImagesViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value)
     {
-        ApplyFilter();
+        _searchDebounce.Schedule();
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        NotifyEmptyImageHints();
+        UpdateBatchToolbarState();
     }
 
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        IsBusy = true;
-        StatusMessage = string.Empty;
+        if (!_shellActivity.ShouldRefreshImageList)
+        {
+            return;
+        }
+
+        if (!await _imageListRefreshGate.WaitAsync(0).ConfigureAwait(true))
+        {
+            return;
+        }
+
         try
         {
-            await ReloadImageListCoreAsync().ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            IsBusy = true;
+            StatusMessage = string.Empty;
+            try
+            {
+                await ReloadImageListCoreAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ReportNetworkException(ex);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
         finally
         {
-            IsBusy = false;
+            _imageListRefreshGate.Release();
         }
     }
 
@@ -106,23 +171,42 @@ public partial class ImagesViewModel : ObservableObject
     /// </summary>
     private async Task ReloadImageListAsync()
     {
+        if (!_shellActivity.ShouldRefreshImageList)
+        {
+            return;
+        }
+
+        if (!await _imageListRefreshGate.WaitAsync(0).ConfigureAwait(true))
+        {
+            return;
+        }
+
         try
         {
-            await ReloadImageListCoreAsync().ConfigureAwait(true);
+            try
+            {
+                await ReloadImageListCoreAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ReportNetworkException(ex);
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            _imageListRefreshGate.Release();
         }
     }
 
     private async Task ReloadImageListCoreAsync()
     {
-        ApiResult<ImageListData> res = await _apiClient.GetImagesAsync(_shutdownToken.Token).ConfigureAwait(true);
+        ApiResult<ImageListData> res = await _imageApi.GetImagesAsync(_shutdownToken.Token).ConfigureAwait(true);
         if (!res.Success)
         {
-            StatusMessage = res.Error?.Message
+            string err = res.Error?.Message
                 ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ListLoadFailed", "Không đọc được danh sách.");
+            StatusMessage = err;
+            _ = ApiErrorUiFeedback.ShowWarningToastAsync(_notificationService, err);
             _allItems = new List<ImageSummaryDto>();
         }
         else
@@ -139,6 +223,11 @@ public partial class ImagesViewModel : ObservableObject
 
     private void ApplyFilter()
     {
+        foreach (SelectableImageRow row in FilteredItems)
+        {
+            row.PropertyChanged -= OnFilteredRowPropertyChanged;
+        }
+
         string q = SearchText.Trim();
         IEnumerable<ImageSummaryDto> query = _allItems;
         if (q.Length > 0)
@@ -152,8 +241,46 @@ public partial class ImagesViewModel : ObservableObject
         FilteredItems.Clear();
         foreach (ImageSummaryDto i in query)
         {
-            FilteredItems.Add(new SelectableImageRow(i));
+            var row = new SelectableImageRow(i);
+            row.PropertyChanged += OnFilteredRowPropertyChanged;
+            FilteredItems.Add(row);
         }
+
+        NotifyEmptyImageHints();
+        UpdateBatchToolbarState();
+    }
+
+    private void OnFilteredRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SelectableImageRow.IsSelected))
+        {
+            UpdateBatchToolbarState();
+        }
+    }
+
+    /// <summary>
+    /// Nút Chọn tất cả / Bỏ chọn / Sao chép ID / Xóa đã chọn — phụ thuộc ô tick.
+    /// </summary>
+    private void UpdateBatchToolbarState()
+    {
+        if (IsBusy)
+        {
+            CanSelectAllFiltered = false;
+            CanClearSelection = false;
+            CanCopySelectedIds = false;
+            CanBatchRemove = false;
+            return;
+        }
+
+        int n = FilteredItems.Count;
+        int selectedCount = FilteredItems.Count(r => r.IsSelected);
+        bool allSelected = n > 0 && selectedCount == n;
+        bool anySelected = selectedCount > 0;
+
+        CanSelectAllFiltered = n > 0 && !allSelected;
+        CanClearSelection = anySelected;
+        CanCopySelectedIds = anySelected;
+        CanBatchRemove = anySelected;
     }
 
     [RelayCommand]
@@ -163,6 +290,8 @@ public partial class ImagesViewModel : ObservableObject
         {
             row.IsSelected = true;
         }
+
+        UpdateBatchToolbarState();
     }
 
     [RelayCommand]
@@ -172,6 +301,27 @@ public partial class ImagesViewModel : ObservableObject
         {
             row.IsSelected = false;
         }
+
+        UpdateBatchToolbarState();
+    }
+
+    /// <summary>
+    /// Sao chép ID image (đầy đủ) của các dòng đã tick, một ID mỗi dòng.
+    /// </summary>
+    [RelayCommand]
+    private void CopySelectedIdsToClipboard()
+    {
+        List<string> ids = FilteredItems.Where(r => r.IsSelected).Select(r => r.Model.Id).ToList();
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        Clipboard.SetText(string.Join(Environment.NewLine, ids));
+        StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Images_Status_CopyIdsDoneFormat",
+            "Đã sao chép {0} ID image vào clipboard.",
+            ids.Count);
     }
 
     [RelayCommand]
@@ -203,7 +353,7 @@ public partial class ImagesViewModel : ObservableObject
             foreach (SelectableImageRow t in targets)
             {
                 var req = new ImageRemoveRequest { Id = t.Model.Id };
-                ApiResult<EmptyApiPayload> res = await _apiClient.RemoveImageAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+                ApiResult<EmptyApiPayload> res = await _imageApi.RemoveImageAsync(req, _shutdownToken.Token).ConfigureAwait(true);
                 if (!res.Success)
                 {
                     StatusMessage = res.Error?.Message
@@ -220,7 +370,7 @@ public partial class ImagesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -254,7 +404,7 @@ public partial class ImagesViewModel : ObservableObject
         try
         {
             var req = new ImageRemoveRequest { Id = SelectedImage.Model.Id };
-            ApiResult<EmptyApiPayload> res = await _apiClient.RemoveImageAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<EmptyApiPayload> res = await _imageApi.RemoveImageAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {
                 StatusMessage = res.Error?.Message
@@ -267,7 +417,7 @@ public partial class ImagesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -283,12 +433,12 @@ public partial class ImagesViewModel : ObservableObject
         try
         {
             var req = new ImagePruneRequest { AllUnused = false };
-            ApiResult<ComposeCommandData> res = await _apiClient.PruneImagesAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<ComposeCommandData> res = await _imageApi.PruneImagesAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             await ApplyPruneResultAsync(res, "Prune image dangling").ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -316,12 +466,12 @@ public partial class ImagesViewModel : ObservableObject
         try
         {
             var req = new ImagePruneRequest { AllUnused = true };
-            ApiResult<ComposeCommandData> res = await _apiClient.PruneImagesAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<ComposeCommandData> res = await _imageApi.PruneImagesAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             await ApplyPruneResultAsync(res, "Prune image -a").ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -403,7 +553,7 @@ public partial class ImagesViewModel : ObservableObject
         IsDetailBusy = true;
         try
         {
-            ApiResult<ImageInspectData> res = await _apiClient
+            ApiResult<ImageInspectData> res = await _imageApi
                 .GetImageInspectAsync(SelectedImage.Model.Id, _shutdownToken.Token)
                 .ConfigureAwait(true);
             if (!res.Success)
@@ -422,7 +572,7 @@ public partial class ImagesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -445,7 +595,7 @@ public partial class ImagesViewModel : ObservableObject
         HistoryRows.Clear();
         try
         {
-            ApiResult<ImageHistoryData> res = await _apiClient
+            ApiResult<ImageHistoryData> res = await _imageApi
                 .GetImageHistoryAsync(SelectedImage.Model.Id, _shutdownToken.Token)
                 .ConfigureAwait(true);
             if (!res.Success)
@@ -480,7 +630,7 @@ public partial class ImagesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -506,7 +656,7 @@ public partial class ImagesViewModel : ObservableObject
         {
             var req = new ImagePullRequest { Reference = reference };
             ApiResult<ImagePullResultData> res = await Task.Run(async () =>
-                await _apiClient.PullImageAsync(req, _shutdownToken.Token).ConfigureAwait(false)).ConfigureAwait(true);
+                await _imageApi.PullImageAsync(req, _shutdownToken.Token).ConfigureAwait(false)).ConfigureAwait(true);
             if (!res.Success)
             {
                 PullLogText = string.Empty;
@@ -522,7 +672,7 @@ public partial class ImagesViewModel : ObservableObject
         catch (Exception ex)
         {
             PullLogText = string.Empty;
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -572,7 +722,7 @@ public partial class ImagesViewModel : ObservableObject
                     FileShare.None,
                     bufferSize: 81920,
                     options: FileOptions.Asynchronous);
-                return await _apiClient.DownloadImageExportAsync(imageId, fs, _shutdownToken.Token).ConfigureAwait(false);
+                return await _imageApi.DownloadImageExportAsync(imageId, fs, _shutdownToken.Token).ConfigureAwait(false);
             }).ConfigureAwait(true);
             if (!ok)
             {
@@ -592,7 +742,7 @@ public partial class ImagesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -626,7 +776,7 @@ public partial class ImagesViewModel : ObservableObject
                     FileShare.Read,
                     bufferSize: 81920,
                     options: FileOptions.Asynchronous);
-                return await _apiClient.UploadImageLoadAsync(fs, _shutdownToken.Token).ConfigureAwait(false);
+                return await _imageApi.UploadImageLoadAsync(fs, _shutdownToken.Token).ConfigureAwait(false);
             }).ConfigureAwait(true);
             if (!res.Success)
             {
@@ -646,7 +796,7 @@ public partial class ImagesViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {

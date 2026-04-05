@@ -1,65 +1,12 @@
 # Phân tích yêu cầu và kế hoạch phát triển ứng dụng quản lý Docker GUI nhẹ
 
-## 1. Tổng quan
-
-### 1.1. Bối cảnh
-Người dùng hiện đang cài Docker Engine trong WSL2 và quản lý bằng CLI. Cách này nhẹ và hiệu quả hơn Docker Desktop, nhưng thao tác thuần lệnh có một số hạn chế:
-
-- Khó quan sát trạng thái tổng thể của container, image, project compose.
-- Việc xem log, restart service, dọn dẹp resource chưa trực quan.
-- Việc quản lý nhiều project Docker song song mất thời gian khi phải gõ lệnh lặp lại.
-- Docker Desktop cung cấp GUI nhưng nặng, tiêu tốn RAM, và có nhiều tính năng không cần thiết đối với nhu cầu hiện tại.
-
-### 1.2. Mục tiêu ứng dụng
-Xây dựng một ứng dụng desktop nhẹ trên Windows để quản lý Docker Engine đang chạy trong WSL2, với định hướng:
-
-- Nhẹ hơn Docker Desktop.
-- Tập trung vào các chức năng thiết thực cho công việc hằng ngày.
-- Giao diện trực quan, dễ thao tác.
-- Kiến trúc tách lớp rõ ràng, dễ mở rộng lâu dài.
-
-### 1.3. Định hướng kiến trúc
-Ứng dụng được chia thành 2 phần:
-
-#### A. Ứng dụng Windows
-- Công nghệ: **WPF + MVVM**
-- Vai trò:
-  - Hiển thị giao diện người dùng.
-  - Điều phối thao tác.
-  - Gọi API nội bộ.
-  - Hiển thị dữ liệu container, logs, images, compose projects, stats.
-
-#### B. Service nhỏ trong WSL2
-- Công nghệ: **Go**
-- Vai trò:
-  - Giao tiếp với Docker Engine.
-  - Đọc thông tin container/image/network/volume.
-  - Điều khiển container.
-  - Stream logs/stats.
-  - Xử lý thao tác Docker Compose.
-  - Expose API nội bộ cho ứng dụng WPF.
+Phần tổng quan và mô tả ứng dụng nằm trong `README.md` ở thư mục gốc repo. Tài liệu này tiếp tục với mục tiêu chức năng, kiến trúc, API, rủi ro và kế hoạch phát triển.
 
 ---
 
-## 2. Mô tả ứng dụng
+## 1. Mục tiêu chức năng
 
-### 2.1. Tên tạm thời
-- DockLite
-
-### 2.2. Mô tả ngắn
-Đây là một ứng dụng desktop quản lý Docker nhẹ dành cho môi trường Windows + WSL2. Ứng dụng giúp người dùng theo dõi và thao tác với Docker container, images, compose projects, logs và tài nguyên hệ thống thông qua một giao diện GUI đơn giản, thay cho việc phải sử dụng CLI liên tục.
-
-### 2.3. Đối tượng sử dụng
-- Lập trình viên đang dùng Docker trong WSL2.
-- Người muốn tránh dùng Docker Desktop vì nặng.
-- Người cần một GUI tối giản để thao tác nhanh với container và compose project.
-- Dev backend/fullstack thường xuyên dùng Laravel, Java, Node.js, Python, Nginx, MySQL, Redis bằng Docker.
-
----
-
-## 3. Mục tiêu chức năng
-
-### 3.1. Mục tiêu chính
+### 1.1. Mục tiêu chính
 Ứng dụng cần giải quyết tốt các nhu cầu thường xuyên nhất:
 
 - Xem danh sách container.
@@ -71,7 +18,7 @@ Xây dựng một ứng dụng desktop nhẹ trên Windows để quản lý Dock
 - Xem nhanh CPU, memory, network của container.
 - Quản lý nhiều project compose theo danh sách yêu thích.
 
-### 3.2. Mục tiêu phi chức năng
+### 1.2. Mục tiêu phi chức năng
 - Phản hồi nhanh.
 - Khởi động nhẹ.
 - Giao diện rõ ràng, ít rối.
@@ -82,16 +29,16 @@ Xây dựng một ứng dụng desktop nhẹ trên Windows để quản lý Dock
 
 ---
 
-## 4. Phạm vi ứng dụng
+## 2. Phạm vi ứng dụng
 
-### 4.1. Trong phạm vi
+### 2.1. Trong phạm vi
 - Quản lý Docker Engine trong WSL2.
 - Quản lý container, images, logs, stats.
 - Hỗ trợ Docker Compose ở mức thao tác phổ biến.
 - Cấu hình các project compose yêu thích.
 - Giao tiếp local giữa WPF và service trong WSL.
 
-### 4.2. Ngoài phạm vi giai đoạn đầu
+### 2.2. Ngoài phạm vi giai đoạn đầu
 - Không thay thế hoàn toàn Docker Desktop.
 - Không quản lý Kubernetes.
 - Không quản lý Swarm.
@@ -102,9 +49,9 @@ Xây dựng một ứng dụng desktop nhẹ trên Windows để quản lý Dock
 
 ---
 
-## 5. Kiến trúc hệ thống
+## 3. Kiến trúc hệ thống
 
-### 5.1. Kiến trúc tổng thể
+### 3.1. Kiến trúc tổng thể
 
 ```text
 +---------------------------+
@@ -126,7 +73,7 @@ Xây dựng một ứng dụng desktop nhẹ trên Windows để quản lý Dock
 +---------------------------+
 ```
 
-### 5.2. Lý do chọn kiến trúc này
+### 3.2. Lý do chọn kiến trúc này
 - WPF phù hợp xây dựng ứng dụng desktop Windows có UI tốt.
 - MVVM giúp code UI sạch, dễ test và dễ mở rộng.
 - Go phù hợp để làm service nhỏ, nhẹ, hiệu suất cao.
@@ -135,9 +82,9 @@ Xây dựng một ứng dụng desktop nhẹ trên Windows để quản lý Dock
 
 ---
 
-## 6. Lý do chọn công nghệ
+## 4. Lý do chọn công nghệ
 
-### 6.1. WPF
+### 4.1. WPF
 Ưu điểm:
 - Native desktop app cho Windows.
 - Hỗ trợ binding mạnh.
@@ -146,7 +93,7 @@ Xây dựng một ứng dụng desktop nhẹ trên Windows để quản lý Dock
 - Hỗ trợ DataGrid, command, styles, templates tốt.
 - Có thể phát triển giao diện chuyên nghiệp hơn WinForms.
 
-### 6.2. MVVM
+### 4.2. MVVM
 Ưu điểm:
 - Tách View và business logic.
 - Dễ maintain.
@@ -154,7 +101,7 @@ Xây dựng một ứng dụng desktop nhẹ trên Windows để quản lý Dock
 - Dễ tái sử dụng component.
 - Dễ unit test phần logic.
 
-### 6.3. Go cho service trong WSL
+### 4.3. Go cho service trong WSL
 Ưu điểm:
 - Binary nhỏ, nhẹ.
 - Hiệu suất tốt.
@@ -163,7 +110,7 @@ Xây dựng một ứng dụng desktop nhẹ trên Windows để quản lý Dock
 - Dễ đóng gói và deploy.
 - Phù hợp làm local service.
 
-### 6.4. Docker SDK + CLI
+### 4.4. Docker SDK + CLI
 Chiến lược đề xuất:
 - Dùng **Docker SDK** cho:
   - containers
@@ -184,18 +131,18 @@ Lý do:
 
 ---
 
-## 7. Mô hình giao tiếp
+## 5. Mô hình giao tiếp
 
-### 7.1. Giao thức
+### 5.1. Giao thức
 - HTTP REST cho request/response thông thường.
 - WebSocket cho stream logs và stats realtime.
 
-### 7.2. Luồng giao tiếp
+### 5.2. Luồng giao tiếp
 - WPF gửi request đến service trong WSL.
 - Service xử lý và trả JSON.
 - Với logs/stats realtime, service stream qua WebSocket.
 
-### 7.3. Bảo mật
+### 5.3. Bảo mật
 Do ứng dụng chỉ dùng local:
 - Service chỉ bind local.
 - Có thể thêm API key nội bộ.
@@ -204,9 +151,9 @@ Do ứng dụng chỉ dùng local:
 
 ---
 
-## 8. Chức năng chi tiết
+## 6. Chức năng chi tiết
 
-### 8.1. Dashboard
+### 6.1. Dashboard
 Mục tiêu:
 - Hiển thị bức tranh tổng quan nhanh.
 
@@ -224,7 +171,7 @@ Chức năng:
 - Refresh nhanh.
 - Nhấn để chuyển tới màn hình chi tiết tương ứng.
 
-### 8.2. Quản lý Containers
+### 6.2. Quản lý Containers
 Thông tin hiển thị:
 - Container name
 - Container ID
@@ -260,7 +207,7 @@ Chức năng nâng cao:
 - Xem env variables
 - Xem mount/volume mapping
 
-### 8.3. Logs Viewer
+### 6.3. Logs Viewer
 Mục tiêu:
 - Biến việc xem log thành trực quan và dễ debug hơn.
 
@@ -291,7 +238,7 @@ Mở rộng:
 - Bookmark dòng log
 - Multi-tab logs
 
-### 8.4. Quản lý Images
+### 6.4. Quản lý Images
 Thông tin hiển thị:
 - Repository
 - Tag
@@ -315,7 +262,7 @@ Mở rộng:
 - Export image
 - Save/load image tar
 
-### 8.5. Quản lý Docker Compose Projects
+### 6.5. Quản lý Docker Compose Projects
 Mục tiêu:
 - Thao tác nhanh với các project compose thường dùng.
 
@@ -348,7 +295,7 @@ Mở rộng:
 - Start một service cụ thể
 - Stop một service cụ thể
 
-### 8.6. Stats / Resource Monitor
+### 6.6. Stats / Resource Monitor
 Thông tin hiển thị:
 - CPU %
 - Memory usage
@@ -366,7 +313,7 @@ Mở rộng:
 - Lưu snapshot
 - So sánh stats giữa các container
 
-### 8.7. Cleanup / Maintenance
+### 6.7. Cleanup / Maintenance
 Chức năng:
 - Container prune
 - Image prune
@@ -385,7 +332,7 @@ Mở rộng:
 - Dọn theo từng loại
 - Lưu log lịch sử cleanup
 
-### 8.8. Settings
+### 6.8. Settings
 Thông tin cấu hình:
 - Distro WSL đang dùng
 - Host service URL
@@ -404,9 +351,9 @@ Chức năng:
 
 ---
 
-## 9. Yêu cầu kỹ thuật
+## 7. Yêu cầu kỹ thuật
 
-### 9.1. Yêu cầu Windows App
+### 7.1. Yêu cầu Windows App
 - Chạy trên Windows 10/11.
 - .NET 8.
 - Giao diện WPF.
@@ -414,7 +361,7 @@ Chức năng:
 - Hỗ trợ dark mode hoặc theme hiện đại.
 - Có logging nội bộ.
 
-### 9.2. Yêu cầu WSL Service
+### 7.2. Yêu cầu WSL Service
 - Chạy trong WSL2 Ubuntu.
 - Có quyền truy cập Docker socket.
 - Viết bằng Go.
@@ -423,16 +370,16 @@ Chức năng:
 - Hỗ trợ graceful shutdown.
 - Hỗ trợ log file riêng.
 
-### 9.3. Yêu cầu Docker
+### 7.3. Yêu cầu Docker
 - Docker Engine hoạt động trong WSL2.
 - Docker CLI sẵn có.
 - Docker Compose v2 hoạt động được.
 
 ---
 
-## 10. Đề xuất cấu trúc dự án
+## 8. Đề xuất cấu trúc dự án
 
-### 10.1. WPF Solution
+### 8.1. WPF Solution
 
 ```text
 DockerGui.sln
@@ -456,7 +403,7 @@ Mô tả:
 - **DockerGui.Tests**
   - unit tests
 
-### 10.2. Go Service
+### 8.2. Go Service
 
 ```text
 wsl-docker-service/
@@ -495,12 +442,12 @@ Mô tả:
 
 ---
 
-## 11. Đề xuất API sơ bộ
+## 9. Đề xuất API sơ bộ
 
-### 11.1. Health
+### 9.1. Health
 - `GET /api/health`
 
-### 11.2. Containers
+### 9.2. Containers
 - `GET /api/containers`
 - `GET /api/containers/{id}`
 - `POST /api/containers/{id}/start`
@@ -509,20 +456,20 @@ Mô tả:
 - `DELETE /api/containers/{id}`
 - `GET /api/containers/{id}/inspect`
 
-### 11.3. Logs
+### 9.3. Logs
 - `GET /api/containers/{id}/logs?tail=200`
 - `WS /ws/containers/{id}/logs`
 
-### 11.4. Stats
+### 9.4. Stats
 - `GET /api/containers/{id}/stats`
 - `WS /ws/containers/{id}/stats`
 
-### 11.5. Images
+### 9.5. Images
 - `GET /api/images`
 - `DELETE /api/images/{id}`
 - `POST /api/images/prune`
 
-### 11.6. Compose
+### 9.6. Compose
 - `GET /api/compose/projects`
 - `POST /api/compose/projects`
 - `POST /api/compose/projects/up`
@@ -531,7 +478,7 @@ Mô tả:
 - `GET /api/compose/projects/services`
 - `GET /api/compose/projects/logs`
 
-### 11.7. Cleanup
+### 9.7. Cleanup
 - `POST /api/system/prune`
 - `POST /api/system/prune/images`
 - `POST /api/system/prune/containers`
@@ -540,9 +487,9 @@ Mô tả:
 
 ---
 
-## 12. Luồng hoạt động chính
+## 10. Luồng hoạt động chính
 
-### 12.1. Khởi động ứng dụng
+### 10.1. Khởi động ứng dụng
 1. Người dùng mở WPF app.
 2. App kiểm tra service trong WSL có hoạt động không.
 3. Nếu chưa chạy:
@@ -551,19 +498,19 @@ Mô tả:
 4. App gọi health check.
 5. Nếu Docker reachable, app load dashboard.
 
-### 12.2. Luồng xem container
+### 10.2. Luồng xem container
 1. App gọi `GET /api/containers`
 2. Service lấy dữ liệu từ Docker
 3. App hiển thị DataGrid
 4. Người dùng thao tác start/stop/restart/remove
 
-### 12.3. Luồng xem logs
+### 10.3. Luồng xem logs
 1. Người dùng chọn container
 2. App load tail log ban đầu
 3. App mở WebSocket stream
 4. Log mới được append realtime vào giao diện
 
-### 12.4. Luồng compose project
+### 10.4. Luồng compose project
 1. Người dùng lưu đường dẫn project
 2. App gửi path đến service
 3. Service chạy `docker compose ...`
@@ -571,9 +518,9 @@ Mô tả:
 
 ---
 
-## 13. Rủi ro và điểm cần chú ý
+## 11. Rủi ro và điểm cần chú ý
 
-### 13.1. Path giữa Windows và WSL
+### 11.1. Path giữa Windows và WSL
 Đường dẫn project từ Windows cần chuyển thành path WSL hợp lệ.
 
 Ví dụ:
@@ -584,24 +531,24 @@ Ví dụ:
 
 Cần viết module chuyển đổi path chuẩn.
 
-### 13.2. Quyền truy cập Docker
+### 11.2. Quyền truy cập Docker
 Service phải có quyền dùng Docker socket.
 Cần bảo đảm user thuộc group docker hoặc cấu hình phù hợp.
 
-### 13.3. Streaming logs/stats
+### 11.3. Streaming logs/stats
 Cần xử lý tốt:
 - reconnect
 - timeout
 - mất kết nối service
 - giới hạn buffer
 
-### 13.4. Compose compatibility
+### 11.4. Compose compatibility
 Nên hỗ trợ:
 - `docker-compose.yml`
 - `compose.yml`
 - compose v2
 
-### 13.5. Đồng bộ trạng thái GUI
+### 11.5. Đồng bộ trạng thái GUI
 Cần tránh trường hợp:
 - action xong nhưng UI chưa refresh
 - stream nhiều gây lag UI
@@ -609,9 +556,9 @@ Cần tránh trường hợp:
 
 ---
 
-## 14. Đề xuất UI/UX
+## 12. Đề xuất UI/UX
 
-### 14.1. Bố cục chính
+### 12.1. Bố cục chính
 - Sidebar trái:
   - Dashboard
   - Containers
@@ -628,7 +575,7 @@ Cần tránh trường hợp:
   - nút refresh nhanh
   - chọn WSL distro
 
-### 14.2. Thiết kế trải nghiệm
+### 12.2. Thiết kế trải nghiệm
 - Ưu tiên thao tác 1-2 click.
 - Hiển thị rõ trạng thái Running / Exited / Error.
 - Màu log theo cấp độ.
@@ -637,9 +584,9 @@ Cần tránh trường hợp:
 
 ---
 
-## 15. Kế hoạch phát triển
+## 13. Kế hoạch phát triển
 
-### 15.1. Giai đoạn 1 - MVP
+### 13.1. Giai đoạn 1 - MVP
 Mục tiêu:
 - Có phiên bản dùng được cho các thao tác cơ bản nhất.
 
@@ -660,7 +607,7 @@ Kết quả mong đợi:
 - Thay thế phần lớn thao tác CLI thường ngày.
 - Chạy ổn định trong môi trường cá nhân.
 
-### 15.2. Giai đoạn 2 - Ổn định và hoàn thiện
+### 13.2. Giai đoạn 2 - Ổn định và hoàn thiện
 Phạm vi:
 - Stats realtime
 - Search/filter/sort tốt hơn
@@ -675,7 +622,7 @@ Kết quả:
 - Trải nghiệm tốt hơn cho dùng hằng ngày.
 - Giảm phụ thuộc vào terminal.
 
-### 15.3. Giai đoạn 3 - Nâng cao
+### 13.3. Giai đoạn 3 - Nâng cao
 Phạm vi:
 - Multi-log tabs
 - Export report
@@ -689,7 +636,7 @@ Phạm vi:
 Kết quả:
 - Ứng dụng trưởng thành hơn, gần với một Docker GUI chuyên dụng.
 
-### 15.4. Giai đoạn 4 - Mở rộng hệ sinh thái
+### 13.4. Giai đoạn 4 - Mở rộng hệ sinh thái
 Phạm vi:
 - Tích hợp quản lý WSL distro ở mức cơ bản
 - Tích hợp local domain/proxy tool nếu cần trong tương lai
@@ -700,7 +647,7 @@ Kết quả:
 
 ---
 
-## 16. Backlog đề xuất
+## 14. Backlog đề xuất
 
 ### Ưu tiên cao
 - Health check
@@ -727,7 +674,7 @@ Kết quả:
 
 ---
 
-## 17. Tiêu chí hoàn thành MVP
+## 15. Tiêu chí hoàn thành MVP
 
 MVP được xem là đạt khi:
 - Ứng dụng khởi động ổn định.
@@ -745,7 +692,7 @@ MVP được xem là đạt khi:
 
 ---
 
-## 18. Kết luận
+## 16. Kết luận
 
 Đây là một ứng dụng có tính thực tiễn cao đối với môi trường làm việc Windows + WSL2 + Docker. Việc chọn **WPF + MVVM** cho giao diện và **Go service trong WSL** cho lớp giao tiếp Docker là một hướng đi hợp lý vì:
 

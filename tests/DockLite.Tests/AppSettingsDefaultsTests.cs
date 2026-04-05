@@ -17,4 +17,15 @@ public sealed class AppSettingsDefaultsTests
         AppSettingsDefaults.Normalize(s);
         Assert.Equal(expected, s.UiLanguage);
     }
+
+    [Theory]
+    [InlineData(29, 120)]
+    [InlineData(601, 120)]
+    [InlineData(60, 60)]
+    public void Normalize_clamp_http_timeout_seconds(int input, int expected)
+    {
+        var s = new AppSettings { HttpTimeoutSeconds = input };
+        AppSettingsDefaults.Normalize(s);
+        Assert.Equal(expected, s.HttpTimeoutSeconds);
+    }
 }

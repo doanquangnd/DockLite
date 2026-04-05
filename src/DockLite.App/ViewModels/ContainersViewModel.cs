@@ -15,7 +15,6 @@ using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Models;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
-using DockLite.Core;
 using DockLite.Core.Services;
 
 namespace DockLite.App.ViewModels;
@@ -25,8 +24,9 @@ namespace DockLite.App.ViewModels;
 /// </summary>
 public partial class ContainersViewModel : ObservableObject
 {
-    private readonly IDockLiteApiClient _apiClient;
+    private readonly IContainerScreenApi _containerApi;
     private readonly IDialogService _dialogService;
+    private readonly INotificationService _notificationService;
     private readonly IAppShutdownToken _shutdownToken;
     private readonly AppShellActivityState _shellActivity;
     private List<ContainerSummaryDto> _allItems = new();
@@ -36,25 +36,55 @@ public partial class ContainersViewModel : ObservableObject
     private CancellationTokenSource? _statsWsCts;
     private readonly List<double> _cpuSparkHistory = new();
     private readonly List<double> _memorySparkHistory = new();
+    private readonly SearchDebounceHelper _searchDebounce;
+    private readonly SemaphoreSlim _containerListRefreshGate = new(1, 1);
 
     private const double SparklineWidth = 300;
     private const double SparklineHeight = 72;
     private const int MaxSparkPoints = 90;
 
     public ContainersViewModel(
-        IDockLiteApiClient apiClient,
+        IContainerScreenApi containerApi,
         IDialogService dialogService,
+        INotificationService notificationService,
         IAppShutdownToken shutdownToken,
         AppShellActivityState shellActivity,
         IStatsStreamClient statsStream)
     {
-        _apiClient = apiClient;
+        _containerApi = containerApi;
         _dialogService = dialogService;
+        _notificationService = notificationService;
         _shutdownToken = shutdownToken;
         _shellActivity = shellActivity;
         _statsStream = statsStream;
+        _searchDebounce = new SearchDebounceHelper(ApplyFilter);
         _shellActivity.Changed += OnShellActivityChanged;
         UpdateToolbarState();
+    }
+
+    /// <summary>Không có container từ Docker (sau khi tải xong).</summary>
+    public bool ShowEmptyContainerListHint => !IsBusy && _allItems.Count == 0;
+
+    /// <summary>Có container nhưng lọc/tìm không khớp dòng nào.</summary>
+    public bool ShowContainerFilterEmptyHint => !IsBusy && _allItems.Count > 0 && FilteredItems.Count == 0;
+
+    private void ReportNetworkException(Exception ex)
+    {
+        StatusMessage = NetworkErrorMessageMapper.FormatForUser(ex);
+        _ = ApiErrorUiFeedback.ShowNetworkExceptionToastAsync(_notificationService, ex);
+    }
+
+    private void ReportNetworkException(Exception ex, Action<string> setLine)
+    {
+        string msg = NetworkErrorMessageMapper.FormatForUser(ex);
+        setLine(msg);
+        _ = ApiErrorUiFeedback.ShowNetworkExceptionToastAsync(_notificationService, ex);
+    }
+
+    private void NotifyEmptyContainerHints()
+    {
+        OnPropertyChanged(nameof(ShowEmptyContainerListHint));
+        OnPropertyChanged(nameof(ShowContainerFilterEmptyHint));
     }
 
     [ObservableProperty]
@@ -91,9 +121,13 @@ public partial class ContainersViewModel : ObservableObject
     [ObservableProperty]
     private bool _canSelectAllFiltered;
 
-    /// <summary>Có ít nhất một ô đã chọn: Bỏ chọn, Xóa đã chọn.</summary>
+    /// <summary>Có ít nhất một ô đã chọn: Bỏ chọn, Xóa đã chọn, Sao chép ID.</summary>
     [ObservableProperty]
     private bool _canClearSelection;
+
+    /// <summary>Có ít nhất một dòng đã tick: sao chép ID đầy đủ vào clipboard.</summary>
+    [ObservableProperty]
+    private bool _canCopySelectedIds;
 
     /// <summary>Có ít nhất một dòng đã chọn đang dừng: Start đã chọn.</summary>
     [ObservableProperty]
@@ -248,7 +282,7 @@ public partial class ContainersViewModel : ObservableObject
     /// <summary>
     /// Lựa chọn interval tối thiểu giữa hai mẫu WebSocket (ms).
     /// </summary>
-    public IReadOnlyList<int> StatsWebSocketIntervalChoices { get; } = new[] { 500, 1000, 2000 };
+    public IReadOnlyList<int> StatsWebSocketIntervalChoices { get; } = new[] { 500, 1000, 2000, 3000, 5000 };
 
     /// <summary>
     /// Giá trị cho ComboBox lọc (khớp <see cref="FilterKind"/>).
@@ -332,11 +366,12 @@ public partial class ContainersViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value)
     {
-        ApplyFilter();
+        _searchDebounce.Schedule();
     }
 
     partial void OnIsBusyChanged(bool value)
     {
+        NotifyEmptyContainerHints();
         UpdateToolbarState();
     }
 
@@ -374,37 +409,56 @@ public partial class ContainersViewModel : ObservableObject
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        IsBusy = true;
-        StatusMessage = string.Empty;
+        if (!_shellActivity.ShouldRefreshContainerList)
+        {
+            return;
+        }
+
+        if (!await _containerListRefreshGate.WaitAsync(0).ConfigureAwait(true))
+        {
+            return;
+        }
+
         try
         {
-            ApiResult<ContainerListData> list = await _apiClient.GetContainersAsync(_shutdownToken.Token).ConfigureAwait(true);
-            if (!list.Success)
+            IsBusy = true;
+            StatusMessage = string.Empty;
+            try
             {
-                StatusMessage = list.Error?.Message
-                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ListLoadFailed", "Không đọc được danh sách.");
+                ApiResult<ContainerListData> list = await _containerApi.GetContainersAsync(_shutdownToken.Token).ConfigureAwait(true);
+                if (!list.Success)
+                {
+                    string err = list.Error?.Message
+                        ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ListLoadFailed", "Không đọc được danh sách.");
+                    StatusMessage = err;
+                    _ = ApiErrorUiFeedback.ShowWarningToastAsync(_notificationService, err);
+                    _allItems = new List<ContainerSummaryDto>();
+                    ApplyFilter();
+                    return;
+                }
+
+                _allItems = list.Data?.Items ?? new List<ContainerSummaryDto>();
+                ApplyFilter();
+                StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_Containers_Status_LoadedContainersCountFormat",
+                    "Đã tải {0} container.",
+                    _allItems.Count);
+            }
+            catch (Exception ex)
+            {
+                ReportNetworkException(ex);
                 _allItems = new List<ContainerSummaryDto>();
                 ApplyFilter();
-                return;
             }
-
-            _allItems = list.Data?.Items ?? new List<ContainerSummaryDto>();
-            ApplyFilter();
-            StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
-                "Ui_Containers_Status_LoadedContainersCountFormat",
-                "Đã tải {0} container.",
-                _allItems.Count);
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
-            _allItems = new List<ContainerSummaryDto>();
-            ApplyFilter();
+            finally
+            {
+                IsBusy = false;
+                UpdateToolbarState();
+            }
         }
         finally
         {
-            IsBusy = false;
-            UpdateToolbarState();
+            _containerListRefreshGate.Release();
         }
     }
 
@@ -454,7 +508,7 @@ public partial class ContainersViewModel : ObservableObject
         TopMemorySummaryText = string.Empty;
         try
         {
-            ApiResult<ContainerTopMemoryData> res = await _apiClient.GetContainersTopByMemoryAsync(5, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<ContainerTopMemoryData> res = await _containerApi.GetContainersTopByMemoryAsync(5, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {
                 TopMemorySummaryText = res.Error?.Message ?? "Không đọc được bảng top RAM.";
@@ -491,7 +545,7 @@ public partial class ContainersViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            TopMemorySummaryText = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex, m => TopMemorySummaryText = m);
         }
         finally
         {
@@ -509,7 +563,7 @@ public partial class ContainersViewModel : ObservableObject
         TopCpuSummaryText = string.Empty;
         try
         {
-            ApiResult<ContainerTopMemoryData> res = await _apiClient.GetContainersTopByCpuAsync(5, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<ContainerTopMemoryData> res = await _containerApi.GetContainersTopByCpuAsync(5, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
             {
                 TopCpuSummaryText = res.Error?.Message ?? "Không đọc được bảng top CPU.";
@@ -546,7 +600,7 @@ public partial class ContainersViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            TopCpuSummaryText = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex, m => TopCpuSummaryText = m);
         }
         finally
         {
@@ -562,7 +616,7 @@ public partial class ContainersViewModel : ObservableObject
             return;
         }
 
-        await RunActionAsync(() => _apiClient.StartContainerAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token));
+        await RunActionAsync(() => _containerApi.StartContainerAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token));
     }
 
     [RelayCommand]
@@ -573,7 +627,7 @@ public partial class ContainersViewModel : ObservableObject
             return;
         }
 
-        await RunActionAsync(() => _apiClient.StopContainerAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token));
+        await RunActionAsync(() => _containerApi.StopContainerAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token));
     }
 
     [RelayCommand]
@@ -584,7 +638,7 @@ public partial class ContainersViewModel : ObservableObject
             return;
         }
 
-        await RunActionAsync(() => _apiClient.RestartContainerAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token));
+        await RunActionAsync(() => _containerApi.RestartContainerAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token));
     }
 
     /// <summary>
@@ -604,8 +658,8 @@ public partial class ContainersViewModel : ObservableObject
         try
         {
             string id = SelectedContainerRow.Model.Id;
-            Task<ApiResult<ContainerInspectData>> tInspect = _apiClient.GetContainerInspectAsync(id, _shutdownToken.Token);
-            Task<ApiResult<ContainerStatsSnapshotData>> tStats = _apiClient.GetContainerStatsAsync(id, _shutdownToken.Token);
+            Task<ApiResult<ContainerInspectData>> tInspect = _containerApi.GetContainerInspectAsync(id, _shutdownToken.Token);
+            Task<ApiResult<ContainerStatsSnapshotData>> tStats = _containerApi.GetContainerStatsAsync(id, _shutdownToken.Token);
             await Task.WhenAll(tInspect, tStats).ConfigureAwait(true);
             ApiResult<ContainerInspectData> rInsp = await tInspect.ConfigureAwait(true);
             ApiResult<ContainerStatsSnapshotData> rStats = await tStats.ConfigureAwait(true);
@@ -644,7 +698,7 @@ public partial class ContainersViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -673,6 +727,25 @@ public partial class ContainersViewModel : ObservableObject
         }
 
         UpdateBatchToolbarState();
+    }
+
+    /// <summary>
+    /// Sao chép ID đầy đủ của các dòng đã tick (một ID mỗi dòng).
+    /// </summary>
+    [RelayCommand]
+    private void CopySelectedIdsToClipboard()
+    {
+        List<string> ids = FilteredItems.Where(r => r.IsSelected).Select(r => r.Model.Id).ToList();
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        Clipboard.SetText(string.Join(Environment.NewLine, ids));
+        StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Containers_Status_CopyIdsDoneFormat",
+            "Đã sao chép {0} ID container vào clipboard.",
+            ids.Count);
     }
 
     [RelayCommand]
@@ -706,7 +779,7 @@ public partial class ContainersViewModel : ObservableObject
         {
             foreach (SelectableContainerRow t in targets)
             {
-                ApiResult<EmptyApiPayload> res = await _apiClient.StartContainerAsync(t.Model.Id, _shutdownToken.Token).ConfigureAwait(true);
+                ApiResult<EmptyApiPayload> res = await _containerApi.StartContainerAsync(t.Model.Id, _shutdownToken.Token).ConfigureAwait(true);
                 if (!res.Success)
                 {
                     StatusMessage = res.Error?.Message
@@ -723,7 +796,7 @@ public partial class ContainersViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -763,7 +836,7 @@ public partial class ContainersViewModel : ObservableObject
         {
             foreach (SelectableContainerRow t in targets)
             {
-                ApiResult<EmptyApiPayload> res = await _apiClient.StopContainerAsync(t.Model.Id, _shutdownToken.Token).ConfigureAwait(true);
+                ApiResult<EmptyApiPayload> res = await _containerApi.StopContainerAsync(t.Model.Id, _shutdownToken.Token).ConfigureAwait(true);
                 if (!res.Success)
                 {
                     StatusMessage = res.Error?.Message
@@ -780,7 +853,7 @@ public partial class ContainersViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -819,7 +892,7 @@ public partial class ContainersViewModel : ObservableObject
             foreach (SelectableContainerRow t in targets)
             {
                 bool force = IsRunning(t.Model.Status);
-                ApiResult<EmptyApiPayload> res = await _apiClient.RemoveContainerAsync(t.Model.Id, force, _shutdownToken.Token).ConfigureAwait(true);
+                ApiResult<EmptyApiPayload> res = await _containerApi.RemoveContainerAsync(t.Model.Id, force, _shutdownToken.Token).ConfigureAwait(true);
                 if (!res.Success)
                 {
                     StatusMessage = res.Error?.Message
@@ -836,7 +909,7 @@ public partial class ContainersViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -865,7 +938,7 @@ public partial class ContainersViewModel : ObservableObject
         }
 
         bool force = IsRunning(SelectedContainerRow.Model.Status);
-        await RunActionAsync(() => _apiClient.RemoveContainerAsync(SelectedContainerRow.Model.Id, force, _shutdownToken.Token));
+        await RunActionAsync(() => _containerApi.RemoveContainerAsync(SelectedContainerRow.Model.Id, force, _shutdownToken.Token));
     }
 
     private async Task RunActionAsync(Func<Task<ApiResult<EmptyApiPayload>>> call)
@@ -887,7 +960,7 @@ public partial class ContainersViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            ReportNetworkException(ex);
         }
         finally
         {
@@ -927,6 +1000,7 @@ public partial class ContainersViewModel : ObservableObject
             SelectedContainerRow = null;
         }
 
+        NotifyEmptyContainerHints();
         UpdateToolbarState();
     }
 
@@ -1026,6 +1100,7 @@ public partial class ContainersViewModel : ObservableObject
         {
             CanSelectAllFiltered = false;
             CanClearSelection = false;
+            CanCopySelectedIds = false;
             CanBatchStart = false;
             CanBatchStop = false;
             CanBatchRemove = false;
@@ -1040,6 +1115,7 @@ public partial class ContainersViewModel : ObservableObject
 
         CanSelectAllFiltered = n > 0 && !allSelected;
         CanClearSelection = anySelected;
+        CanCopySelectedIds = anySelected;
         CanBatchStart = FilteredItems.Any(r => r.IsSelected && !IsRunning(r.Model.Status));
         CanBatchStop = FilteredItems.Any(r => r.IsSelected && IsRunning(r.Model.Status));
         CanBatchRemove = anySelected;
@@ -1145,7 +1221,7 @@ public partial class ContainersViewModel : ObservableObject
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
-                StatusMessage = ExceptionMessages.FormatForUser(ex);
+                ReportNetworkException(ex);
             });
         }
     }
@@ -1235,6 +1311,11 @@ public partial class ContainersViewModel : ObservableObject
 
     private async void StatsRealtimeTimerOnTick(object? sender, EventArgs e)
     {
+        if (_shutdownToken.Token.IsCancellationRequested)
+        {
+            return;
+        }
+
         if (!_shellActivity.ShouldPollContainerStats)
         {
             return;
@@ -1257,7 +1338,7 @@ public partial class ContainersViewModel : ObservableObject
 
         try
         {
-            ApiResult<ContainerStatsSnapshotData> r = await _apiClient
+            ApiResult<ContainerStatsSnapshotData> r = await _containerApi
                 .GetContainerStatsAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token)
                 .ConfigureAwait(true);
             if (r.Success && r.Data is not null)
@@ -1289,7 +1370,7 @@ public partial class ContainersViewModel : ObservableObject
 
         try
         {
-            ApiResult<ContainerStatsSnapshotData> r = await _apiClient
+            ApiResult<ContainerStatsSnapshotData> r = await _containerApi
                 .GetContainerStatsAsync(SelectedContainerRow.Model.Id, _shutdownToken.Token)
                 .ConfigureAwait(true);
             if (r.Success && r.Data is not null)

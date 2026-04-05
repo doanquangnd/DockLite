@@ -1,5 +1,4 @@
 using DockLite.Contracts.Api;
-using DockLite.Core.Services;
 
 namespace DockLite.App.Services;
 
@@ -11,7 +10,7 @@ public sealed class WslServiceHealthCache
     private bool? _lastHealthy;
 
     /// <summary>
-    /// null: chưa có lần kiểm tra; true: có phản hồi health; false: không kết nối được hoặc health null.
+    /// null: chưa có lần kiểm tra; true: GET /api/health và Docker (envelope) ổn; false: không kết nối hoặc thiếu một trong hai.
     /// </summary>
     public bool? LastHealthy => _lastHealthy;
 
@@ -41,11 +40,11 @@ public sealed class WslServiceHealthCache
     /// Gọi GET /api/health và cập nhật cache.
     /// </summary>
     /// <param name="forceNotify">True sau thao tác thủ công (start/stop WSL) để header đồng bộ kể khi healthy không đổi.</param>
-    public async Task RefreshAsync(IDockLiteApiClient apiClient, CancellationToken cancellationToken = default, bool forceNotify = false)
+    public async Task RefreshAsync(ISystemDiagnosticsScreenApi api, CancellationToken cancellationToken = default, bool forceNotify = false)
     {
         try
         {
-            HealthResponse? health = await apiClient.GetHealthAsync(cancellationToken).ConfigureAwait(false);
+            HealthResponse? health = await api.GetHealthAsync(cancellationToken).ConfigureAwait(false);
             SetFromHealthResponse(health, forceNotify);
         }
         catch (OperationCanceledException)

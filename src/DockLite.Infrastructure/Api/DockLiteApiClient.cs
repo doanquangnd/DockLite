@@ -436,6 +436,14 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task<ApiResult<EmptyApiPayload>> RemoveVolumeAsync(VolumeRemoveRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await _session.Client.PostAsJsonAsync("api/volumes/remove", request, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+        return await ReadEnvelopeAsync<EmptyApiPayload>(response, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Đọc thân JSON envelope; mọi HTTP status đều thử parse nếu có JSON.
     /// </summary>
@@ -465,24 +473,6 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
             });
         }
 
-        if (env is null)
-        {
-            return ApiResult<T>.Fail(new ApiErrorBody
-            {
-                Code = DockLiteErrorCodes.Parse,
-                Message = "Không parse được envelope.",
-            });
-        }
-
-        if (!env.Success)
-        {
-            return ApiResult<T>.Fail(env.Error ?? new ApiErrorBody
-            {
-                Code = DockLiteErrorCodes.Unknown,
-                Message = "Lỗi không xác định.",
-            });
-        }
-
-        return ApiResult<T>.Ok(env.Data);
+        return env.ToApiResult();
     }
 }

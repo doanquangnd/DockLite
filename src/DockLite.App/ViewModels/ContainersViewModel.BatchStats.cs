@@ -8,8 +8,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
-using DockLite.Core.Services;
-
 namespace DockLite.App.ViewModels;
 
 /// <summary>
@@ -41,7 +39,7 @@ public partial class ContainersViewModel
                 return;
             }
 
-            ApiResult<ContainerStatsBatchData> r = await _apiClient
+            ApiResult<ContainerStatsBatchData> r = await _containerApi
                 .GetContainerStatsBatchAsync(ids, _shutdownToken.Token)
                 .ConfigureAwait(true);
             if (!r.Success || r.Data is null)

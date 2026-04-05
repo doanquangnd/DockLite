@@ -47,11 +47,11 @@
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
         </Grid>
 
-        <Border Grid.Row="2"
-                MinHeight="300"
-                Margin="0,0,0,8"
-                behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
-                Style="{StaticResource RoundedTableChromeStyle}">
+        <Grid Grid.Row="2"
+              MinHeight="300"
+              Margin="0,0,0,8">
+            <Border behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
+                    Style="{StaticResource RoundedTableChromeStyle}">
             <DataGrid ItemsSource="{Binding FilteredItems}"
                       SelectedItem="{Binding SelectedImage}"
                       AutoGenerateColumns="False"
@@ -59,7 +59,11 @@
                       CanUserAddRows="False"
                       SelectionMode="Single"
                       HeadersVisibility="Column"
-                      GridLinesVisibility="Horizontal">
+                      GridLinesVisibility="Horizontal"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Width="48"
                                             Header="Chọn">
@@ -73,15 +77,33 @@
                     <DataGridTextColumn Width="*"
                                         Binding="{Binding Model.Repository}"
                                         Header="Repository"
-                                        IsReadOnly="True" />
+                                        IsReadOnly="True">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="ToolTip" Value="{Binding Model.Repository}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <DataGridTextColumn Width="100"
                                         Binding="{Binding Model.Tag}"
                                         Header="Tag"
-                                        IsReadOnly="True" />
+                                        IsReadOnly="True">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="ToolTip" Value="{Binding Model.Tag}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <DataGridTextColumn Width="160"
                                         Binding="{Binding Model.Id}"
                                         Header="Id"
-                                        IsReadOnly="True" />
+                                        IsReadOnly="True">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="ToolTip" Value="{Binding Model.Id}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <DataGridTextColumn Width="90"
                                         Binding="{Binding Model.Size}"
                                         Header="Kích thước"
@@ -92,7 +114,30 @@
                                         IsReadOnly="True" />
                 </DataGrid.Columns>
             </DataGrid>
-        </Border>
+            </Border>
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="420"
+                       Margin="16"
+                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                       FontSize="13"
+                       IsHitTestVisible="False"
+                       Text="{DynamicResource Ui_Images_EmptyListHint}"
+                       Visibility="{Binding ShowEmptyImageListHint, Converter={StaticResource BoolToVisibilityConverter}}" />
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="420"
+                       Margin="16"
+                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                       FontSize="13"
+                       IsHitTestVisible="False"
+                       Text="{DynamicResource Ui_Images_FilterEmptyHint}"
+                       Visibility="{Binding ShowImageFilterEmptyHint, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </Grid>
 
         <Expander Grid.Row="3"
                   Margin="0,0,0,10"
@@ -223,17 +268,23 @@
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding SelectAllFilteredCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanSelectAllFiltered}" />
             <Button Content="Bỏ chọn"
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding ClearRowSelectionChecksCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanClearSelection}" />
+            <Button Content="{DynamicResource Ui_Images_BatchCopyIds}"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    MinWidth="120"
+                    Command="{Binding CopySelectedIdsToClipboardCommand}"
+                    IsEnabled="{Binding CanCopySelectedIds}" />
             <Button Content="Xóa các dòng đã chọn"
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding BatchRemoveCheckedCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanBatchRemove}" />
             <Button Content="Xóa image (dòng highlight)"
                     Margin="0,0,8,4"
                     Padding="12,6"

@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using DockLite.App.Help;
+
 namespace DockLite.App.Services;
 
 /// <summary>
@@ -14,4 +17,9 @@ public interface IDialogService
     /// Hộp thoại chỉ có nút OK (thông tin).
     /// </summary>
     Task ShowInfoAsync(string message, string title);
+
+    /// <summary>
+    /// Trợ giúp: nội dung văn bản và (tuỳ chọn) liên kết mở bằng trình duyệt.
+    /// </summary>
+    Task ShowHelpAsync(string body, string title, IReadOnlyList<HelpHyperlink>? links = null);
 }

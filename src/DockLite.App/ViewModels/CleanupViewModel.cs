@@ -2,8 +2,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
-using DockLite.Core;
-using DockLite.Core.Services;
 
 namespace DockLite.App.ViewModels;
 
@@ -12,14 +10,20 @@ namespace DockLite.App.ViewModels;
 /// </summary>
 public partial class CleanupViewModel : ObservableObject
 {
-    private readonly IDockLiteApiClient _apiClient;
+    private readonly ICleanupScreenApi _cleanupApi;
     private readonly IDialogService _dialogService;
+    private readonly INotificationService _notificationService;
     private readonly IAppShutdownToken _shutdownToken;
 
-    public CleanupViewModel(IDockLiteApiClient apiClient, IDialogService dialogService, IAppShutdownToken shutdownToken)
+    public CleanupViewModel(
+        ICleanupScreenApi cleanupApi,
+        IDialogService dialogService,
+        INotificationService notificationService,
+        IAppShutdownToken shutdownToken)
     {
-        _apiClient = apiClient;
+        _cleanupApi = cleanupApi;
         _dialogService = dialogService;
+        _notificationService = notificationService;
         _shutdownToken = shutdownToken;
     }
 
@@ -54,13 +58,14 @@ public partial class CleanupViewModel : ObservableObject
                 Kind = kind,
                 WithVolumes = kind == "system" && SystemPruneIncludeVolumes,
             };
-            ApiResult<ComposeCommandData> res = await _apiClient.SystemPruneAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+            ApiResult<ComposeCommandData> res = await _cleanupApi.SystemPruneAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             ApplyResult(res, kind);
         }
         catch (Exception ex)
         {
-            StatusMessage = ExceptionMessages.FormatForUser(ex);
+            StatusMessage = NetworkErrorMessageMapper.FormatForUser(ex);
             CommandOutput = string.Empty;
+            _ = ApiErrorUiFeedback.ShowNetworkExceptionToastAsync(_notificationService, ex);
         }
         finally
         {

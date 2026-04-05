@@ -1,0 +1,461 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "docklite-wsl",
+    "description": "HTTP API cho DockLite (Docker/Compose trong WSL). Khi biến môi trường DOCKLITE_API_TOKEN khác rỗng, mọi yêu cầu cần header Authorization: Bearer <token> hoặc X-DockLite-Token. Header tùy chọn X-Request-ID (chuẩn hóa trên server): client gửi ID tương quan; response trả cùng giá trị; log slog dùng req_id. WebSocket: giới hạn số kết nối đồng thời bằng DOCKLITE_WS_MAX_CONNECTIONS (mặc định 64). Tài liệu này mô tả route và phương thức; chi tiết body/query xem mã nguồn và README.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Tương đối ServiceBaseUrl (ví dụ http://127.0.0.1:17890/)"
+    }
+  ],
+  "tags": [
+    { "name": "system", "description": "Metrics, health, schema" },
+    { "name": "docker", "description": "Container, image, network, volume, prune" },
+    { "name": "compose", "description": "Compose projects và service; mỗi project tối đa 16 file -f (đường dẫn tương đối trong thư mục project, mỗi dòng một file)" },
+    { "name": "websocket", "description": "Luồng log và stats" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "opaque",
+        "description": "Khớp DOCKLITE_API_TOKEN khi bật xác thực"
+      },
+      "dockLiteToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-DockLite-Token",
+        "description": "Thay thế tùy chọn cho Bearer"
+      }
+    },
+    "responses": {
+      "OkEnvelope": {
+        "description": "Thành công (envelope JSON apiresponse)",
+        "content": {
+          "application/json": {
+            "schema": { "type": "object" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Thiếu hoặc sai token khi DOCKLITE_API_TOKEN được đặt"
+      }
+    }
+  },
+  "paths": {
+    "/api/openapi.json": {
+      "get": {
+        "tags": ["system"],
+        "summary": "Tài liệu OpenAPI 3.0 (chính tệp này)",
+        "responses": {
+          "200": {
+            "description": "OpenAPI JSON",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/metrics": {
+      "get": {
+        "tags": ["system"],
+        "summary": "Số đếm request đơn giản (text/plain)",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": ["system"],
+        "summary": "Health và phiên bản service",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/docker/info": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "docker info",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/top-by-memory": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Top container theo RAM",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/top-by-cpu": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Top container theo CPU",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/stats-batch": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "Stats nhiều container (JSON body ids)",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Liệt kê container",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/{id}": {
+      "delete": {
+        "tags": ["docker"],
+        "summary": "Xóa container (query force)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/{id}/start": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "Start container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/{id}/stop": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "Stop container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/{id}/restart": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "Restart container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/{id}/logs": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Tail log (query tail)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/{id}/inspect": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Inspect container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/containers/{id}/stats": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Snapshot stats một container",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/ws/containers/{id}/logs": {
+      "get": {
+        "tags": ["websocket"],
+        "summary": "WebSocket stream docker logs -f",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "101": { "description": "Switching Protocols" },
+          "503": { "description": "Đạt giới hạn kết nối WebSocket đồng thời (DOCKLITE_WS_MAX_CONNECTIONS)" }
+        }
+      }
+    },
+    "/ws/containers/{id}/stats": {
+      "get": {
+        "tags": ["websocket"],
+        "summary": "WebSocket stream docker stats (query intervalMs)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "101": { "description": "Switching Protocols" },
+          "503": { "description": "Đạt giới hạn kết nối WebSocket đồng thời (DOCKLITE_WS_MAX_CONNECTIONS)" }
+        }
+      }
+    },
+    "/api/compose/projects": {
+      "get": {
+        "tags": ["compose"],
+        "summary": "Danh sách project đã lưu",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      },
+      "post": {
+        "tags": ["compose"],
+        "summary": "Thêm project",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/projects/{id}": {
+      "delete": {
+        "tags": ["compose"],
+        "summary": "Xóa project",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      },
+      "patch": {
+        "tags": ["compose"],
+        "summary": "Sửa project (compose files, tên, …)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/up": {
+      "post": {
+        "tags": ["compose"],
+        "summary": "compose up",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/down": {
+      "post": {
+        "tags": ["compose"],
+        "summary": "compose down",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/ps": {
+      "post": {
+        "tags": ["compose"],
+        "summary": "compose ps",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/config/services": {
+      "post": {
+        "tags": ["compose"],
+        "summary": "Liệt kê service từ compose config",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/service/start": {
+      "post": {
+        "tags": ["compose"],
+        "summary": "Start một service",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/service/stop": {
+      "post": {
+        "tags": ["compose"],
+        "summary": "Stop một service",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/service/logs": {
+      "post": {
+        "tags": ["compose"],
+        "summary": "Log service (một lần)",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/service/exec": {
+      "post": {
+        "tags": ["compose"],
+        "summary": "Exec lệnh trong service",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/images": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Liệt kê image",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/images/pull": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "docker pull",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/images/load": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "docker load (tar)",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/images/prune": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "docker image prune",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/images/remove": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "docker rmi",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/images/{id}/inspect": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Inspect image",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/images/{id}/history": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "History image",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/images/{id}/export": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "docker save (tar)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": { "200": { "description": "application/x-tar" } }
+      }
+    },
+    "/api/networks": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Liệt kê network",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/volumes": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Liệt kê volume",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/volumes/remove": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "Xóa một volume theo tên (body JSON: name)",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/system/prune": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "docker prune (container/image/volume/network/system)",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    }
+  }
+}

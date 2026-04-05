@@ -42,6 +42,15 @@ public sealed class AppStartupCoordinator : IAppStartupService
                 linked.Token,
                 progress).ConfigureAwait(true);
 
+            if (DiagnosticTelemetry.IsEnabled)
+            {
+                DiagnosticTelemetry.WriteEvent(
+                    "app_startup_ensure_finished",
+                    ("ok", ok.ToString()),
+                    ("reason", reason.ToString()),
+                    ("base_url", DiagnosticTelemetry.FormatBaseUrlForTelemetry(_composition.Settings.ServiceBaseUrl)));
+            }
+
             if (!ok && reason == WslEnsureFailureReason.HealthTimeoutAfterWslStart)
             {
                 string body = WslDockerServiceAutoStart.FormatHealthTimeoutUserHint(AppFileLog.LogDirectory);
@@ -51,6 +60,38 @@ public sealed class AppStartupCoordinator : IAppStartupService
             }
 
             await _composition.Shell.RefreshServiceHeaderFromApiAsync(linked.Token).ConfigureAwait(true);
+
+            // Probe ban đầu có thể OK trong khi GET health qua API client vẫn lỗi (WSL resume / TCP); một lần restart + chờ.
+            if (_composition.Settings.AutoStartWslService && _composition.HealthCache.LastHealthy != true)
+            {
+                var recoveryProgress = new Progress<WslStartupProgress>(p => _composition.Shell.ApplyWslStartupProgress(p));
+                (bool recoveryOk, WslEnsureFailureReason recoveryReason) =
+                    await WslDockerServiceAutoStart.TrySpawnWslRestartAndWaitForHealthAsync(
+                        _composition.HttpSession,
+                        _composition.Settings,
+                        _hostContext.BaseDirectory,
+                        linked.Token,
+                        recoveryProgress).ConfigureAwait(true);
+
+                if (DiagnosticTelemetry.IsEnabled)
+                {
+                    DiagnosticTelemetry.WriteEvent(
+                        "app_startup_recovery_ensure_finished",
+                        ("ok", recoveryOk.ToString()),
+                        ("reason", recoveryReason.ToString()),
+                        ("base_url", DiagnosticTelemetry.FormatBaseUrlForTelemetry(_composition.Settings.ServiceBaseUrl)));
+                }
+
+                if (!recoveryOk && recoveryReason == WslEnsureFailureReason.HealthTimeoutAfterWslStart)
+                {
+                    string recoveryBody = WslDockerServiceAutoStart.FormatHealthTimeoutUserHint(AppFileLog.LogDirectory);
+                    await _notificationService
+                        .ShowAsync("DockLite — health timeout", recoveryBody, NotificationDisplayKind.Warning, linked.Token)
+                        .ConfigureAwait(true);
+                }
+
+                await _composition.Shell.RefreshServiceHeaderFromApiAsync(linked.Token).ConfigureAwait(true);
+            }
         }
         catch (OperationCanceledException)
         {

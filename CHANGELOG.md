@@ -4,6 +4,102 @@
 
 ## [Chưa phát hành]
 
+### Thêm / đổi (WSL — sẵn sàng thật, header đồng bộ Tổng quan, compose core, test, CI)
+
+- **`WslDockerServiceAutoStart`:** probe ban đầu và vòng chờ sau spawn WSL / Start–Restart thủ công yêu cầu **cả** `/api/health` ổn định (hai GET liên tiếp, `Connection: close`, đọc hết body) **và** `/api/docker/info` (JSON envelope `success` + `data`); tách `TrySpawnWslRestartAndWaitForHealthAsync` (telemetry `startup_wsl_restart_recovery_spawned`) để tái sử dụng.
+- **`AppStartupCoordinator`:** sau làm mới header, nếu bật tự khởi động WSL mà cache vẫn không «healthy» thì **một lần** gọi spawn restart + chờ connectivity; telemetry `app_startup_recovery_ensure_finished`.
+- **`ShellCompositionResult` / `AppShellFactory`:** thêm `WslServiceHealthCache` vào composition để startup đọc `LastHealthy`.
+- **`ShellViewModel.RefreshServiceHeaderFromApiAsync`:** gọi song song `GetHealthAsync` + `GetDockerInfoAsync`; nút Start/Stop/Restart và banner khớp trạng thái thật; khi health OK nhưng Docker không: chuỗi `Ui_Shell_ServiceHeader_HealthOkDockerDownFormat` và cache disconnected.
+- **`DashboardViewModel`:** đầu `NotifyConnectivityChangeAsync` đồng bộ `WslServiceHealthCache` (OK / mất kết nối).
+- **`DockLite.Core` — `ComposeComposePaths`:** parse nhiều dòng file compose, format editor, đối số `-f` + `BashSingleQuote` cho CLI; `ComposeViewModel` gọi helper (không đổi hành vi).
+- **Test:** `DockLite.Tests` chuyển `net8.0-windows`, tham chiếu `DockLite.App` — `ComposeComposePathsTests`, `NetworkErrorMessageMapperTests`, thêm case clamp `HttpTimeoutSeconds` trong `AppSettingsDefaultsTests`.
+- **CI:** job `dotnet` chạy trên `windows-latest` (test cần WPF/App); `dotnet test` không dùng `--no-restore` (restore tự động trên runner).
+- **README:** mục «Kiểm thử trước release (definition of done)» (`dotnet test` + `bash scripts/test-go.sh` trong WSL); luồng mở app cập nhật mô tả probe health + Docker và bước khôi phục tùy chọn.
+
+### Thêm / đổi (trung hạn: Compose nhiều -f, stats WebSocket, service Go)
+
+- **Compose (UI + trợ giúp):** gợi ý rõ giới hạn tối đa 16 file `-f` (khớp validation Go); OpenAPI tag `compose` và mô tả API mô tả `X-Request-ID` / `req_id`.
+- **Container (stats):** thêm lựa chọn interval WebSocket 3000 ms và 5000 ms; gợi ý dùng interval cao khi tải nặng; sparkline và mẫu stats lấy chuỗi từ `UiStrings` (vi/en).
+- **Service Go:** middleware `LogRequests` chấp nhận header `X-Request-ID` (chuẩn hóa), luôn trả cùng giá trị trên response, gắn `req_id` vào `context` (`RequestIDFromContext`); `RequestContextTimeout` bổ sung deadline cho POST compose dài (30 phút), `POST /api/images/pull` và `/api/images/load` (30 phút), `POST /api/system/prune` (15 phút).
+- **Client .NET:** `RequestIdDelegatingHandler` gửi `X-Request-ID` mỗi HTTP request; `CopyAuthorizationToWebSocket` thêm `X-Request-ID` cho mỗi kết nối WebSocket.
+
+### Thêm / đổi (tối ưu ngắn hạn: tab, Cài đặt, test .NET)
+
+- **Log follow:** khi rời tab Log (đang follow WebSocket), gọi `StopFollow()` để đóng luồng — giảm tải mạng; `AppShellActivityState` thêm `IsLogsPageVisible` / `IsMainWindowInteractive`.
+- **Chẩn đoán nhanh WSL:** `QuickWslDiagnostics` thêm khối `uname`; sau khi chạy cập nhật `EffectiveWslPathSummary`; tab **Kết nối** có nút và ô kết quả (cùng `WslQuickDiagnosticsText` với tab WSL).
+- **`ApiEnvelopeExtensions.ToApiResult`:** dùng trong `DockLiteApiClient.ReadEnvelopeAsync`; test `ApiResultEnvelopeTests`.
+
+### Thêm / đổi (test tích hợp Docker, SBOM, release)
+
+- `wsl-docker-service/integration/`: test build tag `integration` — `GET /api/health`, `GET /api/openapi.json`, `GET /api/docker/info` (bỏ qua nếu không có Docker Engine); `scripts/test-integration.sh`.
+- CI: job `go-integration` (`docker info`, `go test -tags=integration ./integration/...`).
+- Release: `.github/workflows/release.yml` khi đẩy tag `v*` — `docklite-wsl-linux-amd64`, `sbom-docklite-wsl.cdx.json` (Syft), `checksums-sha256.txt`, ký `cosign sign-blob` (`.sig`, `.cosign.bundle`).
+- `docs/docklite-release-sbom.md`.
+
+### Thêm / đổi (script test Go)
+
+- `wsl-docker-service/scripts/test-go.sh`: `go vet ./...` và `go test ./...`; README ghi chú module không có `.go` ở gốc — không dùng `go test` không đối số; `build-server.sh` trỏ tới script và `./...`.
+
+### Thêm / đổi (giới hạn tài nguyên WebSocket trên service Go)
+
+- Gói `internal/wslimit`: semaphore kết nối đồng thời (mặc định 64, `DOCKLITE_WS_MAX_CONNECTIONS`, trần 4096), `Upgrader` buffer cố định, `SetReadLimit` tin nhắn từ client; handler log/stats trả 503 khi đủ slot.
+- OpenAPI, `README`, `.env.example`, `internal/httpserver/limits.go` mô tả biến môi trường.
+
+### Thêm / đổi (trợ giúp có liên kết, sao chép ID hàng loạt)
+
+- Hộp thoại trợ giúp: `IDialogService.ShowHelpAsync` / `WpfDialogService` — nội dung văn bản và khối «Liên kết» (hyperlink mở trình duyệt); `PageHelpTexts.GetHelpLinksForPage` — OpenAPI theo base URL hiện tại, tài liệu ngoài theo từng màn (WSL, Docker, Compose, …); khóa `Ui_Help_*` (vi/en).
+- Container / Image: nút «Sao chép ID đã chọn» — clipboard danh sách ID đầy đủ (một ID mỗi dòng); `ImagesViewModel` đồng bộ trạng thái nút khi tick ô chọn (`CanSelectAllFiltered`, `CanClearSelection`, `CanCopySelectedIds`, `CanBatchRemove`).
+
+### Thêm / đổi (validation screen API, mapper HTTP, tách SettingsViewModel)
+
+- `ScreenApiInputValidation` + kiểm tra trong `ContainerScreenApi` (ID container, clamp top 1–64, batch rỗng → danh sách rỗng), `ImageScreenApi`, `ComposeScreenApi` (project/service/exec/pull/remove).
+- `NetworkErrorMessageMapper`: `HttpRequestException` theo mã 403, 404, 408, 429, 500, 502, 503; khóa `Ui_Error_Network_*` tương ứng (vi/en).
+- `SettingsViewModel.WslCommands.cs` (partial): Start/Stop/Restart/Build WSL, đồng bộ mã, kiểm tra kết nối, `TruncateForToast`; gợi ý «chạy docklite-wsl» chỉ khi `HttpRequestException.StatusCode` null.
+
+### Thêm / đổi (OpenAPI và CI)
+
+- `GET /api/openapi.json`: phục vụ OpenAPI 3.0 (JSON) từ `wsl-docker-service/internal/httpserver/openapi.json`; README liệt kê endpoint.
+- `.github/workflows/ci.yml`: `dotnet test` trên `DockLite.slnx`; trong `wsl-docker-service`: `go vet`, `go test`, `go build ./cmd/server`, job `go-integration` (Docker).
+- `docs/docklite-system-analysis-and-improvements.md`: cập nhật checklist (auth, OpenAPI, CI, trợ giúp Cài đặt); mục 2.3–4–5–6–7 đồng bộ trạng thái hiện tại.
+
+### Thêm / đổi (trợ giúp Cài đặt)
+
+- `Ui_Help_Settings_Body` (vi/en) và `PageHelpTexts.SettingsBody`: gợi ý README, `docs/docklite-lan-security.md`, `docs/docklite-api-token.md`, endpoint `GET /api/openapi.json`.
+
+### Thêm / đổi (xác thực API token)
+
+- `AppSettings.ServiceApiToken` (JSON `ServiceApiToken`); tab **Kết nối**: ô token; `HttpClientAppSettings` gán `Authorization: Bearer`; WebSocket logs/stats sao chép header từ `HttpClient`.
+- Service Go: biến `DOCKLITE_API_TOKEN` (khác rỗng) bật middleware `RequireBearerToken` (`Authorization: Bearer` hoặc `X-DockLite-Token`); rỗng = không đổi hành vi cũ.
+- `NetworkErrorMessageMapper`: `HttpRequestException` với 401 → `Ui_Error_Network_Unauthorized`; gợi ý «chạy docklite-wsl» không thêm khi 401.
+
+### Thêm / đổi (mapper lỗi mạng)
+
+- `NetworkErrorMessageMapper`: giới hạn độ sâu duyệt ngoại lệ; `HttpIOException`; `WebException` (timeout / hủy / còn lại → gợi ý kết nối); `AuthenticationException` → `Ui_Error_Network_TlsOrCertificate`; `IOException` với thông điệp transport phổ biến; cuối cùng thử `InnerException` nếu bản đã ánh xạ khác `Message` gốc (bao bọc lỗi hiếm).
+
+### Tài liệu
+
+- `docs/docklite-api-token.md`: mẫu định dạng `DOCKLITE_API_TOKEN`, tạo token ngẫu nhiên (OpenSSL/PowerShell), tùy chọn SHA-256 từ passphrase; làm rõ server so khớp chuỗi (không lưu hash như mật khẩu).
+- `docs/docklite-lan-security.md`: hướng dẫn bảo mật khi triển khai DockLite qua LAN (localhost so với expose, reverse proxy + HTTPS, firewall Windows, VPN, WebSocket qua proxy); liên kết từ README và cập nhật `docs/docklite-system-analysis-and-improvements.md` (checklist §5.3 / ưu tiên mục 3).
+- `docs/docklite-api-auth-options.md`: so sánh header tĩnh với token trong cài đặt client + middleware Go; phương án B đã triển khai trong mã (token trong `settings.json` + `DOCKLITE_API_TOKEN`).
+
+### Thêm / đổi (ổn định vận hành: thông báo kết nối và telemetry cục bộ opt-in)
+
+- `AppSettings.DiagnosticLocalTelemetryEnabled` (mặc định tắt); tab **Chờ và health**: checkbox ghi file `docklite-diagnostic-*.log` cùng thư mục log ứng dụng — sự kiện tối giản (kết quả `TryEnsureRunningAsync`, spawn WSL restart, timeout health, `http_read_exhausted` sau retry HTTP); không gửi mạng, không ghi mật khẩu hay stack đầy đủ.
+- `DiagnosticTelemetry` + `DiagnosticTelemetry.SetEnabled` khi load shell và sau **Lưu**.
+- `HttpReadRetry`: sau hết lần thử ném lại `HttpRequestException` / `TaskCanceledException` (không còn `InvalidOperationException` rỗng); ghi telemetry khi bật opt-in.
+- `NetworkErrorMessageMapper` (thay `DockLite.Core.ExceptionMessages` đã gỡ): ánh xạ `HttpRequestException` / `SocketException` / timeout / `HttpReadRetry` / hủy sang chuỗi đã dịch (`Ui_Error_Network_*`, `Ui_Status_Common_CancelledShort` trong `UiStrings.vi/en.xaml`); `App.xaml.cs` và ViewModel dùng `FormatForUser` từ lớp này.
+- Telemetry (opt-in) bổ sung: `WriteManualWslLifecycle` — nút Start/Stop/Restart service WSL trên header và Cài đặt, Build; `WriteTestConnection` — «Kiểm tra kết nối»; `WriteSyncCodeToWsl` — «Đồng bộ mã → WSL».
+- Sidebar: chấm tròn cạnh tiêu đề — màu theo kết nối `/api/health` (xanh / đỏ / xám), tooltip vi/en (`Ui_Sidebar_ConnectionTooltip`).
+- Màn hình (WPF): lớp service bọc `IDockLiteApiClient` theo tab — `IContainerScreenApi` / `ContainerScreenApi`, `IImageScreenApi` / `ImageScreenApi`, `ISystemDiagnosticsScreenApi` / `SystemDiagnosticsScreenApi` (Tổng quan, Cài đặt, Shell; `WslServiceHealthCache.RefreshAsync` nhận interface này), `ILogsScreenApi` / `LogsScreenApi` (danh sách container + tail log), `IComposeScreenApi` / `ComposeScreenApi`, `INetworkVolumeScreenApi` / `NetworkVolumeScreenApi`, `ICleanupScreenApi` / `CleanupScreenApi`; ViewModel tương ứng inject interface; `AppShellFactory` tạo một `DockLiteApiClient` và các screen API ủy quyền tới client đó.
+
+### Thêm / đổi (i18n trang Tổng quan)
+
+- `UiStrings.vi/en.xaml`: khóa `Ui_Dashboard_*` (dòng trạng thái health, định dạng thông tin Docker, toast kết nối lại / mất kết nối, thông báo lỗi kết nối); `DashboardViewModel` đọc qua `UiLanguageManager`.
+
+### Thêm / đổi (i18n header Shell và hộp thoại lỗi toàn cục)
+
+- `UiStrings.vi/en.xaml`: khóa `Ui_Shell_*` (dòng trạng thái service trên header, tiến trình khởi động WSL / chờ health, toast chờ health, định dạng dòng health có phiên bản); `ShellViewModel` và tiêu đề `MessageBox` lỗi UI trong `App.xaml.cs` dùng `Ui_MainWindow_Title` / `UiLanguageManager`.
+
 ### Thêm / đổi (i18n `StatusMessage` — các tab ngoài Cài đặt)
 
 - `Resources/UiStrings.vi.xaml`, `UiStrings.en.xaml`: khóa `Ui_Status_Common_*`, `Ui_Compose_Status_*`, `Ui_Containers_Status_*`, `Ui_Containers_Batch_Status_*`, `Ui_Logs_Status_*`, `Ui_Images_Status_*`, `Ui_NetVol_Status_*`, `Ui_AppLog_Status_*` (và các chuỗi chung cho nhãn/lỗi).

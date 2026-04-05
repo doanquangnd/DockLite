@@ -15,8 +15,13 @@
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
         FontFamily="Segoe UI Variable, Segoe UI">
+    <Window.InputBindings>
+        <KeyBinding Key="F5"
+                    Command="{Binding RefreshCurrentPageCommand}" />
+    </Window.InputBindings>
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
@@ -32,7 +37,8 @@
                 BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="22,12,26,12"
-                Effect="{DynamicResource DockLiteSubtleHeaderShadow}">
+                Effect="{DynamicResource DockLiteSubtleHeaderShadow}"
+                ToolTip="{DynamicResource Ui_Tooltip_Header_Bar}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -105,12 +111,43 @@
                              Maximum="100"
                              Value="{Binding WslStartupProgressBarValue}"
                              IsIndeterminate="{Binding WslStartupProgressBarIndeterminate}"
-                             Visibility="{Binding WslStartupProgressBarVisible, Converter={StaticResource BoolToVisibilityConverter}}" />
+                             Visibility="{Binding WslStartupProgressBarVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                             ToolTip="{DynamicResource Ui_Tooltip_Header_ProgressBar}" />
+            </Grid>
+        </Border>
+
+        <!-- Banner: mất kết nối service (một chỗ thay vì chỉ lỗi rải rác trên nút) -->
+        <Border Grid.Row="1"
+                Grid.ColumnSpan="2"
+                Padding="18,8,22,8"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource ThemeWarningForegroundBrush}"
+                BorderThickness="0,0,0,1"
+                Visibility="{Binding ShowServiceDisconnectedBanner, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           FontSize="13"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
+                           Text="{DynamicResource Ui_Shell_ServiceDisconnectedBanner}" />
+                <Button Grid.Column="1"
+                        Margin="8,0,0,0"
+                        Padding="12,6"
+                        MinWidth="100"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Content="{DynamicResource Ui_Shell_RetryServiceConnection}"
+                        Command="{Binding RetryServiceConnectionCommand}" />
             </Grid>
         </Border>
 
         <!-- Thanh bên -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Grid.Column="0"
                 Background="{DynamicResource SidebarBackgroundBrush}"
                 BorderBrush="{DynamicResource SidebarEdgeBorderBrush}"
@@ -118,10 +155,19 @@
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Top"
                             Margin="22,30,18,20">
-                    <TextBlock Text="{DynamicResource Ui_Sidebar_Title}"
-                               FontSize="22"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource NavForegroundBrush}" />
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="10"
+                                 Height="10"
+                                 Margin="0,6,10,0"
+                                 VerticalAlignment="Top"
+                                 Fill="{Binding SidebarConnectionDotFill}"
+                                 ToolTip="{DynamicResource Ui_Sidebar_ConnectionTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Sidebar_Title}"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource NavForegroundBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
                     <TextBlock Margin="0,6,0,0"
                                FontSize="12.5"
                                Foreground="{StaticResource NavLabelMutedBrush}"
@@ -132,7 +178,8 @@
                             Background="{DynamicResource SidebarDividerBrush}"
                             Opacity="0.9" />
                 </StackPanel>
-                <StackPanel Margin="12,0,14,22">
+                <StackPanel Margin="12,0,14,22"
+                            ToolTip="{DynamicResource Ui_Tooltip_Sidebar_Nav}">
                     <Button Content="{DynamicResource Ui_Nav_Dashboard}"
                             Style="{StaticResource NavShellDashboardStyle}"
                             Command="{Binding NavigateDashboardCommand}" />
@@ -165,7 +212,7 @@
         </Border>
 
         <!-- Vùng nội dung -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Grid.Column="1"
                 Background="{DynamicResource ContentBackgroundBrush}">
             <ScrollViewer x:Name="MainContentScrollViewer"
@@ -212,7 +259,7 @@
 
         <!-- Toast: luôn trong client area, theo cửa sổ (đa màn hình / thu nhỏ) -->
         <Grid Grid.Row="0"
-              Grid.RowSpan="2"
+              Grid.RowSpan="3"
               Grid.Column="0"
               Grid.ColumnSpan="2"
               Panel.ZIndex="4000"

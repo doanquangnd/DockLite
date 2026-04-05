@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Chỉ build binary (go mod tidy + go build). Dùng khi đổi mã hoặc lần đầu trước khi chạy run-server.sh.
+# Kiểm tra mã: bash scripts/test-go.sh (hoặc go vet ./... và go test ./... — không dùng go test không đối số ở gốc module).
 # Nên gọi: bash scripts/build-server.sh
 set -eu
 set -o pipefail

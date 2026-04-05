@@ -22,6 +22,7 @@ public sealed class LogStreamClient : ILogStreamClient
     {
         Uri wsUri = BuildWebSocketUri(containerId);
         using var ws = new ClientWebSocket();
+        HttpClientAppSettings.CopyAuthorizationToWebSocket(ws, _session.Client);
         await ws.ConnectAsync(wsUri, cancellationToken).ConfigureAwait(false);
 
         var buffer = new byte[16384];

@@ -63,7 +63,7 @@
                        TextWrapping="Wrap"
                        Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                        FontSize="12"
-                       Text="File compose tùy chọn (mỗi dòng một đường dẫn tương đối trong thư mục project, ví dụ docker-compose.yml rồi compose.override.yml). Để trống: Docker tự tìm compose mặc định." />
+                       Text="{DynamicResource Ui_Compose_HintComposeFilesNewProject}" />
             <TextBox MinHeight="56"
                      MaxHeight="120"
                      Padding="8"
@@ -75,9 +75,9 @@
                      Text="{Binding NewProjectComposeFilesText, UpdateSourceTrigger=PropertyChanged}" />
         </StackPanel>
 
-        <Border Grid.Row="2"
-                Margin="0,0,0,8"
-                Style="{StaticResource RoundedTableChromeStyle}">
+        <Grid Grid.Row="2"
+              Margin="0,0,0,8">
+            <Border Style="{StaticResource RoundedTableChromeStyle}">
             <DataGrid ItemsSource="{Binding Projects}"
                       SelectedItem="{Binding SelectedProject}"
                       AutoGenerateColumns="False"
@@ -85,23 +85,57 @@
                       CanUserAddRows="False"
                       SelectionMode="Single"
                       HeadersVisibility="Column"
-                      GridLinesVisibility="Horizontal">
+                      GridLinesVisibility="Horizontal"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Tên"
                                         Binding="{Binding Name}"
                                         Width="120" />
                     <DataGridTextColumn Header="Đường dẫn WSL"
                                         Binding="{Binding WslPath}"
-                                        Width="*" />
+                                        Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="ToolTip" Value="{Binding WslPath}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <DataGridTextColumn Header="Id"
                                         Binding="{Binding Id}"
-                                        Width="120" />
+                                        Width="120">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="ToolTip" Value="{Binding Id}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <DataGridTextColumn Header="File -f"
                                         Binding="{Binding ComposeFilesSummary}"
-                                        Width="200" />
+                                        Width="200">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="ToolTip" Value="{Binding ComposeFilesSummary}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                 </DataGrid.Columns>
             </DataGrid>
-        </Border>
+            </Border>
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="440"
+                       Margin="16"
+                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                       FontSize="13"
+                       IsHitTestVisible="False"
+                       Text="{DynamicResource Ui_Compose_EmptyProjectsHint}"
+                       Visibility="{Binding ShowEmptyProjectsHint, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </Grid>
 
         <Border Grid.Row="3"
                 Margin="0,0,0,8"
@@ -118,7 +152,7 @@
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                            FontSize="12"
-                           Text="Mỗi dòng một file tương đối trong thư mục project. Để trống và Lưu: dùng lại compose mặc định trong thư mục." />
+                           Text="{DynamicResource Ui_Compose_HintComposeFilesSelected}" />
                 <TextBox MinHeight="72"
                          MaxHeight="160"
                          Padding="8"

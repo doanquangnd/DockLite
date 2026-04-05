@@ -1,7 +1,9 @@
 package docker
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/volume"
@@ -45,4 +47,38 @@ func VolumesList(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	apiresponse.WriteSuccess(w, map[string]interface{}{"items": items}, http.StatusOK)
+}
+
+type volumeRemoveBody struct {
+	Name string `json:"name"`
+}
+
+// VolumesRemove xử lý POST /api/volumes/remove — xóa một volume theo tên (docker volume rm).
+func VolumesRemove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost || r.URL.Path != "/api/volumes/remove" {
+		http.NotFound(w, r)
+		return
+	}
+	var body volumeRemoveBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	name := strings.TrimSpace(body.Name)
+	if name == "" {
+		apiresponse.WriteError(w, apiresponse.CodeValidation, "thiếu name", http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	dc, err := dockerengine.Client()
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeDockerUnavailable, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	// force=false: từ chối nếu volume đang được container dùng (an toàn hơn).
+	if err := dc.VolumeRemove(ctx, name, false); err != nil {
+		dockerengine.WriteError(w, err)
+		return
+	}
+	apiresponse.WriteSuccess(w, struct{}{}, http.StatusOK)
 }

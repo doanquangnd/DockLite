@@ -97,11 +97,11 @@
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="3"
-                MinHeight="300"
-                Margin="0,0,0,8"
-                behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
-                Style="{StaticResource RoundedTableChromeStyle}">
+        <Grid Grid.Row="3"
+              MinHeight="300"
+              Margin="0,0,0,8">
+            <Border behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
+                    Style="{StaticResource RoundedTableChromeStyle}">
             <DataGrid ItemsSource="{Binding FilteredItems}"
                       SelectedItem="{Binding SelectedContainerRow}"
                       AutoGenerateColumns="False"
@@ -109,7 +109,11 @@
                       CanUserAddRows="False"
                       SelectionMode="Single"
                       HeadersVisibility="Column"
-                      GridLinesVisibility="Horizontal">
+                      GridLinesVisibility="Horizontal"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Width="48"
                                             Header="Chọn">
@@ -123,15 +127,33 @@
                     <DataGridTextColumn Width="90"
                                         Binding="{Binding Model.ShortId}"
                                         Header="ID"
-                                        IsReadOnly="True" />
+                                        IsReadOnly="True">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="ToolTip" Value="{Binding Model.Id}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <DataGridTextColumn Width="*"
                                         Binding="{Binding Model.Name}"
                                         Header="Tên"
-                                        IsReadOnly="True" />
+                                        IsReadOnly="True">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="ToolTip" Value="{Binding Model.Name}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <DataGridTextColumn Width="160"
                                         Binding="{Binding Model.Image}"
                                         Header="Image"
-                                        IsReadOnly="True" />
+                                        IsReadOnly="True">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="ToolTip" Value="{Binding Model.Image}" />
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
                     <DataGridTextColumn Width="200"
                                         Binding="{Binding Model.Status}"
                                         Header="Trạng thái"
@@ -147,7 +169,30 @@
                                         IsReadOnly="True" />
                 </DataGrid.Columns>
             </DataGrid>
-        </Border>
+            </Border>
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="420"
+                       Margin="16"
+                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                       FontSize="13"
+                       IsHitTestVisible="False"
+                       Text="{DynamicResource Ui_Containers_EmptyListHint}"
+                       Visibility="{Binding ShowEmptyContainerListHint, Converter={StaticResource BoolToVisibilityConverter}}" />
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="420"
+                       Margin="16"
+                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                       FontSize="13"
+                       IsHitTestVisible="False"
+                       Text="{DynamicResource Ui_Containers_FilterEmptyHint}"
+                       Visibility="{Binding ShowContainerFilterEmptyHint, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </Grid>
 
         <Expander Grid.Row="4"
                   Margin="0,8,0,0"
@@ -162,11 +207,18 @@
                             <CheckBox VerticalAlignment="Center"
                                       Content="Stats realtime"
                                       IsChecked="{Binding IsStatsRealtimeEnabled}" />
-                            <TextBlock Margin="12,0,0,0"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
-                                       FontSize="12"
-                                       Text="{Binding StatsRealtimePollCount, StringFormat='Mẫu stats: {0}'}" />
+                            <StackPanel Margin="12,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center"
+                                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                           FontSize="12"
+                                           Text="{DynamicResource Ui_Containers_StatsSamplePrefix}" />
+                                <TextBlock VerticalAlignment="Center"
+                                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                           FontSize="12"
+                                           Text="{Binding StatsRealtimePollCount}" />
+                            </StackPanel>
                         </StackPanel>
                         <CheckBox Margin="0,6,0,0"
                                   Content="Dùng WebSocket stream (thay polling REST)"
@@ -193,15 +245,20 @@
                                       SelectedItem="{Binding StatsWebSocketIntervalMs}"
                                       IsEnabled="{Binding CanConfigureWebSocketInterval}" />
                         </StackPanel>
+                        <TextBlock Margin="0,6,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   FontSize="11"
+                                   Text="{DynamicResource Ui_Containers_StatsWsIntervalHint}" />
                         <TextBlock Margin="0,10,0,4"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource ThemeBodyTextBrush}"
-                                   Text="Sparkline (CPU % và RAM % — tối đa 90 điểm)" />
+                                   Text="{DynamicResource Ui_Containers_SparklineSectionTitle}" />
                         <StackPanel Orientation="Horizontal">
                             <StackPanel Margin="0,0,16,0">
                                 <TextBlock FontSize="11"
                                            Foreground="{DynamicResource ThemeMutedForegroundBrush}"
-                                           Text="CPU %" />
+                                           Text="{DynamicResource Ui_Containers_SparklineCpuAxisLabel}" />
                                 <Canvas Width="300"
                                         Height="72"
                                         Background="{DynamicResource ThemeSurfaceSubtleBrush}">
@@ -213,7 +270,7 @@
                             <StackPanel>
                                 <TextBlock FontSize="11"
                                            Foreground="{DynamicResource ThemeMutedForegroundBrush}"
-                                           Text="RAM % (dùng/giới hạn)" />
+                                           Text="{DynamicResource Ui_Containers_SparklineMemAxisLabel}" />
                                 <Canvas Width="300"
                                         Height="72"
                                         Background="{DynamicResource ThemeSurfaceSubtleBrush}">
@@ -460,6 +517,12 @@
                     Padding="12,6"
                     Command="{Binding ClearRowSelectionChecksCommand}"
                     IsEnabled="{Binding CanClearSelection}" />
+            <Button Content="{DynamicResource Ui_Containers_BatchCopyIds}"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    MinWidth="120"
+                    Command="{Binding CopySelectedIdsToClipboardCommand}"
+                    IsEnabled="{Binding CanCopySelectedIds}" />
             <Button Content="Start đã chọn"
                     Margin="0,0,8,4"
                     Padding="12,6"

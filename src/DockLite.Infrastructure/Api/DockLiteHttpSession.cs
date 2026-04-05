@@ -19,8 +19,9 @@ public sealed class DockLiteHttpSession
     private static HttpClient CreateClient(AppSettings settings)
     {
         // Tắt proxy hệ thống: một số môi trường chặn hoặc sai hướng kết nối tới localhost / WSL.
-        var handler = new SocketsHttpHandler { UseProxy = false };
-        var client = new HttpClient(handler, disposeHandler: true);
+        var inner = new SocketsHttpHandler { UseProxy = false };
+        var requestIdHandler = new RequestIdDelegatingHandler { InnerHandler = inner };
+        var client = new HttpClient(requestIdHandler, disposeHandler: true);
         HttpClientAppSettings.ApplyTo(client, settings);
         return client;
     }

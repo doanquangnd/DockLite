@@ -12,11 +12,8 @@ import (
 	"github.com/gorilla/websocket"
 
 	"docklite-wsl/internal/dockerengine"
+	"docklite-wsl/internal/wslimit"
 )
-
-var statsWSUpgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
 
 // StreamContainerStatsWebSocket nâng cấp WebSocket và gửi JSON statsSnapshot (mỗi tin nhắn văn bản một mẫu, cùng schema GET /api/containers/{id}/stats).
 func StreamContainerStatsWebSocket(w http.ResponseWriter, r *http.Request, containerID string) {
@@ -27,12 +24,19 @@ func StreamContainerStatsWebSocket(w http.ResponseWriter, r *http.Request, conta
 		}
 	}
 
-	conn, err := statsWSUpgrader.Upgrade(w, r, nil)
+	if !wslimit.TryAcquireWebSocket() {
+		http.Error(w, "quá nhiều kết nối WebSocket đồng thời (xem DOCKLITE_WS_MAX_CONNECTIONS)", http.StatusServiceUnavailable)
+		return
+	}
+	defer wslimit.ReleaseWebSocket()
+
+	conn, err := wslimit.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("websocket stats upgrade: %v", err)
 		return
 	}
 	defer conn.Close()
+	wslimit.ConfigureConnAfterUpgrade(conn)
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()

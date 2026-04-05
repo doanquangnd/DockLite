@@ -35,13 +35,19 @@
                     MinWidth="120"
                     Command="{Binding RefreshCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="{DynamicResource Ui_NetVol_RemoveVolume}"
+                    Padding="12,6"
+                    MinWidth="120"
+                    Margin="8,0,0,0"
+                    Command="{Binding RemoveVolumeCommand}"
+                    IsEnabled="{Binding CanRemoveVolume}" />
         </StackPanel>
 
-        <Border Grid.Row="2"
-                MinHeight="160"
-                Margin="0,0,0,12"
-                behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
-                Style="{StaticResource RoundedTableChromeStyle}">
+        <Grid Grid.Row="2"
+              MinHeight="160"
+              Margin="0,0,0,12">
+            <Border behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
+                    Style="{StaticResource RoundedTableChromeStyle}">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top"
                            Margin="0,0,0,8"
@@ -53,15 +59,31 @@
                           IsReadOnly="True"
                           CanUserAddRows="False"
                           HeadersVisibility="Column"
-                          GridLinesVisibility="Horizontal">
+                          GridLinesVisibility="Horizontal"
+                          EnableRowVirtualization="True"
+                          EnableColumnVirtualization="True"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling">
                     <DataGrid.Columns>
                         <DataGridTextColumn Width="*"
                                             MinWidth="120"
                                             Binding="{Binding Name}"
-                                            Header="Tên" />
+                                            Header="Tên">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="ToolTip" Value="{Binding Name}" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                         <DataGridTextColumn Width="140"
                                             Binding="{Binding Id}"
-                                            Header="Id" />
+                                            Header="Id">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="ToolTip" Value="{Binding Id}" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                         <DataGridTextColumn Width="100"
                                             Binding="{Binding Driver}"
                                             Header="Driver" />
@@ -74,13 +96,25 @@
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
-        </Border>
+            </Border>
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="400"
+                       Margin="16"
+                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                       FontSize="12"
+                       IsHitTestVisible="False"
+                       Text="{DynamicResource Ui_NetVol_EmptyNetworksHint}"
+                       Visibility="{Binding ShowEmptyNetworksHint, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </Grid>
 
-        <Border Grid.Row="3"
-                MinHeight="160"
-                Margin="0,0,0,8"
-                behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
-                Style="{StaticResource RoundedTableChromeStyle}">
+        <Grid Grid.Row="3"
+              MinHeight="160"
+              Margin="0,0,0,8">
+            <Border behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
+                    Style="{StaticResource RoundedTableChromeStyle}">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Top"
                            Margin="0,0,0,8"
@@ -88,23 +122,41 @@
                            Foreground="{DynamicResource ThemeBodyTextBrush}"
                            Text="Volume" />
                 <DataGrid ItemsSource="{Binding Volumes}"
+                          SelectedItem="{Binding SelectedVolume}"
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
                           CanUserAddRows="False"
+                          SelectionMode="Single"
                           HeadersVisibility="Column"
-                          GridLinesVisibility="Horizontal">
+                          GridLinesVisibility="Horizontal"
+                          EnableRowVirtualization="True"
+                          EnableColumnVirtualization="True"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling">
                     <DataGrid.Columns>
                         <DataGridTextColumn Width="*"
                                             MinWidth="140"
                                             Binding="{Binding Name}"
-                                            Header="Tên" />
+                                            Header="Tên">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="ToolTip" Value="{Binding Name}" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                         <DataGridTextColumn Width="100"
                                             Binding="{Binding Driver}"
                                             Header="Driver" />
                         <DataGridTextColumn Width="*"
                                             MinWidth="160"
                                             Binding="{Binding Mountpoint}"
-                                            Header="Mountpoint" />
+                                            Header="Mountpoint">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="ToolTip" Value="{Binding Mountpoint}" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
                         <DataGridTextColumn Width="80"
                                             Binding="{Binding Scope}"
                                             Header="Scope" />
@@ -114,7 +166,19 @@
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
-        </Border>
+            </Border>
+            <TextBlock HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       MaxWidth="400"
+                       Margin="16"
+                       Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                       FontSize="12"
+                       IsHitTestVisible="False"
+                       Text="{DynamicResource Ui_NetVol_EmptyVolumesHint}"
+                       Visibility="{Binding ShowEmptyVolumesHint, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </Grid>
 
         <Border Grid.Row="4"
                 BorderBrush="{DynamicResource ThemeSeparatorBorderBrush}"

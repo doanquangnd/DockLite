@@ -53,7 +53,7 @@
                                     VerticalAlignment="Center"
                                     Content="{DynamicResource Ui_Settings_Conn_ApplyWslIp}"
                                     Command="{Binding ApplyWslIpCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                                    IsEnabled="{Binding CanInteractFooter}" />
                         </Grid>
                         <TextBlock Margin="0,0,0,10"
                                    TextWrapping="Wrap"
@@ -65,6 +65,13 @@
                                    Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                    FontSize="12"
                                    Text="{Binding ServiceBaseUrlPortHint}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Conn_ApiTokenLabel}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding ServiceApiToken, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,8"
+                                 ToolTip="{DynamicResource Ui_Settings_Conn_ApiTokenTooltip}" />
                         <TextBlock Text="{DynamicResource Ui_Settings_Conn_TimeoutLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
@@ -76,6 +83,34 @@
                                    Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                    FontSize="12"
                                    Text="{DynamicResource Ui_Settings_Conn_CheckHint}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Conn_EnvironmentCheckTitle}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,16,0,6" />
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   FontSize="12"
+                                   Margin="0,0,0,8"
+                                   Text="{DynamicResource Ui_Settings_Conn_EnvironmentCheckIntro}" />
+                        <Button Content="{DynamicResource Ui_Settings_Conn_EnvironmentCheckButton}"
+                                Padding="12,6"
+                                HorizontalAlignment="Left"
+                                MinWidth="280"
+                                Margin="0,0,0,8"
+                                Command="{Binding QuickWslDiagnosticsCommand}"
+                                IsEnabled="{Binding CanInteractFooter}"
+                                ToolTip="{DynamicResource Ui_Settings_Conn_EnvironmentCheckTooltip}" />
+                        <TextBox Text="{Binding WslQuickDiagnosticsText}"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 MinHeight="120"
+                                 MaxHeight="220"
+                                 Padding="8"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
+                                 Margin="0,0,0,12" />
                 </StackPanel>
             </TabItem>
 
@@ -143,7 +178,7 @@
                                     Padding="12,6"
                                     MinWidth="220"
                                     Command="{Binding SyncServiceSourceToWslCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
+                                    IsEnabled="{Binding CanInteractFooter}"
                                     ToolTip="{DynamicResource Ui_Settings_Wsl_SyncButtonTooltip}" />
                         </StackPanel>
                         <TextBlock Text="{DynamicResource Ui_Settings_Wsl_UnameTitle}"
@@ -156,7 +191,7 @@
                                     MinWidth="200"
                                     VerticalAlignment="Top"
                                     Command="{Binding TestDistroCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                                    IsEnabled="{Binding CanInteractFooter}" />
                         </StackPanel>
                         <TextBlock Text="{Binding DistroTestResult}"
                                    TextWrapping="Wrap"
@@ -173,7 +208,7 @@
                                 MinWidth="160"
                                 Margin="0,0,0,8"
                                 Command="{Binding RefreshEffectiveWslPathSummaryCommand}"
-                                IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                                IsEnabled="{Binding CanInteractFooter}" />
                         <TextBlock Text="{Binding EffectiveWslPathSummary}"
                                    TextWrapping="Wrap"
                                    FontFamily="Consolas"
@@ -195,7 +230,7 @@
                                     MinWidth="200"
                                     VerticalAlignment="Top"
                                     Command="{Binding QuickWslDiagnosticsCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
+                                    IsEnabled="{Binding CanInteractFooter}"
                                     ToolTip="{DynamicResource Ui_Settings_Wsl_QuickDiagTooltip}" />
                         </StackPanel>
                         <TextBox Text="{Binding WslQuickDiagnosticsText}"
@@ -229,7 +264,7 @@
                                     VerticalAlignment="Center"
                                     Content="{DynamicResource Ui_Settings_Wsl_WslpathRunButton}"
                                     Command="{Binding ProbeWslpathCommand}"
-                                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                                    IsEnabled="{Binding CanInteractFooter}" />
                         </Grid>
                         <TextBlock Text="{Binding WslpathProbeResult}"
                                    TextWrapping="Wrap"
@@ -352,8 +387,12 @@
                                    Margin="0,0,0,6" />
                         <TextBox Text="{Binding WslHealthPollIntervalMillisecondsText, UpdateSourceTrigger=PropertyChanged}"
                                  Padding="8"
-                                 Margin="0,0,0,8"
+                                 Margin="0,0,0,12"
                                  ToolTip="{DynamicResource Ui_Settings_Health_PollTooltip}" />
+                        <CheckBox Content="{DynamicResource Ui_Settings_Health_DiagnosticTelemetryLabel}"
+                                  IsChecked="{Binding DiagnosticLocalTelemetryEnabled}"
+                                  Margin="0,0,0,6"
+                                  ToolTip="{DynamicResource Ui_Settings_Health_DiagnosticTelemetryTooltip}" />
                 </StackPanel>
             </TabItem>
             </TabControl>
@@ -368,14 +407,14 @@
                     MinWidth="100"
                     Margin="0,0,8,0"
                     Command="{Binding SaveCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanInteractFooter}" />
             <Button Content="{DynamicResource Ui_Settings_Footer_SyncCode}"
                     Padding="16,6"
                     MinWidth="168"
                     Margin="0,0,8,0"
                     Style="{StaticResource SecondaryButtonStyle}"
                     Command="{Binding SyncServiceSourceToWslCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
+                    IsEnabled="{Binding CanInteractFooter}"
                     ToolTip="{DynamicResource Ui_Settings_Footer_SyncCodeTooltip}" />
             <Button Content="{DynamicResource Ui_Settings_Footer_Build}"
                     Padding="16,6"
@@ -383,7 +422,7 @@
                     Margin="0,0,8,0"
                     Style="{StaticResource SecondaryButtonStyle}"
                     Command="{Binding BuildWslServiceManualCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}"
+                    IsEnabled="{Binding CanInteractFooter}"
                     ToolTip="{DynamicResource Ui_Settings_Footer_BuildTooltip}" />
             <Button Content="{DynamicResource Ui_Settings_Footer_Start}"
                     Padding="16,6"
@@ -410,7 +449,7 @@
                     Padding="16,6"
                     MinWidth="140"
                     Command="{Binding TestConnectionCommand}"
-                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                    IsEnabled="{Binding CanInteractFooter}" />
         </StackPanel>
 
         <Border Grid.Row="3"

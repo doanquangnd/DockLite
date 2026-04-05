@@ -2,6 +2,7 @@ using System.Windows;
 using DockLite.App.Services;
 using DockLite.App.ViewModels;
 using DockLite.Core.Configuration;
+using DockLite.Core.Diagnostics;
 using DockLite.Core.Services;
 using DockLite.Infrastructure.Api;
 using DockLite.Infrastructure.Configuration;
@@ -40,6 +41,7 @@ public sealed class AppShellFactory : IAppShellFactory
     {
         var store = new AppSettingsStore();
         AppSettings loaded = store.Load();
+        DiagnosticTelemetry.SetEnabled(loaded.DiagnosticLocalTelemetryEnabled);
         _uiDisplay.Apply(loaded);
         if (Application.Current is not null)
         {
@@ -50,24 +52,37 @@ public sealed class AppShellFactory : IAppShellFactory
         var httpSession = new DockLiteHttpSession(loaded);
 
         IDockLiteApiClient apiClient = new DockLiteApiClient(httpSession);
+        IContainerScreenApi containerScreenApi = new ContainerScreenApi(apiClient);
+        IImageScreenApi imageScreenApi = new ImageScreenApi(apiClient);
+        ISystemDiagnosticsScreenApi systemDiagnosticsApi = new SystemDiagnosticsScreenApi(apiClient);
+        ILogsScreenApi logsScreenApi = new LogsScreenApi(apiClient);
+        ICleanupScreenApi cleanupScreenApi = new CleanupScreenApi(apiClient);
+        INetworkVolumeScreenApi networkVolumeScreenApi = new NetworkVolumeScreenApi(apiClient);
+        IComposeScreenApi composeScreenApi = new ComposeScreenApi(apiClient);
         ILogStreamClient logStream = new LogStreamClient(httpSession);
         IStatsStreamClient statsStream = new StatsStreamClient(httpSession);
         IDialogService dialogService = _dialogService;
         var healthCache = new WslServiceHealthCache();
-        var dashboardVm = new DashboardViewModel(apiClient, _notificationService, _shellActivity, _shutdownToken);
-        var settingsVm = new SettingsViewModel(store, httpSession, apiClient, appBaseDirectory, loaded, _shutdownToken, healthCache, _uiDisplay, _notificationService);
+        var dashboardVm = new DashboardViewModel(systemDiagnosticsApi, _notificationService, _shellActivity, _shutdownToken, healthCache);
+        var settingsVm = new SettingsViewModel(store, httpSession, systemDiagnosticsApi, appBaseDirectory, loaded, _shutdownToken, healthCache, _uiDisplay, _notificationService);
         var containersLazy = new Lazy<ContainersViewModel>(() =>
-            new ContainersViewModel(apiClient, dialogService, _shutdownToken, _shellActivity, statsStream));
+            new ContainersViewModel(
+                containerScreenApi,
+                dialogService,
+                _notificationService,
+                _shutdownToken,
+                _shellActivity,
+                statsStream));
         var logsLazy = new Lazy<LogsViewModel>(() =>
-            new LogsViewModel(apiClient, logStream, _shutdownToken, _shellActivity));
+            new LogsViewModel(logsScreenApi, logStream, _notificationService, _shutdownToken, _shellActivity));
         var composeLazy = new Lazy<ComposeViewModel>(() =>
-            new ComposeViewModel(apiClient, _notificationService, _shutdownToken, loaded.WslDistribution));
+            new ComposeViewModel(composeScreenApi, _notificationService, _shutdownToken, _shellActivity, loaded.WslDistribution));
         var imagesLazy = new Lazy<ImagesViewModel>(() =>
-            new ImagesViewModel(apiClient, dialogService, _notificationService, _shutdownToken));
+            new ImagesViewModel(imageScreenApi, dialogService, _notificationService, _shutdownToken, _shellActivity));
         var networkVolumeLazy = new Lazy<NetworkVolumeViewModel>(() =>
-            new NetworkVolumeViewModel(apiClient, _shutdownToken));
+            new NetworkVolumeViewModel(networkVolumeScreenApi, dialogService, _notificationService, _shutdownToken, _shellActivity));
         var cleanupLazy = new Lazy<CleanupViewModel>(() =>
-            new CleanupViewModel(apiClient, dialogService, _shutdownToken));
+            new CleanupViewModel(cleanupScreenApi, dialogService, _notificationService, _shutdownToken));
         var appDebugLogLazy = new Lazy<AppDebugLogViewModel>(() => new AppDebugLogViewModel(_uiDisplay));
         var shellVm = new ShellViewModel(
             dashboardVm,
@@ -79,7 +94,7 @@ public sealed class AppShellFactory : IAppShellFactory
             cleanupLazy,
             settingsVm,
             appDebugLogLazy,
-            apiClient,
+            systemDiagnosticsApi,
             dialogService,
             _notificationService,
             httpSession,
@@ -88,14 +103,15 @@ public sealed class AppShellFactory : IAppShellFactory
             appBaseDirectory,
             _shutdownToken);
 
-        return new ShellCompositionResult(shellVm, httpSession, loaded);
+        return new ShellCompositionResult(shellVm, httpSession, loaded, healthCache);
     }
 }
 
 /// <summary>
-/// Kết quả compose shell: ViewModel gốc, session HTTP và cài đặt đã đọc một lần.
+/// Kết quả compose shell: ViewModel gốc, session HTTP, cài đặt đã đọc một lần và cache health.
 /// </summary>
 public sealed record ShellCompositionResult(
     ShellViewModel Shell,
     DockLiteHttpSession HttpSession,
-    AppSettings Settings);
+    AppSettings Settings,
+    WslServiceHealthCache HealthCache);

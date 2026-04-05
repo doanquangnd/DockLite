@@ -1,6 +1,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
 using System.Text;
+using System.Text.Json;
+using DockLite.Contracts.Api;
 using DockLite.Core;
 using DockLite.Core.Configuration;
 using DockLite.Core.Diagnostics;
@@ -13,6 +17,11 @@ namespace DockLite.Infrastructure.Wsl;
 /// </summary>
 public static class WslDockerServiceAutoStart
 {
+    private static readonly JsonSerializerOptions DockerInfoJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
     private const int MaxRecentWslLines = 48;
 
     /// <summary>
@@ -73,6 +82,11 @@ public static class WslDockerServiceAutoStart
         {
             progress?.Report(new WslStartupProgress(WslStartupPhase.CheckingInitialHealth, null));
             bool healthOk = await IsHealthOkWithRetryAsync(httpSession, settings, cancellationToken).ConfigureAwait(false);
+            if (!healthOk)
+            {
+                TelemetryEnsureStartup(settings, "startup_health_fail_autostart_off", ("reason", nameof(WslEnsureFailureReason.HealthUnavailableWhenAutoStartOff)));
+            }
+
             return (
                 healthOk,
                 healthOk ? WslEnsureFailureReason.None : WslEnsureFailureReason.HealthUnavailableWhenAutoStartOff);
@@ -81,13 +95,50 @@ public static class WslDockerServiceAutoStart
         progress?.Report(new WslStartupProgress(WslStartupPhase.CheckingInitialHealth, null));
         if (await IsHealthOkWithRetryAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
         {
+            TelemetryEnsureStartup(settings, "startup_health_ok_initial");
             return (true, WslEnsureFailureReason.None);
         }
 
+        return await TrySpawnWslRestartAndWaitForHealthAsync(
+            httpSession,
+            settings,
+            appBaseDirectory,
+            cancellationToken,
+            progress,
+            telemetryEventSuffix: "startup_wsl_restart_spawned").ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Gọi <c>scripts/restart-server.sh</c> trong WSL rồi chờ GET /api/health (không probe trước khi spawn).
+    /// Dùng khi khôi phục sau mở app: probe đầu có thể đủ để bỏ qua restart nhưng kết nối thực tế vẫn lỗi (WSL/TCP).
+    /// </summary>
+    public static Task<(bool Ok, WslEnsureFailureReason Reason)> TrySpawnWslRestartAndWaitForHealthAsync(
+        DockLiteHttpSession httpSession,
+        AppSettings settings,
+        string appBaseDirectory,
+        CancellationToken cancellationToken,
+        IProgress<WslStartupProgress>? progress = null) =>
+        TrySpawnWslRestartAndWaitForHealthAsync(
+            httpSession,
+            settings,
+            appBaseDirectory,
+            cancellationToken,
+            progress,
+            telemetryEventSuffix: "startup_wsl_restart_recovery_spawned");
+
+    private static async Task<(bool Ok, WslEnsureFailureReason Reason)> TrySpawnWslRestartAndWaitForHealthAsync(
+        DockLiteHttpSession httpSession,
+        AppSettings settings,
+        string appBaseDirectory,
+        CancellationToken cancellationToken,
+        IProgress<WslStartupProgress>? progress,
+        string telemetryEventSuffix)
+    {
         string? root = ResolveWindowsRoot(settings, appBaseDirectory);
         if (string.IsNullOrEmpty(root))
         {
             Debug.WriteLine("DockLite: không xác định được thư mục wsl-docker-service (cấu hình hoặc tìm tự động).");
+            TelemetryEnsureStartup(settings, "startup_fail_missing_service_root", ("reason", nameof(WslEnsureFailureReason.MissingServiceRoot)));
             return (false, WslEnsureFailureReason.MissingServiceRoot);
         }
 
@@ -95,6 +146,7 @@ public static class WslDockerServiceAutoStart
         if (!File.Exists(restartScript))
         {
             Debug.WriteLine("DockLite: thiếu scripts/restart-server.sh tại " + root);
+            TelemetryEnsureStartup(settings, "startup_fail_missing_restart_script", ("reason", nameof(WslEnsureFailureReason.MissingRestartScript)));
             return (false, WslEnsureFailureReason.MissingRestartScript);
         }
 
@@ -102,10 +154,12 @@ public static class WslDockerServiceAutoStart
         if (!TryGetWslUnixPath(root, distro, out string wslPath, out string? _))
         {
             Debug.WriteLine("DockLite: wslpath thất bại cho " + root);
+            TelemetryEnsureStartup(settings, "startup_fail_wslpath", ("reason", nameof(WslEnsureFailureReason.WslPathConversionFailed)));
             return (false, WslEnsureFailureReason.WslPathConversionFailed);
         }
 
         progress?.Report(new WslStartupProgress(WslStartupPhase.LaunchingWslScript, null));
+        TelemetryEnsureStartup(settings, telemetryEventSuffix, ("wait_sec_max", GetHealthWaitAfterWslSeconds(settings).ToString()));
         SpawnWslLifecycleScript(wslPath, distro, "scripts/restart-server.sh");
 
         TimeSpan waitTotal = TimeSpan.FromSeconds(GetHealthWaitAfterWslSeconds(settings));
@@ -117,19 +171,39 @@ public static class WslDockerServiceAutoStart
             int remaining = Math.Max(0, (int)Math.Ceiling((deadline - DateTime.UtcNow).TotalSeconds));
             progress?.Report(new WslStartupProgress(WslStartupPhase.WaitingHealthAfterWsl, remaining));
             await Task.Delay(pollInterval, cancellationToken).ConfigureAwait(false);
-            if (await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
+            if (await IsConnectivityStableOkAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
             {
+                TelemetryEnsureStartup(settings, "startup_health_ok_after_wsl_restart");
                 return (true, WslEnsureFailureReason.None);
             }
 
-            // Backoff: tăng khoảng chờ giữa các lần thử khi service chưa sẵn sàng (giảm tải CPU so với cố định mỗi vòng).
             double ms = Math.Min(5000.0, pollInterval.TotalMilliseconds * 1.5);
             pollInterval = TimeSpan.FromMilliseconds(ms);
         }
 
         string hint = FormatHealthTimeoutUserHint(AppFileLog.LogDirectory);
         AppFileLog.WriteMultiline("WSL health timeout", hint);
+        TelemetryEnsureStartup(
+            settings,
+            "startup_health_timeout_after_wsl_restart",
+            ("reason", nameof(WslEnsureFailureReason.HealthTimeoutAfterWslStart)),
+            ("wait_sec_max", GetHealthWaitAfterWslSeconds(settings).ToString()));
         return (false, WslEnsureFailureReason.HealthTimeoutAfterWslStart);
+    }
+
+    private static void TelemetryEnsureStartup(AppSettings settings, string eventId, params (string key, string value)[] extra)
+    {
+        if (!DiagnosticTelemetry.IsEnabled)
+        {
+            return;
+        }
+
+        var list = new List<(string key, string value)>
+        {
+            ("base_url", DiagnosticTelemetry.FormatBaseUrlForTelemetry(settings.ServiceBaseUrl)),
+        };
+        list.AddRange(extra);
+        DiagnosticTelemetry.WriteEvent(eventId, list.ToArray());
     }
 
     /// <summary>
@@ -639,7 +713,7 @@ public static class WslDockerServiceAutoStart
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(poll, cancellationToken).ConfigureAwait(false);
-            if (await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
+            if (await IsConnectivityStableOkAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
             {
                 return (
                     true,
@@ -682,7 +756,7 @@ public static class WslDockerServiceAutoStart
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(poll, cancellationToken).ConfigureAwait(false);
-            if (await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
+            if (await IsConnectivityStableOkAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
             {
                 return (
                     true,
@@ -925,7 +999,7 @@ public static class WslDockerServiceAutoStart
     }
 
     /// <summary>
-    /// Vài lần GET /api/health cách nhau (dùng trước khi spawn WSL, không dùng mỗi vòng chờ dài).
+    /// Vài lần kiểm tra health + Docker (GET /api/health ổn định rồi GET /api/docker/info) trước khi spawn WSL.
     /// </summary>
     private static async Task<bool> IsHealthOkWithRetryAsync(
         DockLiteHttpSession httpSession,
@@ -936,7 +1010,7 @@ public static class WslDockerServiceAutoStart
         var between = TimeSpan.FromMilliseconds(250);
         for (int i = 0; i < attempts; i++)
         {
-            if (await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
+            if (await IsConnectivityStableOkAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
             {
                 return true;
             }
@@ -950,6 +1024,85 @@ public static class WslDockerServiceAutoStart
         return false;
     }
 
+    /// <summary>
+    /// Hai lần GET /api/health ổn định, sau đó GET /api/docker/info (cùng kiểu probe) — khớp trang Tổng quan và header.
+    /// </summary>
+    private static async Task<bool> IsConnectivityStableOkAsync(
+        DockLiteHttpSession httpSession,
+        AppSettings settings,
+        CancellationToken cancellationToken)
+    {
+        if (!await IsHealthStableOkAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        return await IsDockerInfoOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Hai lần GET /api/health liên tiếp (kết nối đóng, đọc hết body) cách khoảng ngắn — tránh «probe giả ổn» sau resume WSL/TCP.
+    /// </summary>
+    private static async Task<bool> IsHealthStableOkAsync(
+        DockLiteHttpSession httpSession,
+        AppSettings settings,
+        CancellationToken cancellationToken)
+    {
+        if (!await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        await Task.Delay(TimeSpan.FromMilliseconds(400), cancellationToken).ConfigureAwait(false);
+        return await IsHealthOkOnceAsync(httpSession, settings, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// GET /api/docker/info một lần (kết nối đóng, đọc JSON envelope) — cùng mức «sẵn sàng» với trang Tổng quan.
+    /// </summary>
+    private static async Task<bool> IsDockerInfoOkOnceAsync(
+        DockLiteHttpSession httpSession,
+        AppSettings settings,
+        CancellationToken cancellationToken)
+    {
+        HttpClient httpClient = httpSession.Client;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        linked.CancelAfter(GetSingleHealthProbeTimeout(settings));
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(httpClient.BaseAddress!, "api/docker/info"));
+            request.Headers.ConnectionClose = true;
+            using HttpResponseMessage response = await httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token)
+                .ConfigureAwait(false);
+            string text = await response.Content.ReadAsStringAsync(linked.Token).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            ApiEnvelope<DockerInfoData>? env = JsonSerializer.Deserialize<ApiEnvelope<DockerInfoData>>(text, DockerInfoJsonOptions);
+            return env is not null && env.Success && env.Data is not null;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (HttpRequestException)
+        {
+            return false;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
     private static async Task<bool> IsHealthOkOnceAsync(
         DockLiteHttpSession httpSession,
         AppSettings settings,
@@ -960,10 +1113,22 @@ public static class WslDockerServiceAutoStart
         linked.CancelAfter(GetSingleHealthProbeTimeout(settings));
         try
         {
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(httpClient.BaseAddress!, "api/health"));
+            request.Headers.ConnectionClose = true;
             using HttpResponseMessage response = await httpClient
-                .GetAsync(new Uri(httpClient.BaseAddress!, "api/health"), linked.Token)
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token)
                 .ConfigureAwait(false);
-            return response.IsSuccessStatusCode;
+            bool ok = response.IsSuccessStatusCode;
+            try
+            {
+                await response.Content.CopyToAsync(Stream.Null, linked.Token).ConfigureAwait(false);
+            }
+            catch
+            {
+                return false;
+            }
+
+            return ok;
         }
         catch (OperationCanceledException)
         {
