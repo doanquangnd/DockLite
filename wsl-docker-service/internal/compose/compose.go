@@ -135,8 +135,9 @@ type patchBody struct {
 	ComposeFiles []string `json:"composeFiles"`
 }
 
-type idBody struct {
-	ID string `json:"id"`
+type composeIDBody struct {
+	ID       string   `json:"id"`
+	Profiles []string `json:"profiles,omitempty"`
 }
 
 func storePath() (string, error) {
@@ -273,6 +274,7 @@ func Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/compose/up", composeUp)
 	mux.HandleFunc("/api/compose/down", composeDown)
 	mux.HandleFunc("/api/compose/ps", composePs)
+	mux.HandleFunc("/api/compose/config/validate", composeConfigValidate)
 	mux.HandleFunc("/api/compose/config/services", composeConfigServices)
 	mux.HandleFunc("/api/compose/service/start", composeServiceStart)
 	mux.HandleFunc("/api/compose/service/stop", composeServiceStop)
@@ -450,7 +452,7 @@ func runComposeCommand(w http.ResponseWriter, r *http.Request, rest ...string) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var body idBody
+	var body composeIDBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
 		return
@@ -458,6 +460,11 @@ func runComposeCommand(w http.ResponseWriter, r *http.Request, rest ...string) {
 	id := strings.TrimSpace(body.ID)
 	if id == "" {
 		apiresponse.WriteError(w, apiresponse.CodeValidation, "thiếu id", http.StatusBadRequest)
+		return
+	}
+	profiles, err := normalizeComposeProfiles(body.Profiles)
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 		return
 	}
 	items, err := loadProjects()
@@ -477,7 +484,7 @@ func runComposeCommand(w http.ResponseWriter, r *http.Request, rest ...string) {
 		return
 	}
 	ctx := r.Context()
-	fullArgs := dockerComposeArgs(*proj, rest...)
+	fullArgs := dockerComposeArgs(*proj, profiles, rest...)
 	cmd := exec.CommandContext(ctx, "docker", fullArgs...)
 	cmd.Dir = proj.WslPath
 	out, err := cmd.CombinedOutput()

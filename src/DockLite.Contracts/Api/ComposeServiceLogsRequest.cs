@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace DockLite.Contracts.Api;
@@ -15,4 +16,7 @@ public sealed class ComposeServiceLogsRequest
 
     [JsonPropertyName("tail")]
     public int Tail { get; init; } = 200;
+
+    [JsonPropertyName("profiles")]
+    public IReadOnlyList<string>? Profiles { get; init; }
 }

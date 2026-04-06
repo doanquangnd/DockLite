@@ -20,10 +20,13 @@
     <sys:String x:Key="Ui_Nav_Images">Images</sys:String>
     <sys:String x:Key="Ui_Nav_NetworkVolume">Networks &amp; volumes</sys:String>
     <sys:String x:Key="Ui_Nav_Cleanup">Cleanup</sys:String>
+    <sys:String x:Key="Ui_Nav_DockerEvents">Docker events</sys:String>
     <sys:String x:Key="Ui_Nav_AppLog">App log</sys:String>
     <sys:String x:Key="Ui_Nav_Settings">Settings</sys:String>
 
     <sys:String x:Key="Ui_Shell_ServiceDisconnectedBanner">Disconnected from the DockLite service. Check WSL or the address in Settings.</sys:String>
+    <sys:String x:Key="Ui_Shell_ServiceDisconnectedBannerHint" xml:space="preserve">Use «Settings (Connection)» for the checklist and «Run API + WSL check»; «Retry» refreshes health + Docker like the header bar.</sys:String>
+    <sys:String x:Key="Ui_Shell_OpenSettingsConnection">Settings (Connection)</sys:String>
     <sys:String x:Key="Ui_Shell_RetryServiceConnection">Retry</sys:String>
 
     <sys:String x:Key="Ui_Dashboard_ServiceHealth_NotChecked">Not checked yet</sys:String>
@@ -59,14 +62,64 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Toast_ApiErrorTitle">API or network error</sys:String>
     <sys:String x:Key="Ui_Toast_PostSaveHealthTitle">Settings</sys:String>
     <sys:String x:Key="Ui_Settings_Status_PostSaveHealthFail">No response from /api/health after save. Check the WSL service or use «Test connection».</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_PostSaveConnectivityFail">After save: full connectivity (health + Docker Engine) is not ready. Check the WSL service or «Test connection».</sys:String>
     <sys:String x:Key="Ui_Containers_EmptyListHint" xml:space="preserve">No containers yet (or list not loaded). Use Refresh above or press F5.</sys:String>
     <sys:String x:Key="Ui_Containers_FilterEmptyHint">No rows match the filter or search — change the filter or clear the search box.</sys:String>
+    <sys:String x:Key="Ui_Containers_PageTitle">Containers</sys:String>
+    <sys:String x:Key="Ui_Containers_Filter_All">All</sys:String>
+    <sys:String x:Key="Ui_Containers_Filter_Running">Running</sys:String>
+    <sys:String x:Key="Ui_Containers_Filter_Stopped">Stopped</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScope_All">All fields</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScope_Name">Name / ID</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScope_Image">Image</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScope_Status">Status</sys:String>
+    <sys:String x:Key="Ui_Containers_FilterLabel">Filter:</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScopeLabel">Search in:</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchLabel">Search:</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchTextTooltip" xml:space="preserve">Depends on «Search in»: All fields — name, image, ID, status, ports, command, labels (key or value). Name/ID — name and ID only. Image — image only. Status — status string only.</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Select">Select</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Id">ID</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Name">Name</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Image">Image</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Status">Status</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Ports">Ports</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Labels">Labels</sys:String>
+    <sys:String x:Key="Ui_Containers_BatchOperationsHint" xml:space="preserve">Batch actions: Start / Stop / Remove call the API once per selected container, in order (not parallel); close the confirmation dialog to cancel before any request is sent. Stats batch: select between 2 and 32 containers; if more than 32 are checked, only the first 32 IDs are used. Per-request timeout follows Settings (HTTP).</sys:String>
+    <sys:String x:Key="Ui_Containers_BatchStatsButton">Stats batch (selected)</sys:String>
+    <sys:String x:Key="Ui_Containers_BatchStatsTooltip" xml:space="preserve">POST /api/containers/stats-batch — select 2–32 rows; if more than 32 are checked, only the first 32 IDs are used. Shows CPU/RAM in the status area.</sys:String>
     <sys:String x:Key="Ui_Images_EmptyListHint" xml:space="preserve">No images yet (or list not loaded). Use Refresh or press F5.</sys:String>
-    <sys:String x:Key="Ui_Images_FilterEmptyHint">No images match the search — try fewer characters.</sys:String>
+    <sys:String x:Key="Ui_Images_FilterEmptyHint">No images match the filter or search — change the filter or clear the search box.</sys:String>
+    <sys:String x:Key="Ui_Images_PageTitle">Images</sys:String>
+    <sys:String x:Key="Ui_Images_Filter_All">All</sys:String>
+    <sys:String x:Key="Ui_Images_Filter_Tagged">Tagged</sys:String>
+    <sys:String x:Key="Ui_Images_Filter_Dangling">Dangling</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScope_All">All fields</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScope_Repository">Repository</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScope_Tag">Tag</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScope_Id">Id</sys:String>
+    <sys:String x:Key="Ui_Images_FilterLabel">Filter:</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScopeLabel">Search in:</sys:String>
+    <sys:String x:Key="Ui_Images_SearchLabel">Search:</sys:String>
+    <sys:String x:Key="Ui_Images_RefreshButton">Refresh</sys:String>
+    <sys:String x:Key="Ui_Images_SearchTextTooltip" xml:space="preserve">Depends on «Search in»: All fields — repository, tag, id, size, created time (substring). Repository / Tag / Id — that column only. «Dangling» filter: rows whose repository is «none» (untagged image rows from the API).</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Select">Select</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Repository">Repository</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Tag">Tag</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Id">Id</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Size">Size</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Created">Created</sys:String>
+    <sys:String x:Key="Ui_Images_Summary_Empty">No image data yet.</sys:String>
+    <sys:String x:Key="Ui_Images_Summary_LineFormat">Filtered list: {0} rows, {1} image IDs — estimated total {2} (deduplicated by ID, tags may repeat).</sys:String>
+    <sys:String x:Key="Ui_Images_Summary_TotalUnknown">—</sys:String>
+    <sys:String x:Key="Ui_Images_PruneHintFormat">On this host: {0} dangling image rows (est. ~{1}). Prune dangling removes dangling only; Prune -a removes all unused images — read carefully before confirming.</sys:String>
+    <sys:String x:Key="Ui_Images_PruneDanglingConfirmFormat">Run docker image prune (dangling)? Counted {0} dangling rows in the list, est. ~{1} may be reclaimed.</sys:String>
+    <sys:String x:Key="Ui_Images_PruneConfirmTitle">Confirm image prune</sys:String>
+    <sys:String x:Key="Ui_Images_PullProgressStarting">Pulling image…</sys:String>
     <sys:String x:Key="Ui_Compose_EmptyProjectsHint" xml:space="preserve">No Compose projects yet. Add a folder above or use «Refresh list» / F5.</sys:String>
     <sys:String x:Key="Ui_Logs_EmptyContainerOptionsHint" xml:space="preserve">No containers in the list. Click «Load containers» or press F5.</sys:String>
     <sys:String x:Key="Ui_NetVol_EmptyNetworksHint">No networks (or list not loaded). Refresh or F5.</sys:String>
     <sys:String x:Key="Ui_NetVol_EmptyVolumesHint">No volumes (or list not loaded). Refresh or F5.</sys:String>
+    <sys:String x:Key="Ui_Cleanup_Status_ServiceDisconnected" xml:space="preserve">Service or Docker Engine is not ready (same condition as the banner above). Use Retry or Settings.</sys:String>
 
     <sys:String x:Key="Ui_Tooltip_Header_Start">Start the Go service in WSL (run-server.sh); /api/health wait time is configured in Settings — Wait &amp; health tab.</sys:String>
     <sys:String x:Key="Ui_Tooltip_Header_Stop">Stop the docklite-wsl process (scripts/stop-server.sh).</sys:String>
@@ -86,7 +139,8 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Display_ThemeLabel">Theme</sys:String>
     <sys:String x:Key="Ui_Settings_Theme_Light">Light</sys:String>
     <sys:String x:Key="Ui_Settings_Theme_Dark">Dark</sys:String>
-    <sys:String x:Key="Ui_Settings_Display_ThemeTooltip">Light or Dark. Save to write settings and apply resource dictionaries; restart the app if some screens do not update.</sys:String>
+    <sys:String x:Key="Ui_Settings_Theme_System">Match Windows</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_ThemeTooltip">Light, Dark, or Match Windows (uses the current Windows app light/dark preference). Save to apply resource dictionaries; restart the app if some screens do not update.</sys:String>
     <sys:String x:Key="Ui_Settings_Display_TimeZoneLabel">Display time zone (app)</sys:String>
     <sys:String x:Key="Ui_Settings_Display_TimeZoneTooltip">Choose “Machine time” to use the current Windows time zone.</sys:String>
     <sys:String x:Key="Ui_Settings_Display_DateFormatLabel">Date/time format (.NET format string)</sys:String>
@@ -94,7 +148,16 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Display_PresetsLabel">Quick presets</sys:String>
     <sys:String x:Key="Ui_Settings_Display_PreviewLabel">Preview</sys:String>
     <sys:String x:Key="Ui_Settings_Display_DatePreviewPrefix">Current UTC → </sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsAlertTitle">Resource alerts (Containers page)</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsAlertIntro">When stats realtime is on for a container, if CPU or RAM % (used/limit) exceeds a threshold, a warning appears above the sparklines. Set 0 to disable each threshold.</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsCpuWarnLabel">CPU % threshold (0 = off)</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsCpuWarnTooltip">Integer 0–100. Compared to CPU % in the stats snapshot.</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsMemWarnLabel">RAM % threshold (0 = off)</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsMemWarnTooltip">Integer 0–100. RAM % = used / limit from stats; if limit is 0, RAM alert does not apply.</sys:String>
 
+    <sys:String x:Key="Ui_Settings_Conn_LanSecurityBanner">HTTP to the service is not TLS: on a LAN or when using an IP, traffic may be sniffed. If you set DOCKLITE_API_TOKEN in WSL, enter the same value in the API token field below. See docs/docklite-lan-security.md in the repo, or use the button to open the file when it exists next to your build output.</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_LanSecurityOpenDoc">Open LAN security doc…</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_LanSecurityOpenDocTooltip">Opens docklite-lan-security.md with the default app (when the file is found relative to the app folder, e.g. dev build from source).</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_BaseUrlLabel">Service base URL (WSL)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_BaseUrlTooltip">Default http://127.0.0.1:17890/. If Windows cannot reach the service even though it runs in WSL, use the button on the right to fill WSL IP.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApplyWslIp">Fill WSL IP</sys:String>
@@ -102,11 +165,15 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_TimeoutTooltip">Applies to all REST calls (compose and prune may take longer).</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_CheckHint">Quick API + WSL check (uname, wslpath) below; or use the bottom-row button for health + Docker only.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckTitle">Environment check (API + WSL)</sys:String>
-    <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckIntro">Runs once: health, Docker Engine, uname in the distro, wslpath for paths you entered (same as the WSL tab — unsaved values still apply).</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckIntro">Runs once: recovery checklist, health, Docker Engine, uname in the distro, wslpath for paths you entered (same as the WSL tab — unsaved values still apply).</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckButton">Run API + WSL check</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckTooltip">Same as «Quick diagnostics» on the WSL tab; output appears here and there.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApiTokenLabel">API token (optional, Bearer)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApiTokenTooltip">If docklite-wsl uses DOCKLITE_API_TOKEN in WSL, enter the same value here and Save. Leave empty when auth is off. Stored in local settings; not written to diagnostic logs.</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ConfigFileTitle">Local settings file (backup)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ConfigFilePathTooltip">Absolute path to settings.json under %LocalAppData%\DockLite\</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ExportSettingsButton">Back up settings to file…</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ExportSettingsTooltip">Choose where to save a JSON copy (same format as the settings file). Useful before changing machines or testing config.</sys:String>
 
     <sys:String x:Key="Ui_Settings_Wsl_AutoStartLabel">Auto-start service in WSL</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_AutoStartCheck">When DockLite starts, if there is no response, run wsl-docker-service (bash scripts/run-server.sh; no chmod +x needed for .sh)</sys:String>
@@ -124,12 +191,23 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_SyncVersionEnforce">Sync only when source VERSION (Windows) is &gt;= destination VERSION (WSL); one-line VERSION file (e.g. 0.1.0) required in source</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_SyncButton">Sync source to WSL</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_SyncButtonTooltip">Run rsync or cp in WSL from Windows source (wslpath) to destination. Uses current fields (Save not required first).</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_ResourcesTitle">WSL host resources (API)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_ResourcesIntro" xml:space="preserve">Read from the distro running wsl-docker-service: RAM, load averages, root filesystem. The service must be running and the base URL must be correct (Connection tab).</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_ResourcesRefreshButton">Refresh resources</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_StatusOk">WSL host resources updated.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_StatusError">Could not read WSL host resources.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineHostname">Hostname: {0}</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineCpu">CPU (cores visible to process): {0}</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineMemory">RAM: {0} / {1} in use (≈ {2:F1}%)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineLoad">Load average (1 / 5 / 15 min): {0:F2} / {1:F2} / {2:F2}</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineDisk">Root disk ({0}): {1} free / {2} total (≈ {3:F1}% used)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineTime">Collected (UTC): {0}</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_UnameTitle">Test distro (uname -a)</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_UnameButton">Run uname -a in distro</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_PathSummaryTitle">Effective WSL path summary</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_PathSummaryRefresh">Refresh summary</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_QuickDiagTitle">Quick check (API + wslpath)</sys:String>
-    <sys:String x:Key="Ui_Settings_Wsl_QuickDiagIntro">Calls health and Docker info using the base URL (Connection tab), then wslpath for service folder, sync source, and Unix destination; Save not required first.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_QuickDiagIntro">Includes a recovery checklist; calls health and Docker info using the base URL (Connection tab), then wslpath for service folder, sync source, and Unix destination; Save not required first.</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_QuickDiagButton">Run quick check</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_QuickDiagTooltip">Health + Docker + wslpath for current fields (WSL tab and URL above).</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_WslpathTitle">Try wslpath (Windows → Unix)</sys:String>
@@ -165,6 +243,14 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Status_QuickDiagDone">Quick check finished (see the result block below).</sys:String>
     <sys:String x:Key="Ui_Settings_Status_CancelledAppExit">Cancelled (application is closing).</sys:String>
     <sys:String x:Key="Ui_Settings_Status_QuickDiagError">Quick check failed (see the result block).</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ExportSettingsDone">Settings file backed up.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ExportSettingsErrorFormat">Could not back up settings: {0}</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistTitle">=== When connection fails — checklist ===</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine1">1. Address: base URL is correct (this tab — try «Fill WSL IP» if 127.0.0.1 fails on WSL2).</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine2">2. API token: if the service uses DOCKLITE_API_TOKEN, the token field matches and you pressed Save.</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine3">3. Go service + Docker Engine: the «API» block below must show health and Docker (same condition as the header bar).</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine4">4. WSL: correct distro; uname and wslpath in the sections below.</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine5">5. Docker Engine: in WSL (the distro running the service), the Docker daemon must be up (Docker Desktop running or dockerd/socket configured); you can try «docker info» in that distro.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_WslIpFilledFormat">Filled address from WSL IP ({0}). Press Save to apply app-wide.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_WslIpLookupFailed">Could not get WSL IP (wsl hostname -I). Ensure WSL is running; if you have several distros, set Distro WSL and try again.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_ValidationHttpTimeout">HTTP timeout must be an integer from 30 to 600 seconds.</sys:String>
@@ -173,6 +259,8 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Status_ValidationHealthProbe">Single GET /api/health timeout: 1 to 60 seconds.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_ValidationHealthPollMs">Health poll interval: 100 to 5000 ms.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_ValidationDateFormatEmpty">Date/time format cannot be empty.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationStatsCpuWarn">CPU alert threshold must be an integer from 0 to 100 (0 = off).</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationStatsMemWarn">RAM alert threshold must be an integer from 0 to 100 (0 = off).</sys:String>
     <sys:String x:Key="Ui_Settings_Status_SelectTheme">Select a theme (Light or Dark).</sys:String>
     <sys:String x:Key="Ui_Settings_Status_SelectLanguage">Select a UI language.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_SavedApply">Saved. Base URL, timeout, time display, theme, shell language, and health waits are applied.</sys:String>
@@ -237,11 +325,59 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Compose_Status_EnterExecCommand">Enter a command (e.g. uname -a).</sys:String>
     <sys:String x:Key="Ui_Compose_Status_ExecRan">Exec ran (non-TTY).</sys:String>
     <sys:String x:Key="Ui_Compose_Status_Done">Done.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_ConfigValidateOk">Compose config is valid (docker compose config -q).</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_ConfigValidateFailedBeforeUp">Invalid compose config — compose up was not run.</sys:String>
+    <sys:String x:Key="Ui_Compose_Button_ConfigValidate">Validate config (-q)</sys:String>
+    <sys:String x:Key="Ui_Compose_Tooltip_ComposeUp" xml:space="preserve">Runs docker compose config -q first; compose up -d only if validation succeeds.</sys:String>
     <sys:String x:Key="Ui_Compose_HintComposeFilesNewProject" xml:space="preserve">Optional compose files (one relative path per line inside the project folder; up to 16 -f files, e.g. docker-compose.yml then compose.override.yml). Leave empty for Docker default discovery.</sys:String>
     <sys:String x:Key="Ui_Compose_HintComposeFilesSelected" xml:space="preserve">One relative file per line inside the project folder (up to 16 -f files). Leave empty and Save to use default compose files in the folder.</sys:String>
+    <sys:String x:Key="Ui_Compose_ProfilesLabel">Compose profiles (optional)</sys:String>
+    <sys:String x:Key="Ui_Compose_ProfilesHint">Comma- or line-separated profile names (docker compose --profile). Applied to up/down/ps, validate, service actions, and logs.</sys:String>
+    <sys:String x:Key="Ui_Compose_ProfilesTooltip">Example: dev, staging</sys:String>
+    <sys:String x:Key="Ui_Compose_TemplateLabel">Compose template</sys:String>
+    <sys:String x:Key="Ui_Compose_Template_Nginx">Nginx (minimal)</sys:String>
+    <sys:String x:Key="Ui_Compose_Template_Laravel">Laravel / PHP + MySQL (starter)</sys:String>
+    <sys:String x:Key="Ui_Compose_Template_Node">Node.js (starter)</sys:String>
+    <sys:String x:Key="Ui_Compose_Template_Java">Java JAR (starter)</sys:String>
+    <sys:String x:Key="Ui_Compose_CreateTemplateButton">Save template…</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_TemplateWritten">Template compose file written.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_TemplateUnknown">No compose template for this selection.</sys:String>
 
+    <sys:String x:Key="Ui_DockerEvents_PageTitle">Docker events</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Start">Start</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Stop">Stop</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Clear">Clear</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Hint">Streams GET /api/docker/events/stream (NDJSON). Stop when finished debugging. High traffic may load the UI.</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Status_Streaming">Receiving events…</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Status_Ended">Stream ended.</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Status_Stopped">Stopped.</sys:String>
+
+    <sys:String x:Key="Ui_Images_TrivyTitle">CVE scan (Trivy, optional)</sys:String>
+    <sys:String x:Key="Ui_Images_TrivyHint">Requires the trivy binary on PATH in WSL. Enter a full image reference (e.g. nginx:alpine). You can choose table/json output and optionally an absolute Rego policy path on WSL.</sys:String>
+    <sys:String x:Key="Ui_Images_TrivyScanButton">Scan with Trivy</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_Status_NeedRef">Enter an image reference (e.g. nginx:alpine).</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_Status_Done">Trivy scan finished (see output below).</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_FormatLabel">Format</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_Format_Table">Table</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_Format_Json">JSON</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_PolicyPathLabel">Policy (WSL)</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_PolicyPathTooltip">Optional absolute path on WSL to a Rego policy file or directory. Leave empty if unused.</sys:String>
+
+    <sys:String x:Key="Ui_Help_DockerEvents_Title">Docker events</sys:String>
+    <sys:String x:Key="Ui_Help_DockerEvents_Body" xml:space="preserve">Stream of Docker Engine events for troubleshooting. Uses GET /api/docker/events/stream. Stop the stream when you no longer need it.</sys:String>
+
+    <sys:String x:Key="Ui_Containers_AttachTtySectionTitle">Terminal shell hints (docker and WSL)</sys:String>
+    <sys:String x:Key="Ui_Containers_AttachTtySectionHint" xml:space="preserve">Two rows: plain docker (PowerShell/CMD with Docker Desktop; or any shell already pointing at the same engine) and a one-line wsl.exe that runs docker inside the distro (WSL distro from Settings — WSL tab). Paste into a terminal and press Enter. exec defaults to sh — change to bash or cmd if the image has no sh. attach needs a running container and usually a TTY allocated at container create time.</sys:String>
+    <sys:String x:Key="Ui_Containers_AttachTtyStoppedWarning">Container is stopped: start it before exec or attach (unless you are only checking the command text).</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalDockerExecLabel">docker exec -it …</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalWslExecLabel">wsl … docker exec … (inside distro)</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalDockerAttachLabel">docker attach …</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalWslAttachLabel">wsl … docker attach … (inside distro)</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalCopyButton">Copy</sys:String>
     <sys:String x:Key="Ui_Containers_Status_CopyExecDone">Copied docker exec command.</sys:String>
     <sys:String x:Key="Ui_Containers_Status_CopyAttachDone">Copied docker attach command.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_CopyWslExecDone">Copied WSL command (docker exec).</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_CopyWslAttachDone">Copied WSL command (docker attach).</sys:String>
     <sys:String x:Key="Ui_Containers_BatchCopyIds">Copy selected IDs</sys:String>
     <sys:String x:Key="Ui_Containers_Status_CopyIdsDoneFormat">Copied {0} container ID(s) to the clipboard.</sys:String>
     <sys:String x:Key="Ui_Containers_Status_LoadedContainersCountFormat">Loaded {0} containers.</sys:String>
@@ -265,6 +401,8 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Containers_SparklineCpuAxisLabel">CPU %</sys:String>
     <sys:String x:Key="Ui_Containers_SparklineMemAxisLabel">RAM % (used/limit)</sys:String>
     <sys:String x:Key="Ui_Containers_StatsWsIntervalHint" xml:space="preserve">A higher WebSocket interval reduces sample rate when many containers are open or the network is slow (defaults now include 3000 ms and 5000 ms).</sys:String>
+    <sys:String x:Key="Ui_Containers_StatsWarnCpuPart">CPU {0:F1}% (threshold {1}%)</sys:String>
+    <sys:String x:Key="Ui_Containers_StatsWarnMemPart">RAM {0:F1}% used/limit (threshold {1}%)</sys:String>
 
     <sys:String x:Key="Ui_Logs_Status_LoadingContainers">Loading container list...</sys:String>
     <sys:String x:Key="Ui_Logs_Status_ListRequestTimeout">Timed out while loading the container list. Check the service or network.</sys:String>
@@ -323,6 +461,7 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Help_CloseButton">Close</sys:String>
     <sys:String x:Key="Ui_Help_Link_OpenApi">API schema (OpenAPI JSON)</sys:String>
     <sys:String x:Key="Ui_Help_Link_WslDocs">WSL documentation (Microsoft)</sys:String>
+    <sys:String x:Key="Ui_Help_Link_LanSecurityDoc">LAN security (local doc)</sys:String>
     <sys:String x:Key="Ui_Help_Link_DockerContainerRef">docker container CLI reference</sys:String>
     <sys:String x:Key="Ui_Help_Link_ComposeDocs">Docker Compose documentation</sys:String>
     <sys:String x:Key="Ui_Help_Link_DockerImagesRef">docker image CLI reference</sys:String>
@@ -351,6 +490,10 @@ Highlighted row: Start, Stop, Restart, Delete, Load details (inspect + stats). T
 CPU and RAM % sparklines: update when realtime is on (or one point after Load details); the horizontal axis is time (newest on the right), up to 90 points.
 
 Top RAM / Top CPU: snapshots from the server (not a full ranked list).
+
+CPU/RAM alert thresholds: Settings — Display tab; when exceeded, a warning appears above the sparklines.
+
+Terminal shell hints (exec / attach): copy plain docker commands or a one-line wsl.exe that runs docker inside the distro (WSL distro from Settings); use when you need an interactive shell outside DockLite.
 
 Press F5 to refresh the container list while you are on the Containers page.</sys:String>
     <sys:String x:Key="Ui_Help_Logs_Title">Container logs</sys:String>

@@ -168,6 +168,42 @@ func ImagePull(w http.ResponseWriter, r *http.Request) {
 	apiresponse.WriteSuccess(w, map[string]interface{}{"log": logStr}, http.StatusOK)
 }
 
+// ImagePullStream xử lý POST /api/images/pull/stream — luồng thô từ daemon (không envelope JSON).
+func ImagePullStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost || r.URL.Path != "/api/images/pull/stream" {
+		http.NotFound(w, r)
+		return
+	}
+	var body imagePullBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	ref := strings.TrimSpace(body.Reference)
+	if ref == "" {
+		apiresponse.WriteError(w, apiresponse.CodeValidation, "thiếu reference", http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	dc, err := dockerengine.Client()
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeDockerUnavailable, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	reader, err := dc.ImagePull(ctx, ref, image.PullOptions{})
+	if err != nil {
+		dockerengine.WriteError(w, err)
+		return
+	}
+	defer func() { _ = reader.Close() }()
+	w.Header().Set("Content-Type", "application/vnd.docker.raw-stream")
+	w.WriteHeader(http.StatusOK)
+	if fl, ok := w.(http.Flusher); ok {
+		fl.Flush()
+	}
+	_, _ = io.Copy(w, reader)
+}
+
 // ImageLoad xử lý POST /api/images/load — thân application/x-tar (tối đa maxImageLoadBody).
 func ImageLoad(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost || r.URL.Path != "/api/images/load" {

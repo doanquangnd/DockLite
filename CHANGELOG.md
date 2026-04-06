@@ -4,6 +4,53 @@
 
 ## [Chưa phát hành]
 
+### Thêm / đổi (Quan sát — mục 2.5 tài liệu mở rộng)
+
+- **`AppSettings`:** `ContainerStatsCpuWarnPercent` / `ContainerStatsMemoryWarnPercent` (0–100, 0 = tắt); `AppSettingsDefaults` chuẩn hóa ngoài biên về 0.
+- **Cài đặt (tab Hiển thị):** hai ô ngưỡng; validate khi Lưu.
+- **Màn Container:** `ContainersViewModel` đọc ngưỡng từ `IAppSettingsStore`; khối cảnh báo phía trên sparkline khi realtime vượt ngưỡng; `ShellViewModel` đồng bộ khi chuyển tab; trợ giúp / `Ui_Help_Containers_Body` cập nhật.
+
+### Thêm / đổi (Image và registry — mục 2.4 tài liệu mở rộng)
+
+- **Service Go:** `GET /api/images` — trường `sizeBytes` (byte) mỗi dòng; `POST /api/images/pull/stream` — luồng thô từ `ImagePull` (không envelope JSON); OpenAPI và timeout 30 phút giống pull buffer.
+- **Client .NET:** `ImageSummaryDto.SizeBytes`; `IDockLiteApiClient.PullImageStreamAsync`; màn Image: khối tóm tắt sau lọc + gợi ý dangling/prune; xác nhận trước Prune dangling; pull ưu tiên stream, fallback pull buffer; ProgressBar khi pull; chuỗi `Ui_Images_Summary_*`, `Ui_Images_Prune*`, `Ui_Images_PullProgressStarting`.
+
+### Thêm / đổi (Bảo mật và vận hành — mục 2.6 tài liệu mở rộng)
+
+- **`docs/docklite-lan-security.md`:** hướng dẫn rủi ro HTTP không TLS trên LAN và token `DOCKLITE_API_TOKEN`.
+- **Cài đặt (tab Kết nối):** banner nhắc HTTP/token; nút mở tệp Markdown khi `docklite-lan-security.md` phân giải được từ thư mục chạy (`LanSecurityDocPaths`); hộp thoại trợ giúp thêm liên kết «Bảo mật LAN (tài liệu)» khi tệp tồn tại (`PageHelpTexts`, `Ui_Help_Link_LanSecurityDoc`).
+
+### Thêm / đổi (Vận hành và tin cậy — mục 2.1 tài liệu mở rộng)
+
+- **Khôi phục kết nối:** checklist thêm bước 5 (Docker Engine / `docker info` trong distro); banner mất kết nối có dòng gợi ý + nút «Cài đặt (Kết nối)» (`OpenSettingsConnectionFromBannerCommand`) mở tab Kết nối (`SettingsViewModel.SelectedTabIndex`).
+
+### Thêm / đổi (Compose — validate trước up, mục 2.3 tài liệu mở rộng)
+
+- **Service Go:** `POST /api/compose/config/validate` — `docker compose config -q` trong thư mục project; OpenAPI và timeout dài giống các lệnh compose khác.
+- **Client .NET / WPF:** `ComposeConfigValidateAsync`; tab Compose: nút «Kiểm tra config (-q)»; `compose up -d` chạy validate trước, thất bại thì không up (chuỗi `Ui_Compose_Status_ConfigValidateFailedBeforeUp`).
+
+### Thêm / đổi (Kết nối nhất quán — mục 2.1 tài liệu mở rộng)
+
+- **`WslServiceHealthCache.RefreshAsync`:** gọi song song GET `/api/health` và `/api/docker/info`, chỉ đặt cache «ổn» khi cả hai thành công (cùng tiêu chí với header và Tổng quan).
+- **`AppShellActivityState.AttachHealthCache`:** gắn cache khi tạo shell; `ShouldRefresh*` (Container, Image, Log, Compose, Mạng/volume), `ShouldPollContainerStats` và `ShouldProcessLogsFollowFlush` trả về false khi `LastHealthy == false`; `ShouldAutoRefreshDashboard` không chặn để tab Tổng quan vẫn làm mới và phát hiện khôi phục.
+- **Cài đặt:** `PostSaveHealthProbeAsync` và «Kiểm tra kết nối» cập nhật cache theo health + Docker; chuỗi toast sau Lưu (`Ui_Settings_Status_PostSaveConnectivityFail`).
+- **Dọn dẹp:** chặn prune khi cache báo mất kết nối (`Ui_Cleanup_Status_ServiceDisconnected`).
+
+### Thêm / đổi (Image — tìm và lọc; Container — gợi ý batch, mục 2.2 / 2.4 tài liệu mở rộng)
+
+- **Image:** lọc Tất cả / Có tag / Dangling (khớp `repository` `<none>` từ API); ComboBox phạm vi tìm (`ImageSearchScope`); nhãn và tooltip từ `UiStrings`.
+- **Container:** khối gợi ý thao tác hàng loạt (tuần tự API, hủy qua đóng xác nhận, stats batch 2–32 id, timeout HTTP); tooltip nút Stats batch chuyển sang tài nguyên chuỗi.
+
+### Thêm / đổi (Container — tìm và lọc, mục 2.2 tài liệu mở rộng)
+
+- **Danh sách container:** lọc theo enum (`ContainerListFilterKind`) thay vì chuỗi đã dịch; ComboBox **Phạm vi tìm** (`ContainerSearchScope`: mọi trường, tên/ID, image, trạng thái); nhãn và tooltip từ `UiStrings` (vi/en).
+
+### Thêm / đổi (Cài đặt — vận hành và tin cậy, mục 2.1 tài liệu mở rộng)
+
+- **`IAppSettingsStore`:** thuộc tính `SettingsFilePath` và `ExportToCopy` (sao chép `settings.json` hoặc ghi JSON từ `Load()` khi file chưa tồn tại).
+- **Tab Kết nối:** hiển thị đường dẫn file cài đặt cục bộ và nút **Sao lưu file cài đặt ra…** (`SaveFileDialog`).
+- **Chẩn đoán nhanh (API + WSL):** khối checklist bốn bước (địa chỉ, token, health + Docker, WSL) đầu kết quả; cập nhật `WslServiceHealthCache` theo **health + Docker** (không chỉ health); intro chuỗi vi/en cho tab Kết nối và WSL.
+
 ### Thêm / đổi (WSL — sẵn sàng thật, header đồng bộ Tổng quan, compose core, test, CI)
 
 - **`WslDockerServiceAutoStart`:** probe ban đầu và vòng chờ sau spawn WSL / Start–Restart thủ công yêu cầu **cả** `/api/health` ổn định (hai GET liên tiếp, `Connection: close`, đọc hết body) **và** `/api/docker/info` (JSON envelope `success` + `data`); tách `TrySpawnWslRestartAndWaitForHealthAsync` (telemetry `startup_wsl_restart_recovery_spawned`) để tái sử dụng.

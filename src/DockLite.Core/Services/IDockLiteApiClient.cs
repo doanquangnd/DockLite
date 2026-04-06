@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
 using DockLite.Contracts.Api;
 
@@ -17,6 +19,11 @@ public interface IDockLiteApiClient
     /// Gọi GET /api/docker/info để kiểm tra Docker Engine trong WSL.
     /// </summary>
     Task<ApiResult<DockerInfoData>> GetDockerInfoAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/wsl/host-resources — RAM, load và đĩa gốc phía tiến trình service (Linux trong WSL).
+    /// </summary>
+    Task<ApiResult<WslHostResourcesData>> GetWslHostResourcesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Danh sách container (tất cả trạng thái).
@@ -76,16 +83,36 @@ public interface IDockLiteApiClient
         ComposeProjectPatchRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<ApiResult<ComposeCommandData>> ComposeUpAsync(string projectId, CancellationToken cancellationToken = default);
+    Task<ApiResult<ComposeCommandData>> ComposeUpAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
 
-    Task<ApiResult<ComposeCommandData>> ComposeDownAsync(string projectId, CancellationToken cancellationToken = default);
+    Task<ApiResult<ComposeCommandData>> ComposeDownAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
 
-    Task<ApiResult<ComposeCommandData>> ComposePsAsync(string projectId, CancellationToken cancellationToken = default);
+    Task<ApiResult<ComposeCommandData>> ComposePsAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// POST /api/compose/config/validate — <c>docker compose config -q</c> (kiểm tra file hợp lệ, không in YAML gộp).
+    /// </summary>
+    Task<ApiResult<ComposeCommandData>> ComposeConfigValidateAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// POST /api/compose/config/services — tên service (docker compose config --services).
     /// </summary>
-    Task<ApiResult<ComposeServiceListData>> ListComposeServicesAsync(string projectId, CancellationToken cancellationToken = default);
+    Task<ApiResult<ComposeServiceListData>> ListComposeServicesAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// POST /api/compose/service/start
@@ -153,6 +180,14 @@ public interface IDockLiteApiClient
     Task<ApiResult<ImagePullResultData>> PullImageAsync(ImagePullRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// POST /api/images/pull/stream — luồng thô từ daemon (không envelope JSON); cập nhật qua <paramref name="progress"/>.
+    /// </summary>
+    Task<(bool Success, string? ErrorMessage)> PullImageStreamAsync(
+        ImagePullRequest request,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// POST /api/images/load — thân application/x-tar (stream từ file).
     /// </summary>
     Task<ApiResult<ImageLoadResultData>> UploadImageLoadAsync(Stream tarStream, CancellationToken cancellationToken = default);
@@ -179,4 +214,14 @@ public interface IDockLiteApiClient
     /// POST /api/volumes/remove — xóa một volume theo tên.
     /// </summary>
     Task<ApiResult<EmptyApiPayload>> RemoveVolumeAsync(VolumeRemoveRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/docker/events/stream — NDJSON (mỗi dòng một sự kiện).
+    /// </summary>
+    Task StreamDockerEventsAsync(IProgress<string> lineProgress, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// POST /api/images/trivy-scan — cần Trivy trong PATH trên WSL.
+    /// </summary>
+    Task<ApiResult<ImageTrivyScanResultData>> ScanImageTrivyAsync(ImageTrivyScanRequest request, CancellationToken cancellationToken = default);
 }

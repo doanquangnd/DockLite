@@ -35,9 +35,22 @@
             <TextBlock Text="Thêm thư mục project (Windows: C:\... hoặc WSL: /mnt/c/...)"
                        Margin="0,0,0,4"
                        Foreground="{DynamicResource ThemeBodyTextBrush}" />
+            <StackPanel Margin="0,0,0,8"
+                        Orientation="Horizontal">
+                <TextBlock VerticalAlignment="Center"
+                           Margin="0,0,8,0"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
+                           Text="{DynamicResource Ui_Compose_TemplateLabel}" />
+                <ComboBox MinWidth="260"
+                          VerticalAlignment="Center"
+                          DisplayMemberPath="Label"
+                          ItemsSource="{Binding ComposeTemplateList}"
+                          SelectedItem="{Binding SelectedComposeTemplate}" />
+            </StackPanel>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -56,7 +69,14 @@
                         Content="Thêm"
                         Padding="12,6"
                         MinWidth="80"
+                        Margin="0,0,8,0"
                         Command="{Binding AddProjectCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                <Button Grid.Column="3"
+                        Content="{DynamicResource Ui_Compose_CreateTemplateButton}"
+                        Padding="12,6"
+                        MinWidth="140"
+                        Command="{Binding CreateTemplateComposeFileCommand}"
                         IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
             </Grid>
             <TextBlock Margin="0,10,0,4"
@@ -148,6 +168,18 @@
                 <TextBlock FontWeight="SemiBold"
                            Foreground="{DynamicResource ThemeBodyTextBrush}"
                            Text="File compose cho project đang chọn (-f)" />
+                <TextBlock Margin="0,10,0,4"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
+                           Text="{DynamicResource Ui_Compose_ProfilesLabel}" />
+                <TextBox Padding="6,4"
+                         Margin="0,0,0,4"
+                         Text="{Binding ComposeProfilesText, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="{DynamicResource Ui_Compose_ProfilesTooltip}" />
+                <TextBlock Margin="0,0,0,8"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                           FontSize="12"
+                           Text="{DynamicResource Ui_Compose_ProfilesHint}" />
                 <TextBlock Margin="0,4,0,8"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource ThemeMutedForegroundBrush}"
@@ -308,10 +340,16 @@
                     Padding="12,6"
                     Command="{Binding RemoveProjectCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
+            <Button Content="{DynamicResource Ui_Compose_Button_ConfigValidate}"
+                    Margin="0,0,8,4"
+                    Padding="12,6"
+                    Command="{Binding ComposeConfigValidateCommand}"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
             <Button Content="compose up -d"
                     Margin="0,0,8,4"
                     Padding="12,6"
                     Command="{Binding ComposeUpCommand}"
+                    ToolTip="{DynamicResource Ui_Compose_Tooltip_ComposeUp}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
             <Button Content="compose down"
                     Margin="0,0,8,4"

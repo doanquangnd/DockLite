@@ -19,10 +19,11 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="Image"
+                   Text="{DynamicResource Ui_Images_PageTitle}"
                    FontSize="22"
                    FontWeight="SemiBold"
                    Foreground="{DynamicResource ThemePageTitleBrush}"
@@ -31,23 +32,76 @@
         <Grid Grid.Row="1"
               Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="160" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="180" />
+                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBox Grid.Column="0"
+            <TextBlock Grid.Column="0"
+                       Text="{DynamicResource Ui_Images_FilterLabel}"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
+                       Margin="0,0,8,0" />
+            <ComboBox Grid.Column="1"
+                      VerticalAlignment="Center"
+                      DisplayMemberPath="Label"
+                      ItemsSource="{Binding ImageFilterKindOptions}"
+                      SelectedItem="{Binding SelectedImageFilterKindOption}" />
+            <TextBlock Grid.Column="3"
+                       Text="{DynamicResource Ui_Images_SearchScopeLabel}"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
+                       Margin="0,0,8,0" />
+            <ComboBox Grid.Column="4"
+                      VerticalAlignment="Center"
+                      DisplayMemberPath="Label"
+                      ItemsSource="{Binding ImageSearchScopeOptions}"
+                      SelectedItem="{Binding SelectedImageSearchScopeOption}" />
+            <TextBlock Grid.Column="6"
+                       Text="{DynamicResource Ui_Images_SearchLabel}"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource ThemeBodyTextBrush}"
+                       Margin="0,0,8,0" />
+            <TextBox x:Name="PrimarySearchTextBox"
+                     Grid.Column="7"
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                      Padding="6,4"
                      Margin="0,0,8,0"
-                     ToolTip="Lọc theo repository, tag hoặc id" />
-            <Button Grid.Column="1"
-                    Content="Làm mới"
+                     ToolTip="{DynamicResource Ui_Images_SearchTextTooltip}" />
+            <Button Grid.Column="8"
+                    Content="{DynamicResource Ui_Images_RefreshButton}"
                     Padding="12,6"
                     MinWidth="100"
                     Command="{Binding RefreshCommand}"
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
         </Grid>
 
-        <Grid Grid.Row="2"
+        <Border Grid.Row="2"
+                Margin="0,0,0,10"
+                Padding="10,8"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+            <StackPanel>
+                <TextBlock FontSize="12"
+                           Foreground="{DynamicResource ThemeBodyTextBrush}"
+                           TextWrapping="Wrap"
+                           Text="{Binding ImageListSummaryText}" />
+                <TextBlock Margin="0,6,0,0"
+                           FontSize="12"
+                           Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                           TextWrapping="Wrap"
+                           Text="{Binding ImagePruneHintText}" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="3"
               MinHeight="300"
               Margin="0,0,0,8">
             <Border behaviors:MouseWheelScrollBubbling.BubbleToMainContentScroll="True"
@@ -66,7 +120,7 @@
                       VirtualizingPanel.VirtualizationMode="Recycling">
                 <DataGrid.Columns>
                     <DataGridTemplateColumn Width="48"
-                                            Header="Chọn">
+                                            Header="{DynamicResource Ui_Images_Grid_Select}">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <CheckBox HorizontalAlignment="Center"
@@ -76,7 +130,7 @@
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Width="*"
                                         Binding="{Binding Model.Repository}"
-                                        Header="Repository"
+                                        Header="{DynamicResource Ui_Images_Grid_Repository}"
                                         IsReadOnly="True">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
@@ -86,7 +140,7 @@
                     </DataGridTextColumn>
                     <DataGridTextColumn Width="100"
                                         Binding="{Binding Model.Tag}"
-                                        Header="Tag"
+                                        Header="{DynamicResource Ui_Images_Grid_Tag}"
                                         IsReadOnly="True">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
@@ -96,7 +150,7 @@
                     </DataGridTextColumn>
                     <DataGridTextColumn Width="160"
                                         Binding="{Binding Model.Id}"
-                                        Header="Id"
+                                        Header="{DynamicResource Ui_Images_Grid_Id}"
                                         IsReadOnly="True">
                         <DataGridTextColumn.ElementStyle>
                             <Style TargetType="TextBlock">
@@ -106,11 +160,11 @@
                     </DataGridTextColumn>
                     <DataGridTextColumn Width="90"
                                         Binding="{Binding Model.Size}"
-                                        Header="Kích thước"
+                                        Header="{DynamicResource Ui_Images_Grid_Size}"
                                         IsReadOnly="True" />
                     <DataGridTextColumn Width="140"
                                         Binding="{Binding Model.CreatedAt}"
-                                        Header="Tạo"
+                                        Header="{DynamicResource Ui_Images_Grid_Created}"
                                         IsReadOnly="True" />
                 </DataGrid.Columns>
             </DataGrid>
@@ -139,7 +193,7 @@
                        Visibility="{Binding ShowImageFilterEmptyHint, Converter={StaticResource BoolToVisibilityConverter}}" />
         </Grid>
 
-        <Expander Grid.Row="3"
+        <Expander Grid.Row="4"
                   Margin="0,0,0,10"
                   Foreground="{DynamicResource ThemeBodyTextBrush}"
                   Header="Chi tiết image (inspect, history, pull, export/import)"
@@ -225,6 +279,10 @@
                                 Command="{Binding PullImageCommand}"
                                 IsEnabled="{Binding IsDetailBusy, Converter={StaticResource InvertBooleanConverter}}" />
                     </Grid>
+                    <ProgressBar Height="4"
+                                 Margin="0,4,0,4"
+                                 IsIndeterminate="True"
+                                 Visibility="{Binding IsPullInProgress, Converter={StaticResource BoolToVisibilityConverter}}" />
                     <TextBlock Margin="0,0,0,4"
                                FontSize="11"
                                Foreground="{DynamicResource ThemeMutedForegroundBrush}"
@@ -236,6 +294,79 @@
                              FontSize="11"
                              IsReadOnly="True"
                              Text="{Binding PullLogText}"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" />
+                    <TextBlock FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
+                               Text="{DynamicResource Ui_Images_TrivyTitle}" />
+                    <TextBlock Margin="0,4,0,8"
+                               Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Text="{DynamicResource Ui_Images_TrivyHint}" />
+                    <Grid Margin="0,0,0,8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Row="0"
+                                 Grid.Column="0"
+                                 Margin="0,0,8,8"
+                                 Padding="6,4"
+                                 Text="{Binding TrivyImageRef, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding IsTrivyBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                        <Button Grid.Row="0"
+                                Grid.Column="1"
+                                Margin="0,0,0,8"
+                                Padding="12,6"
+                                VerticalAlignment="Top"
+                                Content="{DynamicResource Ui_Images_TrivyScanButton}"
+                                Command="{Binding ScanTrivyCommand}"
+                                IsEnabled="{Binding IsTrivyBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                        <Grid Grid.Row="1"
+                              Grid.Column="0"
+                              Grid.ColumnSpan="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"
+                                       Foreground="{DynamicResource ThemeBodyTextBrush}"
+                                       Text="{DynamicResource Ui_Images_Trivy_FormatLabel}" />
+                            <ComboBox Grid.Column="1"
+                                      VerticalAlignment="Center"
+                                      DisplayMemberPath="Label"
+                                      ItemsSource="{Binding TrivyFormatOptions}"
+                                      SelectedItem="{Binding SelectedTrivyFormatOption}"
+                                      IsEnabled="{Binding IsTrivyBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                            <TextBlock Grid.Column="3"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"
+                                       Foreground="{DynamicResource ThemeBodyTextBrush}"
+                                       Text="{DynamicResource Ui_Images_Trivy_PolicyPathLabel}" />
+                            <TextBox Grid.Column="4"
+                                     Padding="6,4"
+                                     ToolTip="{DynamicResource Ui_Images_Trivy_PolicyPathTooltip}"
+                                     Text="{Binding TrivyPolicyPath, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding IsTrivyBusy, Converter={StaticResource InvertBooleanConverter}}" />
+                        </Grid>
+                    </Grid>
+                    <TextBox MinHeight="100"
+                             Margin="0,0,0,8"
+                             Padding="8"
+                             FontFamily="Consolas"
+                             FontSize="11"
+                             IsReadOnly="True"
+                             Text="{Binding TrivyOutputText}"
                              TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto" />
                     <TextBlock FontWeight="SemiBold"
@@ -262,7 +393,7 @@
             </ScrollViewer>
         </Expander>
 
-        <WrapPanel Grid.Row="4"
+        <WrapPanel Grid.Row="5"
                    Margin="0,10,0,8">
             <Button Content="Chọn tất cả"
                     Margin="0,0,8,4"
@@ -302,7 +433,7 @@
                     IsEnabled="{Binding IsBusy, Converter={StaticResource InvertBooleanConverter}}" />
         </WrapPanel>
 
-        <Border Grid.Row="5"
+        <Border Grid.Row="6"
                 BorderBrush="{DynamicResource ThemeSeparatorBorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="0,8,0,0">

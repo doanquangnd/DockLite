@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using DockLite.Contracts.Api;
 using DockLite.Core.Services;
@@ -61,6 +62,18 @@ public sealed class ImageScreenApi : IImageScreenApi
     }
 
     /// <inheritdoc />
+    public Task<(bool Success, string? ErrorMessage)> PullImageStreamAsync(
+        ImagePullRequest request,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        ApiErrorBody? err = ScreenApiInputValidation.ImagePullRequestError(request);
+        return err is not null
+            ? Task.FromResult<(bool, string?)>((false, err.Message))
+            : _client.PullImageStreamAsync(request, progress, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<ApiResult<ImageLoadResultData>> UploadImageLoadAsync(Stream tarStream, CancellationToken cancellationToken = default) =>
         _client.UploadImageLoadAsync(tarStream, cancellationToken);
 
@@ -77,5 +90,18 @@ public sealed class ImageScreenApi : IImageScreenApi
         }
 
         return _client.DownloadImageExportAsync(imageId, destination, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<ImageTrivyScanResultData>> ScanImageTrivyAsync(ImageTrivyScanRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ImageRef))
+        {
+            return Task.FromResult(
+                ApiResult<ImageTrivyScanResultData>.Fail(
+                    new ApiErrorBody { Code = "validation", Message = "Thiếu image reference." }));
+        }
+
+        return _client.ScanImageTrivyAsync(request, cancellationToken);
     }
 }

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
@@ -44,7 +46,76 @@ public partial class ImagesViewModel : ObservableObject
         _shutdownToken = shutdownToken;
         _shellActivity = shellActivity;
         _searchDebounce = new SearchDebounceHelper(ApplyFilter);
+        RebuildImageFilterUiLists();
+        RebuildTrivyFormatUi();
+        SelectedImageFilterKindOption = ImageFilterKindOptions[0];
+        SelectedImageSearchScopeOption = ImageSearchScopeOptions[0];
         UpdateBatchToolbarState();
+        UpdateImageSummaryUi();
+    }
+
+    /// <summary>
+    /// Điền nhãn ComboBox định dạng Trivy (table/json).
+    /// </summary>
+    private void RebuildTrivyFormatUi()
+    {
+        TrivyFormatOptions.Clear();
+        TrivyFormatOptions.Add(new TrivyFormatOption
+        {
+            Value = "table",
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Images_Trivy_Format_Table", "Bảng (table)"),
+        });
+        TrivyFormatOptions.Add(new TrivyFormatOption
+        {
+            Value = "json",
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Images_Trivy_Format_Json", "JSON"),
+        });
+        SelectedTrivyFormatOption = TrivyFormatOptions[0];
+    }
+
+    /// <summary>
+    /// Điền nhãn ComboBox lọc và phạm vi tìm (khởi tạo; có thể mở rộng khi đổi ngôn ngữ UI).
+    /// </summary>
+    private void RebuildImageFilterUiLists()
+    {
+        ImageFilterKindOptions.Clear();
+        ImageFilterKindOptions.Add(new ImageFilterKindOption
+        {
+            Kind = ImageListFilterKind.All,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Images_Filter_All", "Tất cả"),
+        });
+        ImageFilterKindOptions.Add(new ImageFilterKindOption
+        {
+            Kind = ImageListFilterKind.Tagged,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Images_Filter_Tagged", "Có tag"),
+        });
+        ImageFilterKindOptions.Add(new ImageFilterKindOption
+        {
+            Kind = ImageListFilterKind.Dangling,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Images_Filter_Dangling", "Dangling"),
+        });
+
+        ImageSearchScopeOptions.Clear();
+        ImageSearchScopeOptions.Add(new ImageSearchScopeOption
+        {
+            Scope = ImageSearchScope.All,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Images_SearchScope_All", "Mọi trường"),
+        });
+        ImageSearchScopeOptions.Add(new ImageSearchScopeOption
+        {
+            Scope = ImageSearchScope.Repository,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Images_SearchScope_Repository", "Repository"),
+        });
+        ImageSearchScopeOptions.Add(new ImageSearchScopeOption
+        {
+            Scope = ImageSearchScope.Tag,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Images_SearchScope_Tag", "Tag"),
+        });
+        ImageSearchScopeOptions.Add(new ImageSearchScopeOption
+        {
+            Scope = ImageSearchScope.Id,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Images_SearchScope_Id", "Id"),
+        });
     }
 
     /// <summary>Không có image sau khi tải xong.</summary>
@@ -64,6 +135,22 @@ public partial class ImagesViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowEmptyImageListHint));
         OnPropertyChanged(nameof(ShowImageFilterEmptyHint));
     }
+
+    /// <summary>
+    /// Các mục lọc (có tag / dangling / tất cả).
+    /// </summary>
+    public ObservableCollection<ImageFilterKindOption> ImageFilterKindOptions { get; } = new();
+
+    /// <summary>
+    /// Các mục phạm vi ô tìm.
+    /// </summary>
+    public ObservableCollection<ImageSearchScopeOption> ImageSearchScopeOptions { get; } = new();
+
+    [ObservableProperty]
+    private ImageFilterKindOption? _selectedImageFilterKindOption;
+
+    [ObservableProperty]
+    private ImageSearchScopeOption? _selectedImageSearchScopeOption;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -108,6 +195,44 @@ public partial class ImagesViewModel : ObservableObject
     [ObservableProperty]
     private string _pullLogText = string.Empty;
 
+    /// <summary>
+    /// Thanh tiến trình khi đang pull (luồng hoặc fallback buffer).
+    /// </summary>
+    [ObservableProperty]
+    private bool _isPullInProgress;
+
+    /// <summary>
+    /// Tóm tắt số dòng / ước tổng dung lượng sau lọc (gộp theo image ID).
+    /// </summary>
+    [ObservableProperty]
+    private string _imageListSummaryText = string.Empty;
+
+    /// <summary>
+    /// Gợi ý trước prune: số dangling và ước dung lượng.
+    /// </summary>
+    [ObservableProperty]
+    private string _imagePruneHintText = string.Empty;
+
+    [ObservableProperty]
+    private string _trivyImageRef = string.Empty;
+
+    /// <summary>
+    /// Đường dẫn policy Rego trên WSL (tùy chọn), map sang <c>--policy</c>.
+    /// </summary>
+    [ObservableProperty]
+    private string _trivyPolicyPath = string.Empty;
+
+    [ObservableProperty]
+    private string _trivyOutputText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isTrivyBusy;
+
+    public ObservableCollection<TrivyFormatOption> TrivyFormatOptions { get; } = new();
+
+    [ObservableProperty]
+    private TrivyFormatOption? _selectedTrivyFormatOption;
+
     public ObservableCollection<SelectableImageRow> FilteredItems { get; } = new();
 
     public ObservableCollection<ImageHistoryDisplayRow> HistoryRows { get; } = new();
@@ -122,6 +247,16 @@ public partial class ImagesViewModel : ObservableObject
     partial void OnSearchTextChanged(string value)
     {
         _searchDebounce.Schedule();
+    }
+
+    partial void OnSelectedImageFilterKindOptionChanged(ImageFilterKindOption? value)
+    {
+        ApplyFilter();
+    }
+
+    partial void OnSelectedImageSearchScopeOptionChanged(ImageSearchScopeOption? value)
+    {
+        ApplyFilter();
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -229,13 +364,11 @@ public partial class ImagesViewModel : ObservableObject
         }
 
         string q = SearchText.Trim();
-        IEnumerable<ImageSummaryDto> query = _allItems;
+        ImageSearchScope scope = SelectedImageSearchScopeOption?.Scope ?? ImageSearchScope.All;
+        IEnumerable<ImageSummaryDto> query = _allItems.Where(MatchesImageListFilterKind);
         if (q.Length > 0)
         {
-            query = query.Where(i =>
-                i.Repository.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                i.Tag.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                i.Id.Contains(q, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(i => MatchesImageSearch(i, q, scope));
         }
 
         FilteredItems.Clear();
@@ -248,6 +381,130 @@ public partial class ImagesViewModel : ObservableObject
 
         NotifyEmptyImageHints();
         UpdateBatchToolbarState();
+        UpdateImageSummaryUi();
+    }
+
+    /// <summary>
+    /// Cập nhật dòng tóm tắt dung lượng và gợi ý prune theo danh sách hiện tại.
+    /// </summary>
+    private void UpdateImageSummaryUi()
+    {
+        if (_allItems.Count == 0)
+        {
+            ImageListSummaryText = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Images_Summary_Empty",
+                "Chưa có dữ liệu image.");
+            ImagePruneHintText = string.Empty;
+            return;
+        }
+
+        bool canSumBytes = FilteredItems.Any(r => r.Model.SizeBytes > 0);
+        long sumFiltered = SumDistinctSizeBytes(FilteredItems);
+        int rowCount = FilteredItems.Count;
+        int distinctIds = FilteredItems.Select(r => r.Model.Id).Distinct().Count();
+        string sumStr = canSumBytes
+            ? FormatBytes(sumFiltered)
+            : UiLanguageManager.TryLocalizeCurrent("Ui_Images_Summary_TotalUnknown", "—");
+
+        ImageListSummaryText = UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Images_Summary_LineFormat",
+            "Danh sách sau lọc: {0} dòng, {1} image ID — ước tổng {2} (gộp theo ID, không trùng tag).",
+            rowCount,
+            distinctIds,
+            sumStr);
+
+        int danglingRows = _allItems.Count(IsDanglingImageRow);
+        bool danglingHasBytes = _allItems.Any(i => IsDanglingImageRow(i) && i.SizeBytes > 0);
+        long danglingBytes = SumDistinctSizeBytesFromDtos(_allItems.Where(IsDanglingImageRow));
+        string dangSizeStr = danglingRows == 0
+            ? "—"
+            : danglingHasBytes
+                ? FormatBytes(danglingBytes)
+                : UiLanguageManager.TryLocalizeCurrent("Ui_Images_Summary_TotalUnknown", "—");
+
+        ImagePruneHintText = UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Images_PruneHintFormat",
+            "Toàn máy: {0} image dangling (ước ~{1}). Prune dangling chỉ xóa dangling; Prune -a xóa mọi image không được container dùng — đọc kỹ trước khi nhấn.",
+            danglingRows,
+            dangSizeStr);
+    }
+
+    private static long SumDistinctSizeBytes(IEnumerable<SelectableImageRow> rows)
+    {
+        var seen = new HashSet<string>();
+        long sum = 0;
+        foreach (SelectableImageRow r in rows)
+        {
+            if (seen.Add(r.Model.Id))
+            {
+                sum += r.Model.SizeBytes;
+            }
+        }
+
+        return sum;
+    }
+
+    private static long SumDistinctSizeBytesFromDtos(IEnumerable<ImageSummaryDto> items)
+    {
+        var seen = new HashSet<string>();
+        long sum = 0;
+        foreach (ImageSummaryDto i in items)
+        {
+            if (seen.Add(i.Id))
+            {
+                sum += i.SizeBytes;
+            }
+        }
+
+        return sum;
+    }
+
+    private bool MatchesImageListFilterKind(ImageSummaryDto i)
+    {
+        return SelectedImageFilterKindOption?.Kind switch
+        {
+            ImageListFilterKind.Tagged => IsTaggedImageRow(i),
+            ImageListFilterKind.Dangling => IsDanglingImageRow(i),
+            _ => true,
+        };
+    }
+
+    private static bool IsDanglingImageRow(ImageSummaryDto i)
+    {
+        return string.Equals(i.Repository, "<none>", StringComparison.Ordinal);
+    }
+
+    private static bool IsTaggedImageRow(ImageSummaryDto i)
+    {
+        return !IsDanglingImageRow(i);
+    }
+
+    private static bool MatchesImageSearch(ImageSummaryDto i, string q, ImageSearchScope scope)
+    {
+        return scope switch
+        {
+            ImageSearchScope.Repository => i.Repository.Contains(q, StringComparison.OrdinalIgnoreCase),
+            ImageSearchScope.Tag => i.Tag.Contains(q, StringComparison.OrdinalIgnoreCase),
+            ImageSearchScope.Id => i.Id.Contains(q, StringComparison.OrdinalIgnoreCase),
+            _ => MatchesImageSearchAllFields(i, q),
+        };
+    }
+
+    private static bool MatchesImageSearchAllFields(ImageSummaryDto i, string q)
+    {
+        if (i.Repository.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || i.Tag.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || i.Id.Contains(q, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (i.Size.Contains(q, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return i.CreatedAt?.Contains(q, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private void OnFilteredRowPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -428,6 +685,28 @@ public partial class ImagesViewModel : ObservableObject
     [RelayCommand]
     private async Task PruneDanglingAsync()
     {
+        int danglingRows = _allItems.Count(IsDanglingImageRow);
+        bool danglingHasBytes = _allItems.Any(i => IsDanglingImageRow(i) && i.SizeBytes > 0);
+        long danglingBytes = SumDistinctSizeBytesFromDtos(_allItems.Where(IsDanglingImageRow));
+        string sizeStr = danglingRows == 0
+            ? "—"
+            : danglingHasBytes
+                ? FormatBytes(danglingBytes)
+                : UiLanguageManager.TryLocalizeCurrent("Ui_Images_Summary_TotalUnknown", "—");
+        if (!await _dialogService
+                .ConfirmAsync(
+                    UiLanguageManager.TryLocalizeFormatCurrent(
+                        "Ui_Images_PruneDanglingConfirmFormat",
+                        "Chạy docker image prune (dangling)? Đếm được {0} dòng dangling trong danh sách, ước ~{1} có thể được reclaim.",
+                        danglingRows,
+                        sizeStr),
+                    UiLanguageManager.TryLocalizeCurrent("Ui_Images_PruneConfirmTitle", "Xác nhận prune image"),
+                    DialogConfirmKind.Warning)
+                .ConfigureAwait(true))
+        {
+            return;
+        }
+
         IsBusy = true;
         StatusMessage = string.Empty;
         try
@@ -651,22 +930,36 @@ public partial class ImagesViewModel : ObservableObject
         }
 
         IsDetailBusy = true;
-        PullLogText = "Đang kéo image…";
+        IsPullInProgress = true;
+        PullLogText = UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Images_PullProgressStarting",
+            "Đang kéo image…");
         try
         {
             var req = new ImagePullRequest { Reference = reference };
-            ApiResult<ImagePullResultData> res = await Task.Run(async () =>
-                await _imageApi.PullImageAsync(req, _shutdownToken.Token).ConfigureAwait(false)).ConfigureAwait(true);
-            if (!res.Success)
+            var progress = new Progress<string>(s => PullLogText = s);
+            (bool streamOk, string? streamErr) = await _imageApi
+                .PullImageStreamAsync(req, progress, _shutdownToken.Token)
+                .ConfigureAwait(true);
+            if (!streamOk)
             {
                 PullLogText = string.Empty;
-                StatusMessage = res.Error?.Message
-                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Images_Status_PullFailed", "Pull thất bại.");
-                return;
+                ApiResult<ImagePullResultData> res = await _imageApi.PullImageAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+                if (!res.Success)
+                {
+                    string combined = res.Error?.Message ?? streamErr ?? string.Empty;
+                    StatusMessage = string.IsNullOrWhiteSpace(combined)
+                        ? UiLanguageManager.TryLocalizeCurrent("Ui_Images_Status_PullFailed", "Pull thất bại.")
+                        : combined;
+                    return;
+                }
+
+                PullLogText = res.Data?.Log ?? string.Empty;
             }
 
-            PullLogText = res.Data?.Log ?? string.Empty;
-            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Images_Status_PullDone", "Pull hoàn tất (xem log trong khối chi tiết).");
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Images_Status_PullDone",
+                "Pull hoàn tất (xem log trong khối chi tiết).");
             await ReloadImageListAsync().ConfigureAwait(true);
         }
         catch (Exception ex)
@@ -676,6 +969,7 @@ public partial class ImagesViewModel : ObservableObject
         }
         finally
         {
+            IsPullInProgress = false;
             IsDetailBusy = false;
         }
     }
@@ -801,6 +1095,64 @@ public partial class ImagesViewModel : ObservableObject
         finally
         {
             IsDetailBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Quét CVE bằng Trivy (công cụ ngoài trên WSL).
+    /// </summary>
+    [RelayCommand]
+    private async Task ScanTrivyAsync()
+    {
+        string r = TrivyImageRef.Trim();
+        if (string.IsNullOrEmpty(r))
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Images_Trivy_Status_NeedRef",
+                "Nhập image reference (ví dụ nginx:alpine).");
+            return;
+        }
+
+        IsTrivyBusy = true;
+        TrivyOutputText = string.Empty;
+        try
+        {
+            string fmt = SelectedTrivyFormatOption?.Value?.Trim() ?? "table";
+            if (fmt.Length == 0)
+            {
+                fmt = "table";
+            }
+
+            string? policy = string.IsNullOrWhiteSpace(TrivyPolicyPath) ? null : TrivyPolicyPath.Trim();
+            var req = new ImageTrivyScanRequest
+            {
+                ImageRef = r,
+                Format = fmt,
+                PolicyPath = policy,
+            };
+            ApiResult<ImageTrivyScanResultData> res = await _imageApi.ScanImageTrivyAsync(req, _shutdownToken.Token).ConfigureAwait(true);
+            if (!res.Success)
+            {
+                string part = res.Error?.Details ?? string.Empty;
+                string msg = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
+                TrivyOutputText = string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg;
+                StatusMessage = msg;
+                return;
+            }
+
+            TrivyOutputText = res.Data?.Output ?? string.Empty;
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Images_Trivy_Status_Done",
+                "Quét Trivy hoàn tất (xem khối kết quả).");
+        }
+        catch (Exception ex)
+        {
+            ReportNetworkException(ex);
+        }
+        finally
+        {
+            IsTrivyBusy = false;
         }
     }
 

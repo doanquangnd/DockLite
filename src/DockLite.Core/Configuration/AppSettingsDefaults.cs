@@ -46,6 +46,10 @@ public static class AppSettingsDefaults
         {
             s.UiTheme = "Dark";
         }
+        else if (string.Equals(theme, "System", StringComparison.OrdinalIgnoreCase))
+        {
+            s.UiTheme = "System";
+        }
         else
         {
             s.UiTheme = "Light";
@@ -60,6 +64,19 @@ public static class AppSettingsDefaults
         {
             s.UiLanguage = "vi";
         }
+
+        s.ContainerStatsCpuWarnPercent = ClampPercent0To100(s.ContainerStatsCpuWarnPercent);
+        s.ContainerStatsMemoryWarnPercent = ClampPercent0To100(s.ContainerStatsMemoryWarnPercent);
+    }
+
+    private static int ClampPercent0To100(int value)
+    {
+        if (value < 0 || value > 100)
+        {
+            return 0;
+        }
+
+        return value;
     }
 
     private static int Clamp(int value, int min, int max, int fallback)

@@ -19,6 +19,7 @@ type imageSummaryJSON struct {
 	Repository string `json:"repository"`
 	Tag        string `json:"tag"`
 	Size       string `json:"size"`
+	SizeBytes  int64  `json:"sizeBytes"`
 	CreatedAt  string `json:"createdAt,omitempty"`
 }
 
@@ -65,11 +66,12 @@ func listImages(w http.ResponseWriter, r *http.Request) {
 				shortID = shortID[:12]
 			}
 			items = append(items, imageSummaryJSON{
-				ID:        shortID,
+				ID:         shortID,
 				Repository: "<none>",
-				Tag:       "<none>",
-				Size:      sizeStr,
-				CreatedAt: createdAt,
+				Tag:        "<none>",
+				Size:       sizeStr,
+				SizeBytes:  s.Size,
+				CreatedAt:  createdAt,
 			})
 			continue
 		}
@@ -87,6 +89,7 @@ func listImages(w http.ResponseWriter, r *http.Request) {
 				Repository: repo,
 				Tag:        tag,
 				Size:       sizeStr,
+				SizeBytes:  s.Size,
 				CreatedAt:  createdAt,
 			})
 		}

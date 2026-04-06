@@ -22,4 +22,8 @@ public sealed class SystemDiagnosticsScreenApi : ISystemDiagnosticsScreenApi
     /// <inheritdoc />
     public Task<ApiResult<DockerInfoData>> GetDockerInfoAsync(CancellationToken cancellationToken = default) =>
         _client.GetDockerInfoAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ApiResult<WslHostResourcesData>> GetWslHostResourcesAsync(CancellationToken cancellationToken = default) =>
+        _client.GetWslHostResourcesAsync(cancellationToken);
 }

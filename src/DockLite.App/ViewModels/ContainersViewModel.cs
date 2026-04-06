@@ -15,6 +15,8 @@ using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Models;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
+using DockLite.Core.Compose;
+using DockLite.Core.Configuration;
 using DockLite.Core.Services;
 
 namespace DockLite.App.ViewModels;
@@ -29,6 +31,7 @@ public partial class ContainersViewModel : ObservableObject
     private readonly INotificationService _notificationService;
     private readonly IAppShutdownToken _shutdownToken;
     private readonly AppShellActivityState _shellActivity;
+    private readonly IAppSettingsStore _appSettingsStore;
     private List<ContainerSummaryDto> _allItems = new();
     private DispatcherTimer? _statsRealtimeTimer;
     private readonly SemaphoreSlim _statsRealtimeGate = new(1, 1);
@@ -36,6 +39,10 @@ public partial class ContainersViewModel : ObservableObject
     private CancellationTokenSource? _statsWsCts;
     private readonly List<double> _cpuSparkHistory = new();
     private readonly List<double> _memorySparkHistory = new();
+    private double _lastCpuForWarn;
+    private double _lastMemPctForWarn;
+    private int _statsCpuWarnPercent;
+    private int _statsMemWarnPercent;
     private readonly SearchDebounceHelper _searchDebounce;
     private readonly SemaphoreSlim _containerListRefreshGate = new(1, 1);
 
@@ -49,7 +56,8 @@ public partial class ContainersViewModel : ObservableObject
         INotificationService notificationService,
         IAppShutdownToken shutdownToken,
         AppShellActivityState shellActivity,
-        IStatsStreamClient statsStream)
+        IStatsStreamClient statsStream,
+        IAppSettingsStore appSettingsStore)
     {
         _containerApi = containerApi;
         _dialogService = dialogService;
@@ -57,9 +65,72 @@ public partial class ContainersViewModel : ObservableObject
         _shutdownToken = shutdownToken;
         _shellActivity = shellActivity;
         _statsStream = statsStream;
+        _appSettingsStore = appSettingsStore;
         _searchDebounce = new SearchDebounceHelper(ApplyFilter);
         _shellActivity.Changed += OnShellActivityChanged;
+        RebuildContainerFilterUiLists();
+        SelectedFilterKindOption = FilterKindOptions[0];
+        SelectedSearchScopeOption = SearchScopeOptions[0];
         UpdateToolbarState();
+        RefreshStatsAlertSettingsFromStore();
+    }
+
+    /// <summary>
+    /// Đọc lại ngưỡng cảnh báo từ file cài đặt (sau Lưu hoặc khi quay lại tab Container).
+    /// </summary>
+    public void RefreshStatsAlertSettingsFromStore()
+    {
+        AppSettings s = _appSettingsStore.Load();
+        _statsCpuWarnPercent = s.ContainerStatsCpuWarnPercent;
+        _statsMemWarnPercent = s.ContainerStatsMemoryWarnPercent;
+        UpdateStatsResourceWarnings(_lastCpuForWarn, _lastMemPctForWarn);
+        OnPropertyChanged(nameof(SuggestedWslExecCommandText));
+        OnPropertyChanged(nameof(SuggestedWslAttachCommandText));
+    }
+
+    /// <summary>
+    /// Điền lại nhãn ComboBox lọc và phạm vi tìm (gọi khi khởi tạo; có thể mở rộng khi đổi ngôn ngữ UI).
+    /// </summary>
+    private void RebuildContainerFilterUiLists()
+    {
+        FilterKindOptions.Clear();
+        FilterKindOptions.Add(new FilterKindOption
+        {
+            Kind = ContainerListFilterKind.All,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Containers_Filter_All", "Tất cả"),
+        });
+        FilterKindOptions.Add(new FilterKindOption
+        {
+            Kind = ContainerListFilterKind.Running,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Containers_Filter_Running", "Đang chạy"),
+        });
+        FilterKindOptions.Add(new FilterKindOption
+        {
+            Kind = ContainerListFilterKind.Stopped,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Containers_Filter_Stopped", "Đã dừng"),
+        });
+
+        SearchScopeOptions.Clear();
+        SearchScopeOptions.Add(new SearchScopeOption
+        {
+            Scope = ContainerSearchScope.All,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Containers_SearchScope_All", "Mọi trường"),
+        });
+        SearchScopeOptions.Add(new SearchScopeOption
+        {
+            Scope = ContainerSearchScope.Name,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Containers_SearchScope_Name", "Tên / ID"),
+        });
+        SearchScopeOptions.Add(new SearchScopeOption
+        {
+            Scope = ContainerSearchScope.Image,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Containers_SearchScope_Image", "Image"),
+        });
+        SearchScopeOptions.Add(new SearchScopeOption
+        {
+            Scope = ContainerSearchScope.Status,
+            Label = UiLanguageManager.TryLocalizeCurrent("Ui_Containers_SearchScope_Status", "Trạng thái"),
+        });
     }
 
     /// <summary>Không có container từ Docker (sau khi tải xong).</summary>
@@ -87,8 +158,21 @@ public partial class ContainersViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowContainerFilterEmptyHint));
     }
 
+    /// <summary>
+    /// Các mục lọc theo trạng thái (nhãn theo ngôn ngữ tại lúc tạo danh sách).
+    /// </summary>
+    public ObservableCollection<FilterKindOption> FilterKindOptions { get; } = new();
+
+    /// <summary>
+    /// Các mục phạm vi tìm (nhãn theo ngôn ngữ tại lúc tạo danh sách).
+    /// </summary>
+    public ObservableCollection<SearchScopeOption> SearchScopeOptions { get; } = new();
+
     [ObservableProperty]
-    private string _filterKind = "Tất cả";
+    private FilterKindOption? _selectedFilterKindOption;
+
+    [ObservableProperty]
+    private SearchScopeOption? _selectedSearchScopeOption;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -205,6 +289,15 @@ public partial class ContainersViewModel : ObservableObject
     private int _statsWebSocketIntervalMs = 1000;
 
     /// <summary>
+    /// Cảnh báo khi CPU hoặc RAM vượt ngưỡng (Cài đặt — Hiển thị).
+    /// </summary>
+    [ObservableProperty]
+    private string _statsResourceWarningText = string.Empty;
+
+    [ObservableProperty]
+    private bool _statsResourceWarningVisible;
+
+    /// <summary>
     /// Điểm vẽ sparkline CPU % và RAM % (0–100).
     /// </summary>
     public PointCollection CpuSparklinePoints { get; } = new();
@@ -212,7 +305,7 @@ public partial class ContainersViewModel : ObservableObject
     public PointCollection MemorySparklinePoints { get; } = new();
 
     /// <summary>
-    /// Gợi ý lệnh <c>docker exec</c> cho terminal ngoài (WSL/PowerShell).
+    /// Gợi ý lệnh <c>docker exec</c> cho terminal ngoài (Docker CLI trên máy hoặc trong WSL).
     /// </summary>
     public string SuggestedExecCommandText
     {
@@ -224,8 +317,7 @@ public partial class ContainersViewModel : ObservableObject
                 return string.Empty;
             }
 
-            string target = string.IsNullOrWhiteSpace(m.Name) ? m.ShortId : m.Name;
-            return $"docker exec -it {target} sh";
+            return $"docker exec -it {DockerCliTargetRef(m)} sh";
         }
     }
 
@@ -242,9 +334,79 @@ public partial class ContainersViewModel : ObservableObject
                 return string.Empty;
             }
 
-            string target = string.IsNullOrWhiteSpace(m.Name) ? m.ShortId : m.Name;
-            return $"docker attach {target}";
+            return $"docker attach {DockerCliTargetRef(m)}";
         }
+    }
+
+    /// <summary>
+    /// Một dòng <c>wsl.exe … bash -c 'docker exec …'</c> để chạy Docker trong distro WSL (theo Cài đặt — Distro WSL).
+    /// </summary>
+    public string SuggestedWslExecCommandText
+    {
+        get
+        {
+            ContainerSummaryDto? m = SelectedContainerRow?.Model;
+            if (m is null)
+            {
+                return string.Empty;
+            }
+
+            return BuildWslBashDockerLine($"exec -it {DockerCliTargetRef(m)} sh");
+        }
+    }
+
+    /// <summary>
+    /// Một dòng <c>wsl.exe … bash -c 'docker attach …'</c> (TTY theo container đang chạy).
+    /// </summary>
+    public string SuggestedWslAttachCommandText
+    {
+        get
+        {
+            ContainerSummaryDto? m = SelectedContainerRow?.Model;
+            if (m is null)
+            {
+                return string.Empty;
+            }
+
+            return BuildWslBashDockerLine($"attach {DockerCliTargetRef(m)}");
+        }
+    }
+
+    /// <summary>
+    /// Hiện gợi ý khi container đang dừng — exec/attach thường cần container đang chạy.
+    /// </summary>
+    public bool AttachTtyStoppedHintVisible =>
+        SelectedContainerRow?.Model is ContainerSummaryDto x && !IsRunning(x.Status);
+
+    private static string DockerCliTargetRef(ContainerSummaryDto m)
+    {
+        string id = (m.Id ?? string.Empty).Trim();
+        if (id.Length > 0)
+        {
+            return id;
+        }
+
+        string name = (m.Name ?? string.Empty).Trim();
+        if (name.Length > 0)
+        {
+            return name;
+        }
+
+        return (m.ShortId ?? string.Empty).Trim();
+    }
+
+    private string BuildWslBashDockerLine(string dockerArgumentsWithoutLeadingDocker)
+    {
+        string inner = "docker " + dockerArgumentsWithoutLeadingDocker;
+        string bashC = ComposeComposePaths.BashSingleQuote(inner);
+        AppSettings cfg = _appSettingsStore.Load();
+        string? distro = string.IsNullOrWhiteSpace(cfg.WslDistribution) ? null : cfg.WslDistribution.Trim();
+        if (string.IsNullOrWhiteSpace(distro))
+        {
+            return $"wsl -- bash -c {bashC}";
+        }
+
+        return $"wsl -d {ComposeComposePaths.BashSingleQuote(distro)} -- bash -c {bashC}";
     }
 
     /// <summary>
@@ -284,11 +446,6 @@ public partial class ContainersViewModel : ObservableObject
     /// </summary>
     public IReadOnlyList<int> StatsWebSocketIntervalChoices { get; } = new[] { 500, 1000, 2000, 3000, 5000 };
 
-    /// <summary>
-    /// Giá trị cho ComboBox lọc (khớp <see cref="FilterKind"/>).
-    /// </summary>
-    public IReadOnlyList<string> FilterKinds { get; } = new[] { "Tất cả", "Đang chạy", "Đã dừng" };
-
     partial void OnSelectedContainerRowChanged(SelectableContainerRow? value)
     {
         ResetInspectDetailPanels();
@@ -300,6 +457,9 @@ public partial class ContainersViewModel : ObservableObject
 
         OnPropertyChanged(nameof(SuggestedExecCommandText));
         OnPropertyChanged(nameof(SuggestedAttachCommandText));
+        OnPropertyChanged(nameof(SuggestedWslExecCommandText));
+        OnPropertyChanged(nameof(SuggestedWslAttachCommandText));
+        OnPropertyChanged(nameof(AttachTtyStoppedHintVisible));
         RestartStatsRealtimeDelivery();
         UpdateToolbarState();
     }
@@ -359,7 +519,12 @@ public partial class ContainersViewModel : ObservableObject
         }
     }
 
-    partial void OnFilterKindChanged(string value)
+    partial void OnSelectedFilterKindOptionChanged(FilterKindOption? value)
+    {
+        ApplyFilter();
+    }
+
+    partial void OnSelectedSearchScopeOptionChanged(SearchScopeOption? value)
     {
         ApplyFilter();
     }
@@ -439,6 +604,7 @@ public partial class ContainersViewModel : ObservableObject
 
                 _allItems = list.Data?.Items ?? new List<ContainerSummaryDto>();
                 ApplyFilter();
+                RefreshStatsAlertSettingsFromStore();
                 StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
                     "Ui_Containers_Status_LoadedContainersCountFormat",
                     "Đã tải {0} container.",
@@ -496,6 +662,42 @@ public partial class ContainersViewModel : ObservableObject
         StatusMessage = UiLanguageManager.TryLocalizeCurrent(
             "Ui_Containers_Status_CopyAttachDone",
             "Đã sao chép lệnh docker attach.");
+    }
+
+    /// <summary>
+    /// Sao chép lệnh gợi ý wsl + docker exec vào clipboard.
+    /// </summary>
+    [RelayCommand]
+    private void CopySuggestedWslExecCommand()
+    {
+        string t = SuggestedWslExecCommandText;
+        if (string.IsNullOrEmpty(t))
+        {
+            return;
+        }
+
+        Clipboard.SetText(t);
+        StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Containers_Status_CopyWslExecDone",
+            "Đã sao chép lệnh WSL (docker exec).");
+    }
+
+    /// <summary>
+    /// Sao chép lệnh gợi ý wsl + docker attach vào clipboard.
+    /// </summary>
+    [RelayCommand]
+    private void CopySuggestedWslAttachCommand()
+    {
+        string t = SuggestedWslAttachCommandText;
+        if (string.IsNullOrEmpty(t))
+        {
+            return;
+        }
+
+        Clipboard.SetText(t);
+        StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Containers_Status_CopyWslAttachDone",
+            "Đã sao chép lệnh WSL (docker attach).");
     }
 
     /// <summary>
@@ -978,6 +1180,7 @@ public partial class ContainersViewModel : ObservableObject
 
         FilteredItems.Clear();
         string q = SearchText.Trim();
+        ContainerSearchScope scope = SelectedSearchScopeOption?.Scope ?? ContainerSearchScope.All;
         foreach (ContainerSummaryDto item in _allItems)
         {
             if (!MatchesFilterKind(item))
@@ -985,7 +1188,7 @@ public partial class ContainersViewModel : ObservableObject
                 continue;
             }
 
-            if (!string.IsNullOrEmpty(q) && !MatchesSearch(item, q))
+            if (!string.IsNullOrEmpty(q) && !MatchesSearch(item, q, scope))
             {
                 continue;
             }
@@ -1006,15 +1209,33 @@ public partial class ContainersViewModel : ObservableObject
 
     private bool MatchesFilterKind(ContainerSummaryDto item)
     {
-        return FilterKind switch
+        return SelectedFilterKindOption?.Kind switch
         {
-            "Đang chạy" => IsRunning(item.Status),
-            "Đã dừng" => IsStopped(item.Status),
+            ContainerListFilterKind.Running => IsRunning(item.Status),
+            ContainerListFilterKind.Stopped => IsStopped(item.Status),
             _ => true,
         };
     }
 
-    private static bool MatchesSearch(ContainerSummaryDto item, string q)
+    private static bool MatchesSearch(ContainerSummaryDto item, string q, ContainerSearchScope scope)
+    {
+        return scope switch
+        {
+            ContainerSearchScope.Name => MatchesSearchNameOrId(item, q),
+            ContainerSearchScope.Image => item.Image.Contains(q, StringComparison.OrdinalIgnoreCase),
+            ContainerSearchScope.Status => item.Status.Contains(q, StringComparison.OrdinalIgnoreCase),
+            _ => MatchesSearchAllFields(item, q),
+        };
+    }
+
+    private static bool MatchesSearchNameOrId(ContainerSummaryDto item, string q)
+    {
+        return item.Id.Contains(q, StringComparison.OrdinalIgnoreCase)
+               || item.ShortId.Contains(q, StringComparison.OrdinalIgnoreCase)
+               || item.Name.Contains(q, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool MatchesSearchAllFields(ContainerSummaryDto item, string q)
     {
         if (item.Id.Contains(q, StringComparison.OrdinalIgnoreCase)
             || item.ShortId.Contains(q, StringComparison.OrdinalIgnoreCase)
@@ -1259,7 +1480,53 @@ public partial class ContainersViewModel : ObservableObject
             _memorySparkHistory.RemoveAt(0);
         }
 
+        _lastCpuForWarn = cpu;
+        _lastMemPctForWarn = memPct;
         RebuildSparklines();
+        UpdateStatsResourceWarnings(cpu, memPct);
+    }
+
+    private void UpdateStatsResourceWarnings(double cpuPercent, double memoryPercentOfLimit)
+    {
+        if (_statsCpuWarnPercent <= 0 && _statsMemWarnPercent <= 0)
+        {
+            StatsResourceWarningVisible = false;
+            StatsResourceWarningText = string.Empty;
+            return;
+        }
+
+        bool cpuHit = _statsCpuWarnPercent > 0 && cpuPercent >= _statsCpuWarnPercent;
+        bool memHit = _statsMemWarnPercent > 0 && memoryPercentOfLimit >= _statsMemWarnPercent;
+        if (!cpuHit && !memHit)
+        {
+            StatsResourceWarningVisible = false;
+            StatsResourceWarningText = string.Empty;
+            return;
+        }
+
+        StatsResourceWarningVisible = true;
+        var parts = new List<string>(2);
+        if (cpuHit)
+        {
+            parts.Add(
+                UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_Containers_StatsWarnCpuPart",
+                    "CPU {0:F1}% (ngưỡng {1}%)",
+                    cpuPercent,
+                    _statsCpuWarnPercent));
+        }
+
+        if (memHit)
+        {
+            parts.Add(
+                UiLanguageManager.TryLocalizeFormatCurrent(
+                    "Ui_Containers_StatsWarnMemPart",
+                    "RAM {0:F1}% dùng/giới hạn (ngưỡng {1}%)",
+                    memoryPercentOfLimit,
+                    _statsMemWarnPercent));
+        }
+
+        StatsResourceWarningText = string.Join(" · ", parts);
     }
 
     private void ClearSparklines()
@@ -1268,6 +1535,10 @@ public partial class ContainersViewModel : ObservableObject
         _memorySparkHistory.Clear();
         CpuSparklinePoints.Clear();
         MemorySparklinePoints.Clear();
+        _lastCpuForWarn = 0;
+        _lastMemPctForWarn = 0;
+        StatsResourceWarningVisible = false;
+        StatsResourceWarningText = string.Empty;
     }
 
     private void RebuildSparklines()

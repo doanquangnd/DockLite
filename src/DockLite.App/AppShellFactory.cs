@@ -46,6 +46,7 @@ public sealed class AppShellFactory : IAppShellFactory
         if (Application.Current is not null)
         {
             ThemeManager.Apply(Application.Current, loaded);
+            ThemeManager.RegisterSystemThemeListener(Application.Current, store);
             UiLanguageManager.Apply(Application.Current, loaded);
         }
 
@@ -63,6 +64,7 @@ public sealed class AppShellFactory : IAppShellFactory
         IStatsStreamClient statsStream = new StatsStreamClient(httpSession);
         IDialogService dialogService = _dialogService;
         var healthCache = new WslServiceHealthCache();
+        _shellActivity.AttachHealthCache(healthCache);
         var dashboardVm = new DashboardViewModel(systemDiagnosticsApi, _notificationService, _shellActivity, _shutdownToken, healthCache);
         var settingsVm = new SettingsViewModel(store, httpSession, systemDiagnosticsApi, appBaseDirectory, loaded, _shutdownToken, healthCache, _uiDisplay, _notificationService);
         var containersLazy = new Lazy<ContainersViewModel>(() =>
@@ -72,7 +74,8 @@ public sealed class AppShellFactory : IAppShellFactory
                 _notificationService,
                 _shutdownToken,
                 _shellActivity,
-                statsStream));
+                statsStream,
+                store));
         var logsLazy = new Lazy<LogsViewModel>(() =>
             new LogsViewModel(logsScreenApi, logStream, _notificationService, _shutdownToken, _shellActivity));
         var composeLazy = new Lazy<ComposeViewModel>(() =>
@@ -82,7 +85,9 @@ public sealed class AppShellFactory : IAppShellFactory
         var networkVolumeLazy = new Lazy<NetworkVolumeViewModel>(() =>
             new NetworkVolumeViewModel(networkVolumeScreenApi, dialogService, _notificationService, _shutdownToken, _shellActivity));
         var cleanupLazy = new Lazy<CleanupViewModel>(() =>
-            new CleanupViewModel(cleanupScreenApi, dialogService, _notificationService, _shutdownToken));
+            new CleanupViewModel(cleanupScreenApi, dialogService, _notificationService, _shutdownToken, healthCache));
+        var dockerEventsLazy = new Lazy<DockerEventsViewModel>(() =>
+            new DockerEventsViewModel(apiClient, _shutdownToken));
         var appDebugLogLazy = new Lazy<AppDebugLogViewModel>(() => new AppDebugLogViewModel(_uiDisplay));
         var shellVm = new ShellViewModel(
             dashboardVm,
@@ -92,6 +97,7 @@ public sealed class AppShellFactory : IAppShellFactory
             imagesLazy,
             networkVolumeLazy,
             cleanupLazy,
+            dockerEventsLazy,
             settingsVm,
             appDebugLogLazy,
             systemDiagnosticsApi,

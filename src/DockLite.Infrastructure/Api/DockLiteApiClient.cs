@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -50,6 +52,18 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
             {
                 using var response = await _session.Client.GetAsync("api/docker/info", cancellationToken).ConfigureAwait(false);
                 return await ReadEnvelopeAsync<DockerInfoData>(response, cancellationToken).ConfigureAwait(false);
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<WslHostResourcesData>> GetWslHostResourcesAsync(CancellationToken cancellationToken = default)
+    {
+        return await HttpReadRetry.ExecuteAsync(
+            async () =>
+            {
+                using var response = await _session.Client.GetAsync("api/wsl/host-resources", cancellationToken).ConfigureAwait(false);
+                return await ReadEnvelopeAsync<WslHostResourcesData>(response, cancellationToken).ConfigureAwait(false);
             },
             cancellationToken).ConfigureAwait(false);
     }
@@ -220,27 +234,48 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
     }
 
     /// <inheritdoc />
-    public async Task<ApiResult<ComposeCommandData>> ComposeUpAsync(string projectId, CancellationToken cancellationToken = default)
+    public async Task<ApiResult<ComposeCommandData>> ComposeUpAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
     {
-        return await PostComposeCommandAsync("api/compose/up", projectId, cancellationToken).ConfigureAwait(false);
+        return await PostComposeCommandAsync("api/compose/up", projectId, composeProfiles, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<ApiResult<ComposeCommandData>> ComposeDownAsync(string projectId, CancellationToken cancellationToken = default)
+    public async Task<ApiResult<ComposeCommandData>> ComposeDownAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
     {
-        return await PostComposeCommandAsync("api/compose/down", projectId, cancellationToken).ConfigureAwait(false);
+        return await PostComposeCommandAsync("api/compose/down", projectId, composeProfiles, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<ApiResult<ComposeCommandData>> ComposePsAsync(string projectId, CancellationToken cancellationToken = default)
+    public async Task<ApiResult<ComposeCommandData>> ComposePsAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
     {
-        return await PostComposeCommandAsync("api/compose/ps", projectId, cancellationToken).ConfigureAwait(false);
+        return await PostComposeCommandAsync("api/compose/ps", projectId, composeProfiles, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public async Task<ApiResult<ComposeServiceListData>> ListComposeServicesAsync(string projectId, CancellationToken cancellationToken = default)
+    public async Task<ApiResult<ComposeCommandData>> ComposeConfigValidateAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
     {
-        var body = new ComposeIdRequest { Id = projectId };
+        return await PostComposeCommandAsync("api/compose/config/validate", projectId, composeProfiles, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ComposeServiceListData>> ListComposeServicesAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new ComposeIdRequest { Id = projectId, Profiles = composeProfiles };
         using var response = await _session.Client.PostAsJsonAsync("api/compose/config/services", body, JsonOptions, cancellationToken)
             .ConfigureAwait(false);
         return await ReadEnvelopeAsync<ComposeServiceListData>(response, cancellationToken).ConfigureAwait(false);
@@ -304,9 +339,13 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
             cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<ApiResult<ComposeCommandData>> PostComposeCommandAsync(string relativeUrl, string projectId, CancellationToken cancellationToken)
+    private async Task<ApiResult<ComposeCommandData>> PostComposeCommandAsync(
+        string relativeUrl,
+        string projectId,
+        IReadOnlyList<string>? composeProfiles,
+        CancellationToken cancellationToken)
     {
-        var body = new ComposeIdRequest { Id = projectId };
+        var body = new ComposeIdRequest { Id = projectId, Profiles = composeProfiles };
         using var response = await _session.Client.PostAsJsonAsync(relativeUrl, body, JsonOptions, cancellationToken)
             .ConfigureAwait(false);
         return await ReadEnvelopeAsync<ComposeCommandData>(response, cancellationToken).ConfigureAwait(false);
@@ -383,6 +422,45 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
     }
 
     /// <inheritdoc />
+    public async Task<(bool Success, string? ErrorMessage)> PullImageStreamAsync(
+        ImagePullRequest request,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        using var httpReq = new HttpRequestMessage(HttpMethod.Post, "api/images/pull/stream")
+        {
+            Content = JsonContent.Create(request, options: JsonOptions),
+        };
+        using HttpResponseMessage response = await _session.Client
+            .SendAsync(httpReq, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            string err = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return (false, string.IsNullOrWhiteSpace(err) ? $"HTTP {(int)response.StatusCode}" : err);
+        }
+
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream);
+        var sb = new StringBuilder();
+        var buffer = new char[4096];
+        int read;
+        while ((read = await reader.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            sb.Append(buffer, 0, read);
+            const int maxLen = 512 * 1024;
+            if (sb.Length > maxLen)
+            {
+                sb.Remove(0, sb.Length - maxLen);
+            }
+
+            progress?.Report(sb.ToString());
+        }
+
+        return (true, null);
+    }
+
+    /// <inheritdoc />
     public async Task<ApiResult<ImageLoadResultData>> UploadImageLoadAsync(Stream tarStream, CancellationToken cancellationToken = default)
     {
         using var content = new StreamContent(tarStream);
@@ -442,6 +520,36 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
         using var response = await _session.Client.PostAsJsonAsync("api/volumes/remove", request, JsonOptions, cancellationToken)
             .ConfigureAwait(false);
         return await ReadEnvelopeAsync<EmptyApiPayload>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task StreamDockerEventsAsync(IProgress<string> lineProgress, CancellationToken cancellationToken = default)
+    {
+        using var httpReq = new HttpRequestMessage(HttpMethod.Get, "api/docker/events/stream");
+        using HttpResponseMessage response = await _session.Client
+            .SendAsync(httpReq, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            string? line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+            if (line is null)
+            {
+                break;
+            }
+
+            lineProgress.Report(line);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ImageTrivyScanResultData>> ScanImageTrivyAsync(ImageTrivyScanRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await _session.Client.PostAsJsonAsync("api/images/trivy-scan", request, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+        return await ReadEnvelopeAsync<ImageTrivyScanResultData>(response, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

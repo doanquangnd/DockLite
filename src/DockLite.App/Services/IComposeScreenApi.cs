@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DockLite.Contracts.Api;
 
 namespace DockLite.App.Services;
@@ -18,13 +19,33 @@ public interface IComposeScreenApi
         ComposeProjectPatchRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<ApiResult<ComposeCommandData>> ComposeUpAsync(string projectId, CancellationToken cancellationToken = default);
+    Task<ApiResult<ComposeCommandData>> ComposeUpAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
 
-    Task<ApiResult<ComposeCommandData>> ComposeDownAsync(string projectId, CancellationToken cancellationToken = default);
+    Task<ApiResult<ComposeCommandData>> ComposeDownAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
 
-    Task<ApiResult<ComposeCommandData>> ComposePsAsync(string projectId, CancellationToken cancellationToken = default);
+    Task<ApiResult<ComposeCommandData>> ComposePsAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
 
-    Task<ApiResult<ComposeServiceListData>> ListComposeServicesAsync(string projectId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Kiểm tra cấu hình compose (docker compose config -q) trước khi up.
+    /// </summary>
+    Task<ApiResult<ComposeCommandData>> ComposeConfigValidateAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
+
+    Task<ApiResult<ComposeServiceListData>> ListComposeServicesAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default);
 
     Task<ApiResult<ComposeCommandData>> ComposeServiceStartAsync(ComposeServiceRequest request, CancellationToken cancellationToken = default);
 

@@ -12,20 +12,23 @@ import (
 )
 
 type serviceBody struct {
-	ID      string `json:"id"`
-	Service string `json:"service"`
+	ID       string   `json:"id"`
+	Service  string   `json:"service"`
+	Profiles []string `json:"profiles,omitempty"`
 }
 
 type serviceLogsBody struct {
-	ID      string `json:"id"`
-	Service string `json:"service"`
-	Tail    int    `json:"tail"`
+	ID       string   `json:"id"`
+	Service  string   `json:"service"`
+	Tail     int      `json:"tail"`
+	Profiles []string `json:"profiles,omitempty"`
 }
 
 type serviceExecBody struct {
-	ID      string `json:"id"`
-	Service string `json:"service"`
-	Command string `json:"command"`
+	ID       string   `json:"id"`
+	Service  string   `json:"service"`
+	Command  string   `json:"command"`
+	Profiles []string `json:"profiles,omitempty"`
 }
 
 func validateComposeServiceName(s string) error {
@@ -80,9 +83,14 @@ func composeConfigServices(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	var body idBody
+	var body composeIDBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	profiles, err := normalizeComposeProfiles(body.Profiles)
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 		return
 	}
 	proj, ok := resolveComposeProject(w, body.ID)
@@ -90,7 +98,7 @@ func composeConfigServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	args := dockerComposeArgs(proj, "config", "--services")
+	args := dockerComposeArgs(proj, profiles, "config", "--services")
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = proj.WslPath
 	out, err := cmd.CombinedOutput()
@@ -108,6 +116,43 @@ func composeConfigServices(w http.ResponseWriter, r *http.Request) {
 		"items":  items,
 		"output": strings.TrimSpace(output),
 	}, http.StatusOK)
+}
+
+// composeConfigValidate xử lý POST /api/compose/config/validate — `docker compose config -q` (chỉ kiểm tra, không in YAML gộp).
+func composeConfigValidate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var body composeIDBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+	profiles, err := normalizeComposeProfiles(body.Profiles)
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
+		return
+	}
+	proj, ok := resolveComposeProject(w, body.ID)
+	if !ok {
+		return
+	}
+	ctx := r.Context()
+	args := dockerComposeArgs(proj, profiles, "config", "-q")
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Dir = proj.WslPath
+	out, err := cmd.CombinedOutput()
+	output := string(out)
+	if err != nil {
+		msg := strings.TrimSpace(output)
+		if msg == "" {
+			msg = err.Error()
+		}
+		apiresponse.WriteErrorWithDetails(w, apiresponse.CodeComposeCommand, msg, output, http.StatusInternalServerError)
+		return
+	}
+	apiresponse.WriteSuccess(w, map[string]interface{}{"output": strings.TrimSpace(output)}, http.StatusOK)
 }
 
 func composeServiceStart(w http.ResponseWriter, r *http.Request) {
@@ -137,12 +182,17 @@ func composeServiceExec(w http.ResponseWriter, r *http.Request) {
 		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 		return
 	}
+	profiles, err := normalizeComposeProfiles(body.Profiles)
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
+		return
+	}
 	proj, ok := resolveComposeProject(w, body.ID)
 	if !ok {
 		return
 	}
 	svc := strings.TrimSpace(body.Service)
-	args := dockerComposeArgs(proj, append([]string{"exec", "-T", svc}, parts...)...)
+	args := dockerComposeArgs(proj, profiles, append([]string{"exec", "-T", svc}, parts...)...)
 	execComposeInDir(w, r, proj, args)
 }
 
@@ -186,6 +236,11 @@ func composeServiceLogs(w http.ResponseWriter, r *http.Request) {
 		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 		return
 	}
+	profiles, err := normalizeComposeProfiles(body.Profiles)
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
+		return
+	}
 	proj, ok := resolveComposeProject(w, body.ID)
 	if !ok {
 		return
@@ -194,7 +249,7 @@ func composeServiceLogs(w http.ResponseWriter, r *http.Request) {
 	if tail <= 0 || tail > 10000 {
 		tail = 200
 	}
-	args := dockerComposeArgs(proj, "logs", "--tail", strconv.Itoa(tail), strings.TrimSpace(body.Service))
+	args := dockerComposeArgs(proj, profiles, "logs", "--tail", strconv.Itoa(tail), strings.TrimSpace(body.Service))
 	execComposeInDir(w, r, proj, args)
 }
 
@@ -212,12 +267,17 @@ func runComposeServiceAction(w http.ResponseWriter, r *http.Request, action stri
 		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 		return
 	}
+	profiles, err := normalizeComposeProfiles(body.Profiles)
+	if err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
+		return
+	}
 	proj, ok := resolveComposeProject(w, body.ID)
 	if !ok {
 		return
 	}
 	svc := strings.TrimSpace(body.Service)
-	args := dockerComposeArgs(proj, action, svc)
+	args := dockerComposeArgs(proj, profiles, action, svc)
 	execComposeInDir(w, r, proj, args)
 }
 

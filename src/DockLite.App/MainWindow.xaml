@@ -18,6 +18,49 @@
     <Window.InputBindings>
         <KeyBinding Key="F5"
                     Command="{Binding RefreshCurrentPageCommand}" />
+        <KeyBinding Modifiers="Control"
+                    Key="F"
+                    Command="{Binding FocusPrimarySearchCommand}" />
+        <KeyBinding Modifiers="Control"
+                    Key="D1"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="1" />
+        <KeyBinding Modifiers="Control"
+                    Key="D2"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="2" />
+        <KeyBinding Modifiers="Control"
+                    Key="D3"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="3" />
+        <KeyBinding Modifiers="Control"
+                    Key="D4"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="4" />
+        <KeyBinding Modifiers="Control"
+                    Key="D5"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="5" />
+        <KeyBinding Modifiers="Control"
+                    Key="D6"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="6" />
+        <KeyBinding Modifiers="Control"
+                    Key="D7"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="7" />
+        <KeyBinding Modifiers="Control"
+                    Key="D8"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="8" />
+        <KeyBinding Modifiers="Control"
+                    Key="D9"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="9" />
+        <KeyBinding Modifiers="Control"
+                    Key="D0"
+                    Command="{Binding NavigateSidebarByIndexCommand}"
+                    CommandParameter="10" />
     </Window.InputBindings>
     <Grid>
         <Grid.RowDefinitions>
@@ -129,20 +172,36 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0"
-                           VerticalAlignment="Center"
-                           TextWrapping="Wrap"
-                           FontSize="13"
-                           Foreground="{DynamicResource ThemeBodyTextBrush}"
-                           Text="{DynamicResource Ui_Shell_ServiceDisconnectedBanner}" />
-                <Button Grid.Column="1"
-                        Margin="8,0,0,0"
-                        Padding="12,6"
-                        MinWidth="100"
-                        VerticalAlignment="Center"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        Content="{DynamicResource Ui_Shell_RetryServiceConnection}"
-                        Command="{Binding RetryServiceConnectionCommand}" />
+                <StackPanel Grid.Column="0"
+                            VerticalAlignment="Center">
+                    <TextBlock TextWrapping="Wrap"
+                               FontSize="13"
+                               Foreground="{DynamicResource ThemeBodyTextBrush}"
+                               Text="{DynamicResource Ui_Shell_ServiceDisconnectedBanner}" />
+                    <TextBlock Margin="0,6,0,0"
+                               TextWrapping="Wrap"
+                               FontSize="12"
+                               Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                               Text="{DynamicResource Ui_Shell_ServiceDisconnectedBannerHint}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+                    <Button Padding="12,6"
+                            MinWidth="120"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Content="{DynamicResource Ui_Shell_OpenSettingsConnection}"
+                            Command="{Binding OpenSettingsConnectionFromBannerCommand}" />
+                    <Button Padding="12,6"
+                            MinWidth="100"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Content="{DynamicResource Ui_Shell_RetryServiceConnection}"
+                            Command="{Binding RetryServiceConnectionCommand}" />
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -201,6 +260,9 @@
                     <Button Content="{DynamicResource Ui_Nav_Cleanup}"
                             Style="{StaticResource NavShellCleanupStyle}"
                             Command="{Binding NavigateCleanupCommand}" />
+                    <Button Content="{DynamicResource Ui_Nav_DockerEvents}"
+                            Style="{StaticResource NavShellDockerEventsStyle}"
+                            Command="{Binding NavigateDockerEventsCommand}" />
                     <Button Content="{DynamicResource Ui_Nav_AppLog}"
                             Style="{StaticResource NavShellAppLogStyle}"
                             Command="{Binding NavigateAppDebugLogCommand}" />
@@ -245,6 +307,9 @@
                         </DataTemplate>
                         <DataTemplate DataType="{x:Type vm:CleanupViewModel}">
                             <views:CleanupView />
+                        </DataTemplate>
+                        <DataTemplate DataType="{x:Type vm:DockerEventsViewModel}">
+                            <views:DockerEventsView />
                         </DataTemplate>
                         <DataTemplate DataType="{x:Type vm:AppDebugLogViewModel}">
                             <views:AppDebugLogView />

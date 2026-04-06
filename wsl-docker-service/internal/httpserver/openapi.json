@@ -32,6 +32,99 @@
         "description": "Thay thế tùy chọn cho Bearer"
       }
     },
+    "schemas": {
+      "ComposeIdBody": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ID project Compose đã lưu (UUID)"
+          },
+          "profiles": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Tùy chọn: lặp lại `docker compose --profile <tên>` (tối đa 32 profile, mỗi tên tối đa 128 ký tự)"
+          }
+        }
+      },
+      "ComposeServiceBody": {
+        "type": "object",
+        "required": ["id", "service"],
+        "properties": {
+          "id": { "type": "string" },
+          "service": { "type": "string" },
+          "profiles": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Tùy chọn: compose --profile"
+          }
+        }
+      },
+      "ComposeServiceLogsBody": {
+        "type": "object",
+        "required": ["id", "service"],
+        "properties": {
+          "id": { "type": "string" },
+          "service": { "type": "string" },
+          "tail": { "type": "integer", "default": 200, "description": "Số dòng tail (1–10000)" },
+          "profiles": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "ComposeServiceExecBody": {
+        "type": "object",
+        "required": ["id", "service", "command"],
+        "properties": {
+          "id": { "type": "string" },
+          "service": { "type": "string" },
+          "command": { "type": "string", "description": "Lệnh tách bằng khoảng trắng (exec -T)" },
+          "profiles": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "ImageTrivyScanBody": {
+        "type": "object",
+        "required": ["imageRef"],
+        "properties": {
+          "imageRef": {
+            "type": "string",
+            "description": "Tham chiếu image đầy đủ (ví dụ nginx:alpine). Cần binary `trivy` trong PATH trên WSL."
+          },
+          "format": {
+            "type": "string",
+            "description": "Định dạng đầu ra: `table` (mặc định) hoặc `json`. Giá trị khác được chuẩn hóa thành table."
+          },
+          "policyPath": {
+            "type": "string",
+            "description": "Đường dẫn tuyệt đối trong WSL tới policy Rego (tùy chọn, `trivy image --policy`). Không chứa `..` hoặc ký tự shell."
+          }
+        }
+      },
+      "WslHostResourcesDto": {
+        "type": "object",
+        "description": "Snapshot tài nguyên Linux phía tiến trình service (WSL distro): bộ nhớ, load, đĩa gốc.",
+        "properties": {
+          "memoryTotalKb": { "type": "integer", "format": "int64" },
+          "memoryAvailableKb": { "type": "integer", "format": "int64" },
+          "memoryUsedPercent": { "type": "number", "format": "double" },
+          "loadAvg1": { "type": "number", "format": "double" },
+          "loadAvg5": { "type": "number", "format": "double" },
+          "loadAvg15": { "type": "number", "format": "double" },
+          "rootMountPath": { "type": "string" },
+          "diskRootTotalBytes": { "type": "integer", "format": "int64" },
+          "diskRootAvailableBytes": { "type": "integer", "format": "int64" },
+          "diskRootUsedPercent": { "type": "number", "format": "double" },
+          "hostname": { "type": "string" },
+          "cpuCoresOnline": { "type": "integer" },
+          "collectedAtUtcIso": { "type": "string" }
+        }
+      }
+    },
     "responses": {
       "OkEnvelope": {
         "description": "Thành công (envelope JSON apiresponse)",
@@ -77,11 +170,37 @@
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
       }
     },
+    "/api/wsl/host-resources": {
+      "get": {
+        "tags": ["system"],
+        "summary": "Tài nguyên máy phía WSL (RAM, load, đĩa gốc)",
+        "description": "Đọc /proc/meminfo, /proc/loadavg và statfs trên mount gốc — không gọi Docker Engine.",
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
     "/api/docker/info": {
       "get": {
         "tags": ["docker"],
         "summary": "docker info",
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/docker/events/stream": {
+      "get": {
+        "tags": ["docker"],
+        "summary": "Luồng sự kiện Docker Engine (NDJSON)",
+        "description": "Mỗi dòng một đối tượng JSON (sự kiện từ Docker API). Content-Type: application/x-ndjson. Kết nối có thể mở lâu; client nên hủy khi không cần. Không dùng envelope apiresponse.",
+        "responses": {
+          "200": {
+            "description": "Luồng NDJSON (một sự kiện JSON mỗi dòng)",
+            "content": {
+              "application/x-ndjson": {
+                "schema": { "type": "string", "format": "binary" }
+              }
+            }
+          },
+          "503": { "description": "Docker client không khởi tạo được" }
+        }
       }
     },
     "/api/containers/top-by-memory": {
@@ -297,6 +416,14 @@
       "post": {
         "tags": ["compose"],
         "summary": "compose up",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ComposeIdBody" }
+            }
+          }
+        },
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
       }
     },
@@ -304,6 +431,14 @@
       "post": {
         "tags": ["compose"],
         "summary": "compose down",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ComposeIdBody" }
+            }
+          }
+        },
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
       }
     },
@@ -311,6 +446,14 @@
       "post": {
         "tags": ["compose"],
         "summary": "compose ps",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ComposeIdBody" }
+            }
+          }
+        },
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
       }
     },
@@ -318,6 +461,29 @@
       "post": {
         "tags": ["compose"],
         "summary": "Liệt kê service từ compose config",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ComposeIdBody" }
+            }
+          }
+        },
+        "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/compose/config/validate": {
+      "post": {
+        "tags": ["compose"],
+        "summary": "Kiểm tra compose (docker compose config -q)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ComposeIdBody" }
+            }
+          }
+        },
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
       }
     },
@@ -325,6 +491,14 @@
       "post": {
         "tags": ["compose"],
         "summary": "Start một service",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ComposeServiceBody" }
+            }
+          }
+        },
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
       }
     },
@@ -332,6 +506,14 @@
       "post": {
         "tags": ["compose"],
         "summary": "Stop một service",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ComposeServiceBody" }
+            }
+          }
+        },
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
       }
     },
@@ -339,6 +521,14 @@
       "post": {
         "tags": ["compose"],
         "summary": "Log service (một lần)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ComposeServiceLogsBody" }
+            }
+          }
+        },
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
       }
     },
@@ -346,6 +536,14 @@
       "post": {
         "tags": ["compose"],
         "summary": "Exec lệnh trong service",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ComposeServiceExecBody" }
+            }
+          }
+        },
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
       }
     },
@@ -361,6 +559,32 @@
         "tags": ["docker"],
         "summary": "docker pull",
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/images/pull/stream": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "docker pull — luồng thô (không envelope JSON)",
+        "responses": { "200": { "description": "Luồng từ Docker ImagePull" } }
+      }
+    },
+    "/api/images/trivy-scan": {
+      "post": {
+        "tags": ["docker"],
+        "summary": "Quét CVE bằng Trivy (tùy chọn)",
+        "description": "Gọi `trivy image` trên WSL. Trả envelope JSON khi thành công (data.output, data.format). 503 nếu không tìm thấy `trivy` trong PATH.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ImageTrivyScanBody" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/OkEnvelope" },
+          "503": { "description": "Không có trivy trong PATH hoặc lỗi tương đương" }
+        }
       }
     },
     "/api/images/load": {

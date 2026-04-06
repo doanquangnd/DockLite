@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using DockLite.App.Services;
 using DockLite.App.ViewModels;
@@ -19,6 +20,7 @@ internal static class PageHelpTexts
             ComposeViewModel => (R("Ui_Help_Compose_Title", "Docker Compose"), R("Ui_Help_Compose_Body", ComposeBody)),
             ImagesViewModel => (R("Ui_Help_Images_Title", "Image"), R("Ui_Help_Images_Body", ImagesBody)),
             NetworkVolumeViewModel => (R("Ui_Help_NetworkVolume_Title", "Mạng và volume"), R("Ui_Help_NetworkVolume_Body", NetworkVolumeBody)),
+            DockerEventsViewModel => (R("Ui_Help_DockerEvents_Title", "Sự kiện Docker"), R("Ui_Help_DockerEvents_Body", DockerEventsBody)),
             CleanupViewModel => (R("Ui_Help_Cleanup_Title", "Dọn dẹp"), R("Ui_Help_Cleanup_Body", CleanupBody)),
             AppDebugLogViewModel => (R("Ui_Help_AppDebugLog_Title", "Nhật ký ứng dụng"), R("Ui_Help_AppDebugLog_Body", AppDebugLogBody)),
             SettingsViewModel => (R("Ui_Help_Settings_Title", "Cài đặt"), R("Ui_Help_Settings_Body", SettingsBody)),
@@ -30,7 +32,7 @@ internal static class PageHelpTexts
     /// <summary>
     /// Liên kết mở bằng trình duyệt (OpenAPI theo base URL hiện tại, tài liệu ngoài tùy màn).
     /// </summary>
-    public static IReadOnlyList<HelpHyperlink> GetHelpLinksForPage(object? page, Uri? apiBase)
+    public static IReadOnlyList<HelpHyperlink> GetHelpLinksForPage(object? page, Uri? apiBase, string? lanSecurityMarkdownPath = null)
     {
         var list = new List<HelpHyperlink>();
         if (apiBase is not null)
@@ -56,6 +58,14 @@ internal static class PageHelpTexts
                     new HelpHyperlink(
                         UiLanguageManager.TryLocalizeCurrent("Ui_Help_Link_WslDocs", "Tài liệu WSL (Microsoft)"),
                         new Uri("https://learn.microsoft.com/windows/wsl/")));
+                if (!string.IsNullOrWhiteSpace(lanSecurityMarkdownPath) && File.Exists(lanSecurityMarkdownPath))
+                {
+                    list.Add(
+                        new HelpHyperlink(
+                            UiLanguageManager.TryLocalizeCurrent("Ui_Help_Link_LanSecurityDoc", "Bảo mật LAN (tài liệu)"),
+                            new Uri(Path.GetFullPath(lanSecurityMarkdownPath))));
+                }
+
                 break;
             case ContainersViewModel:
                 list.Add(
@@ -86,6 +96,12 @@ internal static class PageHelpTexts
                     new HelpHyperlink(
                         UiLanguageManager.TryLocalizeCurrent("Ui_Help_Link_DockerNetworkRef", "Tài liệu Docker network"),
                         new Uri("https://docs.docker.com/network/")));
+                break;
+            case DockerEventsViewModel:
+                list.Add(
+                    new HelpHyperlink(
+                        UiLanguageManager.TryLocalizeCurrent("Ui_Help_Link_DockerEventsRef", "docker events"),
+                        new Uri("https://docs.docker.com/reference/cli/docker/system/events/")));
                 break;
             case CleanupViewModel:
                 list.Add(
@@ -121,7 +137,9 @@ internal static class PageHelpTexts
         + "Start đã chọn / Stop đã chọn / Xóa đã chọn / Sao chép ID đã chọn: chỉ áp dụng cho dòng đã tick; Start chỉ khi container đang dừng, Stop khi đang chạy.\n\n"
         + "Dòng highlight (một dòng): Start, Stop, Restart, Xóa, Tải chi tiết (inspect + stats). Phần mở rộng có thể bật stats realtime: polling REST theo chu kỳ hoặc WebSocket stream (ít request hơn). Interval WebSocket (ms) có thể chọn cao hơn khi nhiều container hoặc mạng chậm để giảm tải.\n\n"
         + "Sparkline CPU và RAM %: cập nhật khi realtime bật (hoặc một điểm sau «Tải chi tiết»); trục ngang là thời gian (mới nhất bên phải), tối đa 90 điểm.\n\n"
+        + "Ngưỡng cảnh báo CPU/RAM: chỉnh trong Cài đặt — tab Hiển thị; khi vượt ngưỡng, khối cảnh báo hiện phía trên sparkline.\n\n"
         + "Top RAM / Top CPU: xem snapshot từ server (không phải danh sách đầy đủ).\n\n"
+        + "Gợi ý lệnh terminal (exec / attach): sao chép lệnh docker hoặc một dòng wsl.exe chạy docker trong distro (theo Distro WSL trong Cài đặt); dùng khi cần shell tương tác ngoài DockLite.\n\n"
         + "Phím F5 làm mới danh sách container khi đang ở màn Container.";
 
     private const string LogsBody =
@@ -147,6 +165,11 @@ internal static class PageHelpTexts
     private const string NetworkVolumeBody =
         "Liệt kê network và volume từ Docker Engine (GET /api/networks và /api/volumes). Làm mới để tải lại hai bảng.\n\n"
         + "Xóa volume: chọn một dòng trong bảng Volume, nhấn «Xóa volume», xác nhận. Volume đang được container dùng sẽ không xóa được (docker volume rm). Network: chỉ xem; tạo/xóa network qua CLI hoặc Compose.";
+
+    private const string DockerEventsBody =
+        "Luồng sự kiện từ Docker Engine (GET /api/docker/events/stream), mỗi dòng một bản ghi JSON. Dùng để gỡ lỗi khi cần xem container/image/network thay đổi theo thời gian.\n\n"
+        + "Bắt đầu: mở kết nối tới service; Dừng: hủy đọc. Luồng có thể chạy lâu; tắt khi không cần để giảm tải.\n\n"
+        + "Cần Docker Engine trong WSL phản hồi và DockLite kết nối được tới service.";
 
     private const string CleanupBody =
         "Gọi các lệnh docker prune trong WSL (container, image, volume, network, system prune). Mỗi lệnh có thể xóa dữ liệu vĩnh viễn.\n\n"

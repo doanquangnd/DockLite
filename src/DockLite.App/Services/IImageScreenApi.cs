@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using DockLite.Contracts.Api;
 
@@ -20,10 +21,20 @@ public interface IImageScreenApi
 
     Task<ApiResult<ImagePullResultData>> PullImageAsync(ImagePullRequest request, CancellationToken cancellationToken = default);
 
+    Task<(bool Success, string? ErrorMessage)> PullImageStreamAsync(
+        ImagePullRequest request,
+        IProgress<string>? progress,
+        CancellationToken cancellationToken = default);
+
     Task<ApiResult<ImageLoadResultData>> UploadImageLoadAsync(Stream tarStream, CancellationToken cancellationToken = default);
 
     Task<(bool Success, string? ErrorMessage)> DownloadImageExportAsync(
         string imageId,
         Stream destination,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// POST /api/images/trivy-scan — cần Trivy trong PATH trên WSL.
+    /// </summary>
+    Task<ApiResult<ImageTrivyScanResultData>> ScanImageTrivyAsync(ImageTrivyScanRequest request, CancellationToken cancellationToken = default);
 }

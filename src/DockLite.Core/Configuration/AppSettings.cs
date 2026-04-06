@@ -66,7 +66,7 @@ public sealed class AppSettings
     public string UiDateTimeFormat { get; set; } = "yyyy/MM/dd HH:mm:ss";
 
     /// <summary>
-    /// Chủ đề giao diện: Light hoặc Dark (áp dụng sau khi khởi động lại ứng dụng).
+    /// Chủ đề giao diện: Light, Dark hoặc System (theo Windows).
     /// </summary>
     public string UiTheme { get; set; } = "Light";
 
@@ -99,4 +99,14 @@ public sealed class AppSettings
     /// Khi bật: ghi file <c>docklite-diagnostic-*.log</c> cùng thư mục log ứng dụng — sự kiện kết nối/health tối giản, không gửi mạng, không chứa mật khẩu hay thân API.
     /// </summary>
     public bool DiagnosticLocalTelemetryEnabled { get; set; }
+
+    /// <summary>
+    /// Ngưỡng cảnh báo CPU % trên sparkline/stats container (0 = tắt). Giá trị 1–100 sau khi chuẩn hóa.
+    /// </summary>
+    public int ContainerStatsCpuWarnPercent { get; set; }
+
+    /// <summary>
+    /// Ngưỡng cảnh báo RAM % (dùng/giới hạn) trên sparkline/stats (0 = tắt). Giá trị 1–100 sau khi chuẩn hóa.
+    /// </summary>
+    public int ContainerStatsMemoryWarnPercent { get; set; }
 }

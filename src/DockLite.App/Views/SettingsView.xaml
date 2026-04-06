@@ -30,10 +30,32 @@
                 Padding="1">
             <TabControl Style="{StaticResource SettingsTabControlStyle}"
                         ItemContainerStyle="{StaticResource SettingsTabItemStyle}"
-                        Padding="10,10,10,0">
+                        Padding="10,10,10,0"
+                        SelectedIndex="{Binding SelectedTabIndex}">
             <TabItem Header="{DynamicResource Ui_Settings_Tab_Connection}">
                 <StackPanel Margin="24,22,26,26"
                             TextElement.Foreground="{DynamicResource ThemeControlForegroundBrush}">
+                        <Border Margin="0,0,0,16"
+                                Padding="12,10"
+                                Background="{DynamicResource CardBackgroundBrush}"
+                                BorderBrush="{DynamicResource CardBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <StackPanel>
+                                <TextBlock FontSize="12"
+                                           Foreground="{DynamicResource ThemeControlForegroundBrush}"
+                                           TextWrapping="Wrap"
+                                           Text="{DynamicResource Ui_Settings_Conn_LanSecurityBanner}" />
+                                <Button Margin="0,10,0,0"
+                                        Padding="12,6"
+                                        HorizontalAlignment="Left"
+                                        MinWidth="200"
+                                        Content="{DynamicResource Ui_Settings_Conn_LanSecurityOpenDoc}"
+                                        Command="{Binding OpenLanSecurityDocCommand}"
+                                        ToolTip="{DynamicResource Ui_Settings_Conn_LanSecurityOpenDocTooltip}"
+                                        Visibility="{Binding LanSecurityDocOpenEnabled, Converter={StaticResource BoolToVisibilityConverter}}" />
+                            </StackPanel>
+                        </Border>
                         <TextBlock Text="{DynamicResource Ui_Settings_Conn_BaseUrlLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
@@ -79,6 +101,23 @@
                                  Padding="8"
                                  Margin="0,0,0,8"
                                  ToolTip="{DynamicResource Ui_Settings_Conn_TimeoutTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Conn_ConfigFileTitle}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,6" />
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   FontSize="12"
+                                   Margin="0,0,0,8"
+                                   Text="{Binding SettingsFilePathDisplay}"
+                                   ToolTip="{DynamicResource Ui_Settings_Conn_ConfigFilePathTooltip}" />
+                        <Button Content="{DynamicResource Ui_Settings_Conn_ExportSettingsButton}"
+                                Padding="12,6"
+                                HorizontalAlignment="Left"
+                                MinWidth="220"
+                                Margin="0,0,0,12"
+                                Command="{Binding ExportSettingsToFileCommand}"
+                                IsEnabled="{Binding CanInteractFooter}"
+                                ToolTip="{DynamicResource Ui_Settings_Conn_ExportSettingsTooltip}" />
                         <TextBlock TextWrapping="Wrap"
                                    Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                    FontSize="12"
@@ -199,6 +238,35 @@
                                    FontSize="12"
                                    Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
                                    Margin="0,0,0,12" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Wsl_ResourcesTitle}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,8,0,6" />
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   FontSize="12"
+                                   Margin="0,0,0,8"
+                                   Text="{DynamicResource Ui_Settings_Wsl_ResourcesIntro}" />
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,8">
+                            <Button Content="{DynamicResource Ui_Settings_Wsl_ResourcesRefreshButton}"
+                                    Padding="12,6"
+                                    MinWidth="200"
+                                    VerticalAlignment="Top"
+                                    Command="{Binding RefreshWslResourcesCommand}"
+                                    IsEnabled="{Binding CanRefreshWslResources}" />
+                        </StackPanel>
+                        <TextBox Text="{Binding WslResourcesText}"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 MinHeight="100"
+                                 MaxHeight="220"
+                                 Padding="8"
+                                 FontFamily="Consolas"
+                                 FontSize="12"
+                                 Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
+                                 Margin="0,0,0,12" />
                         <TextBlock Text="{DynamicResource Ui_Settings_Wsl_PathSummaryTitle}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
@@ -350,6 +418,28 @@
                                    FontSize="12"
                                    Foreground="{DynamicResource ThemeCodeBlockForegroundBrush}"
                                    Margin="0,0,0,8" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Display_StatsAlertTitle}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,12,0,6" />
+                        <TextBlock TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   FontSize="12"
+                                   Margin="0,0,0,8"
+                                   Text="{DynamicResource Ui_Settings_Display_StatsAlertIntro}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Display_StatsCpuWarnLabel}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding ContainerStatsCpuWarnPercentText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,8"
+                                 ToolTip="{DynamicResource Ui_Settings_Display_StatsCpuWarnTooltip}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Display_StatsMemWarnLabel}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <TextBox Text="{Binding ContainerStatsMemoryWarnPercentText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8"
+                                 Margin="0,0,0,8"
+                                 ToolTip="{DynamicResource Ui_Settings_Display_StatsMemWarnTooltip}" />
                 </StackPanel>
             </TabItem>
 

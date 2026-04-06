@@ -5,8 +5,8 @@ import (
 	"strings"
 )
 
-// dockerComposeArgs tạo đối số sau lệnh `docker`: compose [-f ...] <rest...>
-func dockerComposeArgs(p Project, rest ...string) []string {
+// dockerComposeArgs tạo đối số sau lệnh `docker`: compose [-f ...] [--profile ...] <rest...>
+func dockerComposeArgs(p Project, profiles []string, rest ...string) []string {
 	args := []string{"compose"}
 	for _, f := range p.ComposeFiles {
 		f = strings.TrimSpace(f)
@@ -14,6 +14,13 @@ func dockerComposeArgs(p Project, rest ...string) []string {
 			continue
 		}
 		args = append(args, "-f", filepath.Clean(f))
+	}
+	for _, prof := range profiles {
+		prof = strings.TrimSpace(prof)
+		if prof == "" {
+			continue
+		}
+		args = append(args, "--profile", prof)
 	}
 	args = append(args, rest...)
 	return args

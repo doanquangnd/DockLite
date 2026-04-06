@@ -23,6 +23,32 @@ public sealed class AppSettingsStore : IAppSettingsStore
     }
 
     /// <inheritdoc />
+    public string SettingsFilePath => _filePath;
+
+    /// <inheritdoc />
+    public void ExportToCopy(string destinationPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
+        string full = Path.GetFullPath(destinationPath);
+        string? parent = Path.GetDirectoryName(full);
+        if (!string.IsNullOrEmpty(parent))
+        {
+            Directory.CreateDirectory(parent);
+        }
+
+        if (File.Exists(_filePath))
+        {
+            File.Copy(_filePath, full, overwrite: true);
+        }
+        else
+        {
+            AppSettings snapshot = Load();
+            string json = JsonSerializer.Serialize(snapshot, JsonOptions);
+            File.WriteAllText(full, json);
+        }
+    }
+
+    /// <inheritdoc />
     public AppSettings Load()
     {
         if (!File.Exists(_filePath))

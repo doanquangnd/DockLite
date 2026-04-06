@@ -53,6 +53,7 @@ public partial class ShellViewModel : ObservableObject
     private readonly Lazy<ImagesViewModel> _imagesLazy;
     private readonly Lazy<NetworkVolumeViewModel> _networkVolumeLazy;
     private readonly Lazy<CleanupViewModel> _cleanupLazy;
+    private readonly Lazy<DockerEventsViewModel> _dockerEventsLazy;
     private readonly Lazy<AppDebugLogViewModel> _appDebugLogLazy;
 
     public ShellViewModel(
@@ -63,6 +64,7 @@ public partial class ShellViewModel : ObservableObject
         Lazy<ImagesViewModel> images,
         Lazy<NetworkVolumeViewModel> networkVolume,
         Lazy<CleanupViewModel> cleanup,
+        Lazy<DockerEventsViewModel> dockerEvents,
         SettingsViewModel settings,
         Lazy<AppDebugLogViewModel> appDebugLog,
         ISystemDiagnosticsScreenApi systemDiagnosticsApi,
@@ -88,6 +90,7 @@ public partial class ShellViewModel : ObservableObject
         _imagesLazy = images;
         _networkVolumeLazy = networkVolume;
         _cleanupLazy = cleanup;
+        _dockerEventsLazy = dockerEvents;
         _appDebugLogLazy = appDebugLog;
         _healthCache.Changed += OnHealthCacheChanged;
         Dashboard = dashboard;
@@ -104,7 +107,12 @@ public partial class ShellViewModel : ObservableObject
         _shellActivity.SetComposePageVisible(_composeLazy.IsValueCreated && ReferenceEquals(value, _composeLazy.Value));
         _shellActivity.SetImagesPageVisible(_imagesLazy.IsValueCreated && ReferenceEquals(value, _imagesLazy.Value));
         _shellActivity.SetNetworkVolumePageVisible(_networkVolumeLazy.IsValueCreated && ReferenceEquals(value, _networkVolumeLazy.Value));
+        _shellActivity.SetDockerEventsPageVisible(_dockerEventsLazy.IsValueCreated && ReferenceEquals(value, _dockerEventsLazy.Value));
         SyncNavHighlightFromCurrentPage();
+        if (ReferenceEquals(value, Containers))
+        {
+            Containers.RefreshStatsAlertSettingsFromStore();
+        }
     }
 
     /// <summary>
@@ -146,6 +154,12 @@ public partial class ShellViewModel : ObservableObject
         if (_networkVolumeLazy.IsValueCreated && ReferenceEquals(p, _networkVolumeLazy.Value))
         {
             NavHighlightKey = "networkVolume";
+            return;
+        }
+
+        if (_dockerEventsLazy.IsValueCreated && ReferenceEquals(p, _dockerEventsLazy.Value))
+        {
+            NavHighlightKey = "dockerEvents";
             return;
         }
 
@@ -196,6 +210,8 @@ public partial class ShellViewModel : ObservableObject
     public NetworkVolumeViewModel NetworkVolume => _networkVolumeLazy.Value;
 
     public CleanupViewModel Cleanup => _cleanupLazy.Value;
+
+    public DockerEventsViewModel DockerEvents => _dockerEventsLazy.Value;
 
     public SettingsViewModel Settings { get; }
 
@@ -640,6 +656,12 @@ public partial class ShellViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void NavigateDockerEvents()
+    {
+        CurrentPage = DockerEvents;
+    }
+
+    [RelayCommand]
     private void NavigateCleanup()
     {
         CurrentPage = Cleanup;
@@ -648,6 +670,16 @@ public partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private void NavigateSettings()
     {
+        CurrentPage = Settings;
+    }
+
+    /// <summary>
+    /// Từ banner mất kết nối: mở Cài đặt tab Kết nối (checklist + kiểm tra nhanh).
+    /// </summary>
+    [RelayCommand]
+    private void OpenSettingsConnectionFromBanner()
+    {
+        Settings.SelectedTabIndex = 0;
         CurrentPage = Settings;
     }
 
@@ -716,6 +748,11 @@ public partial class ShellViewModel : ObservableObject
             return;
         }
 
+        if (_dockerEventsLazy.IsValueCreated && ReferenceEquals(p, _dockerEventsLazy.Value))
+        {
+            return;
+        }
+
         if (_appDebugLogLazy.IsValueCreated && ReferenceEquals(p, _appDebugLogLazy.Value))
         {
             AppDebugLog.RefreshCommand.Execute(null);
@@ -731,9 +768,76 @@ public partial class ShellViewModel : ObservableObject
         (string shortTitle, string body) = PageHelpTexts.GetForCurrentPage(CurrentPage);
         string titlePrefix = UiLanguageManager.TryLocalize(Application.Current, "Ui_Help_DialogTitlePrefix", "Trợ giúp — ");
         Uri? apiBase = _httpSession.Client.BaseAddress;
-        IReadOnlyList<HelpHyperlink> links = PageHelpTexts.GetHelpLinksForPage(CurrentPage, apiBase);
+        string? lanSecurityMarkdownPath = LanSecurityDocPaths.TryResolve(_appBaseDirectory);
+        IReadOnlyList<HelpHyperlink> links = PageHelpTexts.GetHelpLinksForPage(CurrentPage, apiBase, lanSecurityMarkdownPath);
         await _dialogService
             .ShowHelpAsync(body, titlePrefix + shortTitle, links.Count > 0 ? links : null)
             .ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Ctrl+1 … Ctrl+9: điều hướng sidebar theo thứ tự (Tổng quan → … → Cài đặt).
+    /// </summary>
+    [RelayCommand]
+    private async Task NavigateSidebarByIndexAsync(object? parameter)
+    {
+        int idx = ParseSidebarIndex(parameter);
+        if (idx < 1 || idx > 10)
+        {
+            return;
+        }
+
+        switch (idx)
+        {
+            case 1:
+                NavigateDashboard();
+                return;
+            case 2:
+                await NavigateContainersAsync();
+                return;
+            case 3:
+                await NavigateLogsAsync();
+                return;
+            case 4:
+                await NavigateComposeAsync();
+                return;
+            case 5:
+                await NavigateImagesAsync();
+                return;
+            case 6:
+                await NavigateNetworkVolumeAsync();
+                return;
+            case 7:
+                NavigateCleanup();
+                return;
+            case 8:
+                NavigateDockerEvents();
+                return;
+            case 9:
+                NavigateAppDebugLog();
+                return;
+            case 10:
+                NavigateSettings();
+                return;
+        }
+    }
+
+    private static int ParseSidebarIndex(object? parameter)
+    {
+        return parameter switch
+        {
+            int i => i,
+            string s when int.TryParse(s, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int n) => n,
+            _ => 0,
+        };
+    }
+
+    /// <summary>
+    /// Ctrl+F: focus ô tìm trên trang Container / Image (nếu đang mở).
+    /// </summary>
+    [RelayCommand]
+    private void FocusPrimarySearch()
+    {
+        ShellPrimarySearchFocus.Raise();
     }
 }

@@ -78,11 +78,12 @@ Mặc định service lắng nghe `127.0.0.1:17890`. Một số endpoint:
   - `DELETE /api/compose/projects/{id}`
   - `POST /api/compose/up` | `down` | `ps` body `{ "id": "..." }`
 - Image:
-  - `GET /api/images` (gọi `docker images --format '{{json .}}'`)
+  - `GET /api/images` (danh sách image; mỗi dòng có `size` và `sizeBytes`)
   - `POST /api/images/remove` body `{ "id": "..." }` (tương đương `docker rmi`)
   - `POST /api/images/prune` body `{ "allUnused": true|false }` (`docker image prune -f` hoặc `-a -f`)
   - `GET /api/images/{id}/inspect` | `GET /api/images/{id}/history` | `GET /api/images/{id}/export` (tar, không dùng envelope JSON)
   - `POST /api/images/pull` body `{ "reference": "nginx:latest" }` (log rút gọn trong envelope)
+  - `POST /api/images/pull/stream` cùng body — luồng thô từ daemon (không envelope JSON; UI ưu tiên endpoint này)
   - `POST /api/images/load` thân `application/x-tar` (tối đa 512 MiB trên server)
 - Mạng và volume (chỉ đọc):
   - `GET /api/networks` | `GET /api/volumes`

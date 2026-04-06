@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace DockLite.Contracts.Api;
@@ -12,4 +13,7 @@ public sealed class ComposeServiceRequest
 
     [JsonPropertyName("service")]
     public string Service { get; init; } = string.Empty;
+
+    [JsonPropertyName("profiles")]
+    public IReadOnlyList<string>? Profiles { get; init; }
 }

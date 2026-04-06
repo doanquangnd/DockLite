@@ -3,7 +3,7 @@ using DockLite.Contracts.Api;
 namespace DockLite.App.Services;
 
 /// <summary>
-/// Trạng thái phản hồi /api/health gần nhất (dùng bật/tắt nút Start/Stop/Restart).
+/// Bộ nhớ đệm «kết nối đầy đủ» (GET /api/health + GET /api/docker/info thành công), đồng bộ với header và Tổng quan.
 /// </summary>
 public sealed class WslServiceHealthCache
 {
@@ -37,15 +37,27 @@ public sealed class WslServiceHealthCache
     }
 
     /// <summary>
-    /// Gọi GET /api/health và cập nhật cache.
+    /// Gọi GET /api/health và GET /api/docker/info (song song), cập nhật cache chỉ khi cả hai ổn — cùng tiêu chí với <c>ShellViewModel.RefreshServiceHeaderFromApiAsync</c>.
     /// </summary>
-    /// <param name="forceNotify">True sau thao tác thủ công (start/stop WSL) để header đồng bộ kể khi healthy không đổi.</param>
+    /// <param name="forceNotify">True sau thao tác thủ công (start/stop WSL) để sidebar/banner đồng bộ kể khi trạng thái không đổi.</param>
     public async Task RefreshAsync(ISystemDiagnosticsScreenApi api, CancellationToken cancellationToken = default, bool forceNotify = false)
     {
         try
         {
-            HealthResponse? health = await api.GetHealthAsync(cancellationToken).ConfigureAwait(false);
-            SetFromHealthResponse(health, forceNotify);
+            Task<HealthResponse?> healthTask = api.GetHealthAsync(cancellationToken);
+            Task<ApiResult<DockerInfoData>> dockerTask = api.GetDockerInfoAsync(cancellationToken);
+            await Task.WhenAll(healthTask, dockerTask).ConfigureAwait(false);
+            HealthResponse? health = await healthTask.ConfigureAwait(false);
+            ApiResult<DockerInfoData> docker = await dockerTask.ConfigureAwait(false);
+            bool connectivityOk = health is not null && docker.Success && docker.Data is not null;
+            if (connectivityOk)
+            {
+                SetFromHealthResponse(health, forceNotify);
+            }
+            else
+            {
+                SetFromHealthResponse(null, forceNotify);
+            }
         }
         catch (OperationCanceledException)
         {

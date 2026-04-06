@@ -1,11 +1,14 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DockLite.App.Compose;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
 using DockLite.Core.Compose;
@@ -92,6 +95,12 @@ public partial class ComposeViewModel : ObservableObject
     [ObservableProperty]
     private string _composeFilesEditorText = string.Empty;
 
+    /// <summary>
+    /// Danh sách profile compose (phân tách bằng dấu phẩy hoặc xuống dòng), tùy chọn — map <c>--profile</c>.
+    /// </summary>
+    [ObservableProperty]
+    private string _composeProfilesText = string.Empty;
+
     [ObservableProperty]
     private string _commandOutput = string.Empty;
 
@@ -124,7 +133,34 @@ public partial class ComposeViewModel : ObservableObject
         _wslDistribution = string.IsNullOrWhiteSpace(wslDistributionFromSettings)
             ? null
             : wslDistributionFromSettings.Trim();
+        FillComposeTemplateList();
         UpdateComposeServiceUiState();
+    }
+
+    /// <summary>
+    /// Các mẫu compose khởi đầu (nginx, Laravel, Node, Java).
+    /// </summary>
+    public ObservableCollection<ComposeTemplateListEntry> ComposeTemplateList { get; } = new();
+
+    [ObservableProperty]
+    private ComposeTemplateListEntry? _selectedComposeTemplate;
+
+    private void FillComposeTemplateList()
+    {
+        ComposeTemplateList.Clear();
+        ComposeTemplateList.Add(new ComposeTemplateListEntry(
+            ComposeTemplateYaml.IdNginx,
+            UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Template_Nginx", "Nginx (tối thiểu)")));
+        ComposeTemplateList.Add(new ComposeTemplateListEntry(
+            ComposeTemplateYaml.IdLaravel,
+            UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Template_Laravel", "Laravel / PHP + MySQL (gợi ý)")));
+        ComposeTemplateList.Add(new ComposeTemplateListEntry(
+            ComposeTemplateYaml.IdNode,
+            UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Template_Node", "Node.js (gợi ý)")));
+        ComposeTemplateList.Add(new ComposeTemplateListEntry(
+            ComposeTemplateYaml.IdJava,
+            UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Template_Java", "Java JAR (gợi ý)")));
+        SelectedComposeTemplate = ComposeTemplateList.Count > 0 ? ComposeTemplateList[0] : null;
     }
 
     /// <summary>
@@ -191,7 +227,46 @@ public partial class ComposeViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Mở terminal WSL (bash đăng nhập) trong thư mục project — thay cho shell tương tác nhúng trong UI.
+    /// Ghi file compose mẫu (stack đã chọn) để bắt đầu nhanh.
+    /// </summary>
+    [RelayCommand]
+    private async Task CreateTemplateComposeFileAsync()
+    {
+        var dlg = new SaveFileDialog
+        {
+            Filter = "YAML (*.yml;*.yaml)|*.yml;*.yaml|All files (*.*)|*.*",
+            FileName = "docker-compose.yml",
+        };
+        if (dlg.ShowDialog() != true)
+        {
+            return;
+        }
+
+        string templateId = SelectedComposeTemplate?.Id ?? ComposeTemplateYaml.IdNginx;
+        string? yaml = ComposeTemplateYaml.TryGet(templateId);
+        if (yaml is null)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_TemplateUnknown",
+                "Không có mẫu compose cho lựa chọn này.");
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllTextAsync(dlg.FileName, yaml, Encoding.UTF8).ConfigureAwait(true);
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_TemplateWritten",
+                "Đã ghi file compose mẫu.");
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+    }
+
+    /// <summary>
+    /// Mở terminal WSL (bash đăng nhập) trong thư mục project.
     /// </summary>
     [RelayCommand]
     private void OpenTerminalInProjectFolder()
@@ -532,22 +607,127 @@ public partial class ComposeViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// compose up -d sau khi <c>docker compose config -q</c> thành công.
+    /// </summary>
     [RelayCommand]
     private async Task ComposeUpAsync()
     {
-        await RunComposeAsync(id => _composeApi.ComposeUpAsync(id, _shutdownToken.Token));
+        if (SelectedProject is null)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectProject", "Chọn project.");
+            return;
+        }
+
+        IsBusy = true;
+        CommandOutput = string.Empty;
+        StatusMessage = string.Empty;
+        try
+        {
+            IReadOnlyList<string>? profiles = ParseComposeProfilesFromText(ComposeProfilesText);
+            ApiResult<ComposeCommandData> validateRes = await _composeApi
+                .ComposeConfigValidateAsync(SelectedProject.Id, profiles, _shutdownToken.Token)
+                .ConfigureAwait(true);
+            if (!validateRes.Success)
+            {
+                string part = validateRes.Error?.Details ?? string.Empty;
+                string msg = validateRes.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
+                CommandOutput = ClampCommandOutput(string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg);
+                StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Compose_Status_ConfigValidateFailedBeforeUp",
+                    "Config compose không hợp lệ — đã hủy compose up.");
+                NotifyComposeFailure(msg);
+                return;
+            }
+
+            ApiResult<ComposeCommandData> upRes = await _composeApi
+                .ComposeUpAsync(SelectedProject.Id, profiles, _shutdownToken.Token)
+                .ConfigureAwait(true);
+            if (!upRes.Success)
+            {
+                string upPart = upRes.Error?.Details ?? string.Empty;
+                string upMsg = upRes.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
+                CommandOutput = ClampCommandOutput(string.IsNullOrEmpty(upPart) ? upMsg : upPart + "\n---\n" + upMsg);
+                StatusMessage = upMsg;
+                NotifyComposeFailure(upMsg);
+                return;
+            }
+
+            CommandOutput = ClampCommandOutput(upRes.Data?.Output);
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_Done", "Xong.");
+        }
+        catch (Exception ex)
+        {
+            ReportComposeNetworkError(ex);
+            CommandOutput = ClampCommandOutput(ex.ToString());
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Chỉ chạy docker compose config -q (kiểm tra file).
+    /// </summary>
+    [RelayCommand]
+    private async Task ComposeConfigValidateAsync()
+    {
+        if (SelectedProject is null)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Compose_Status_SelectProject", "Chọn project.");
+            return;
+        }
+
+        IsBusy = true;
+        CommandOutput = string.Empty;
+        try
+        {
+            IReadOnlyList<string>? profiles = ParseComposeProfilesFromText(ComposeProfilesText);
+            ApiResult<ComposeCommandData> res = await _composeApi
+                .ComposeConfigValidateAsync(SelectedProject.Id, profiles, _shutdownToken.Token)
+                .ConfigureAwait(true);
+            if (!res.Success)
+            {
+                string part = res.Error?.Details ?? string.Empty;
+                string msg = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
+                CommandOutput = ClampCommandOutput(string.IsNullOrEmpty(part) ? msg : part + "\n---\n" + msg);
+                StatusMessage = msg;
+                NotifyComposeFailure(msg);
+                return;
+            }
+
+            CommandOutput = ClampCommandOutput(res.Data?.Output);
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Compose_Status_ConfigValidateOk",
+                "Config compose hợp lệ (docker compose config -q).");
+        }
+        catch (Exception ex)
+        {
+            ReportComposeNetworkError(ex);
+            CommandOutput = ClampCommandOutput(ex.ToString());
+        }
+        finally
+        {
+            IsBusy = false;
+        }
     }
 
     [RelayCommand]
     private async Task ComposeDownAsync()
     {
-        await RunComposeAsync(id => _composeApi.ComposeDownAsync(id, _shutdownToken.Token));
+        IReadOnlyList<string>? profiles = ParseComposeProfilesFromText(ComposeProfilesText);
+        await RunComposeAsync((id, p) => _composeApi.ComposeDownAsync(id, p, _shutdownToken.Token), profiles);
     }
 
     [RelayCommand]
     private async Task ComposePsAsync()
     {
-        await RunComposeAsync(id => _composeApi.ComposePsAsync(id, _shutdownToken.Token));
+        IReadOnlyList<string>? profiles = ParseComposeProfilesFromText(ComposeProfilesText);
+        await RunComposeAsync((id, p) => _composeApi.ComposePsAsync(id, p, _shutdownToken.Token), profiles);
     }
 
     [RelayCommand]
@@ -564,8 +744,9 @@ public partial class ComposeViewModel : ObservableObject
         StatusMessage = string.Empty;
         try
         {
+            IReadOnlyList<string>? profiles = ParseComposeProfilesFromText(ComposeProfilesText);
             ApiResult<ComposeServiceListData> res = await _composeApi
-                .ListComposeServicesAsync(SelectedProject.Id, _shutdownToken.Token)
+                .ListComposeServicesAsync(SelectedProject.Id, profiles, _shutdownToken.Token)
                 .ConfigureAwait(true);
             if (!res.Success)
             {
@@ -643,11 +824,13 @@ public partial class ComposeViewModel : ObservableObject
         CommandOutput = string.Empty;
         try
         {
+            IReadOnlyList<string>? profiles = ParseComposeProfilesFromText(ComposeProfilesText);
             var req = new ComposeServiceLogsRequest
             {
                 Id = SelectedProject.Id,
                 Service = SelectedService.Trim(),
                 Tail = tail,
+                Profiles = profiles,
             };
             ApiResult<ComposeCommandData> res = await _composeApi.ComposeServiceLogsAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
@@ -704,11 +887,13 @@ public partial class ComposeViewModel : ObservableObject
         CommandOutput = string.Empty;
         try
         {
+            IReadOnlyList<string>? profiles = ParseComposeProfilesFromText(ComposeProfilesText);
             var req = new ComposeServiceExecRequest
             {
                 Id = SelectedProject.Id,
                 Service = SelectedService.Trim(),
                 Command = cmd,
+                Profiles = profiles,
             };
             ApiResult<ComposeCommandData> res = await _composeApi.ComposeServiceExecAsync(req, _shutdownToken.Token).ConfigureAwait(true);
             if (!res.Success)
@@ -754,10 +939,12 @@ public partial class ComposeViewModel : ObservableObject
         CommandOutput = string.Empty;
         try
         {
+            IReadOnlyList<string>? profiles = ParseComposeProfilesFromText(ComposeProfilesText);
             var req = new ComposeServiceRequest
             {
                 Id = SelectedProject.Id,
                 Service = SelectedService.Trim(),
+                Profiles = profiles,
             };
             ApiResult<ComposeCommandData> res = await call(req).ConfigureAwait(true);
             if (!res.Success)
@@ -785,7 +972,9 @@ public partial class ComposeViewModel : ObservableObject
         }
     }
 
-    private async Task RunComposeAsync(Func<string, Task<ApiResult<ComposeCommandData>>> call)
+    private async Task RunComposeAsync(
+        Func<string, IReadOnlyList<string>?, Task<ApiResult<ComposeCommandData>>> call,
+        IReadOnlyList<string>? profiles)
     {
         if (SelectedProject is null)
         {
@@ -797,7 +986,7 @@ public partial class ComposeViewModel : ObservableObject
         CommandOutput = string.Empty;
         try
         {
-            ApiResult<ComposeCommandData> res = await call(SelectedProject.Id).ConfigureAwait(true);
+            ApiResult<ComposeCommandData> res = await call(SelectedProject.Id, profiles).ConfigureAwait(true);
             if (!res.Success)
             {
                 string part = res.Error?.Details ?? string.Empty;
@@ -843,4 +1032,38 @@ public partial class ComposeViewModel : ObservableObject
         message = message.Trim();
         return message.Length <= max ? message : message.Substring(0, max) + "…";
     }
+
+    /// <summary>
+    /// Phân tách profile từ ô nhập (dấu phẩy, chấm phẩy hoặc xuống dòng).
+    /// </summary>
+    private static IReadOnlyList<string>? ParseComposeProfilesFromText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        string[] parts = text.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        var list = new List<string>();
+        foreach (string p in parts)
+        {
+            string t = p.Trim();
+            if (t.Length > 0)
+            {
+                list.Add(t);
+            }
+
+            if (list.Count >= 32)
+            {
+                break;
+            }
+        }
+
+        return list.Count == 0 ? null : list;
+    }
 }
+
+/// <summary>
+/// Một dòng trong ComboBox chọn mẫu compose (id nội bộ và nhãn hiển thị).
+/// </summary>
+public sealed record ComposeTemplateListEntry(string Id, string Label);

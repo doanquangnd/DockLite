@@ -19,6 +19,12 @@ public sealed class ImageSummaryDto
     [JsonPropertyName("size")]
     public string Size { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Kích thước image (byte) từ Docker; dùng gộp tổng theo ID không trùng tag.
+    /// </summary>
+    [JsonPropertyName("sizeBytes")]
+    public long SizeBytes { get; init; }
+
     [JsonPropertyName("createdAt")]
     public string? CreatedAt { get; init; }
 }

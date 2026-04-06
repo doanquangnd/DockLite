@@ -7,6 +7,7 @@ import (
 
 	"docklite-wsl/internal/compose"
 	"docklite-wsl/internal/docker"
+	"docklite-wsl/internal/hostresources"
 	"docklite-wsl/internal/ws"
 )
 
@@ -18,7 +19,9 @@ func Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/openapi.json", OpenAPI)
 	mux.HandleFunc("/api/metrics", Metrics)
 	mux.HandleFunc("/api/health", docker.Health)
+	mux.HandleFunc("/api/wsl/host-resources", hostresources.HTTPHandler)
 	mux.HandleFunc("/api/docker/info", docker.DockerInfo)
+	mux.HandleFunc("/api/docker/events/stream", docker.EventsStream)
 	mux.HandleFunc("/api/containers/top-by-memory", docker.TopContainersByMemory)
 	mux.HandleFunc("/api/containers/top-by-cpu", docker.TopContainersByCPU)
 	mux.HandleFunc("/api/containers/stats-batch", docker.ContainerStatsBatch)
@@ -26,6 +29,8 @@ func Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/containers/", docker.ContainersItem)
 	mux.HandleFunc("/ws/containers/", ws.HandleContainersPath)
 	compose.Register(mux)
+	mux.HandleFunc("/api/images/pull/stream", docker.ImagePullStream)
+	mux.HandleFunc("/api/images/trivy-scan", docker.ImageTrivyScan)
 	mux.HandleFunc("/api/images/pull", docker.ImagePull)
 	mux.HandleFunc("/api/images/load", docker.ImageLoad)
 	mux.HandleFunc("/api/images/prune", docker.ImagesPrune)

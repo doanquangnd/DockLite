@@ -14,17 +14,20 @@ public partial class CleanupViewModel : ObservableObject
     private readonly IDialogService _dialogService;
     private readonly INotificationService _notificationService;
     private readonly IAppShutdownToken _shutdownToken;
+    private readonly WslServiceHealthCache _healthCache;
 
     public CleanupViewModel(
         ICleanupScreenApi cleanupApi,
         IDialogService dialogService,
         INotificationService notificationService,
-        IAppShutdownToken shutdownToken)
+        IAppShutdownToken shutdownToken,
+        WslServiceHealthCache healthCache)
     {
         _cleanupApi = cleanupApi;
         _dialogService = dialogService;
         _notificationService = notificationService;
         _shutdownToken = shutdownToken;
+        _healthCache = healthCache;
     }
 
     [ObservableProperty]
@@ -44,6 +47,14 @@ public partial class CleanupViewModel : ObservableObject
 
     private async Task RunSystemPruneAsync(string kind, string confirmText, string title)
     {
+        if (_healthCache.LastHealthy == false)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Cleanup_Status_ServiceDisconnected",
+                "Service hoặc Docker Engine chưa sẵn sàng (cùng điều kiện với banner trên). Dùng «Thử lại» hoặc tab Cài đặt.");
+            return;
+        }
+
         if (!await _dialogService.ConfirmAsync(confirmText, title, DialogConfirmKind.Warning).ConfigureAwait(true))
         {
             return;

@@ -28,4 +28,33 @@ public sealed class AppSettingsDefaultsTests
         AppSettingsDefaults.Normalize(s);
         Assert.Equal(expected, s.HttpTimeoutSeconds);
     }
+
+    [Theory]
+    [InlineData("System", "System")]
+    [InlineData("SYSTEM", "System")]
+    [InlineData("Light", "Light")]
+    public void Normalize_maps_ui_theme_including_system(string input, string expected)
+    {
+        var s = new AppSettings { UiTheme = input };
+        AppSettingsDefaults.Normalize(s);
+        Assert.Equal(expected, s.UiTheme);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(50, 50)]
+    [InlineData(100, 100)]
+    [InlineData(-1, 0)]
+    [InlineData(101, 0)]
+    public void Normalize_clamps_container_stats_warn_percent(int input, int expected)
+    {
+        var s = new AppSettings
+        {
+            ContainerStatsCpuWarnPercent = input,
+            ContainerStatsMemoryWarnPercent = input,
+        };
+        AppSettingsDefaults.Normalize(s);
+        Assert.Equal(expected, s.ContainerStatsCpuWarnPercent);
+        Assert.Equal(expected, s.ContainerStatsMemoryWarnPercent);
+    }
 }

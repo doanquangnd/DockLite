@@ -447,6 +447,15 @@
             </DataTrigger>
         </Style.Triggers>
     </Style>
+    <Style x:Key="NavShellDockerEventsStyle" TargetType="Button" BasedOn="{StaticResource NavRailButtonStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding NavHighlightKey}" Value="dockerEvents">
+                <Setter Property="Background" Value="{StaticResource NavRailActiveBackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                <Setter Property="BorderThickness" Value="3,0,0,0" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
     <Style x:Key="NavShellAppLogStyle" TargetType="Button" BasedOn="{StaticResource NavRailButtonStyle}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding NavHighlightKey}" Value="appLog">

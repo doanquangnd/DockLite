@@ -18,6 +18,13 @@ public sealed class WpfToastNotificationService : INotificationService
     private Border? _currentToast;
     private DispatcherTimer? _closeTimer;
 
+    /// <summary>Gom nhiều toast cảnh báo giống nhau (lỗi mạng lặp) trong cửa sổ thời gian ngắn.</summary>
+    private string? _lastWarningDedupTitle;
+    private string? _lastWarningDedupMessage;
+    private DateTime _lastWarningDedupUtc;
+    private int _warningDedupRepeat = 1;
+    private static readonly TimeSpan WarningDedupWindow = TimeSpan.FromSeconds(3.5);
+
     public WpfToastNotificationService(MainWindowAccessor mainWindowHost)
     {
         _mainWindowHost = mainWindowHost;
@@ -61,8 +68,18 @@ public sealed class WpfToastNotificationService : INotificationService
 
                 lock (_sync)
                 {
+                    string displayMessage = message;
+                    if (kind == NotificationDisplayKind.Warning)
+                    {
+                        displayMessage = ApplyWarningDedup(title, message);
+                    }
+                    else
+                    {
+                        ResetWarningDedup();
+                    }
+
                     RemoveToast(host, _currentToast, immediate: true);
-                    Border border = BuildToastBorder(title, message, kind, host);
+                    Border border = BuildToastBorder(title, displayMessage, kind, host);
                     _currentToast = border;
                     host.Children.Add(border);
                     UpdateToastMaxWidth(host, border);
@@ -72,7 +89,7 @@ public sealed class WpfToastNotificationService : INotificationService
 
                     AnimateToastIn(border);
 
-                    int seconds = message.Length > 1200 ? 14 : (message.Length > 400 ? 10 : 5);
+                    int seconds = displayMessage.Length > 1200 ? 14 : (displayMessage.Length > 400 ? 10 : 5);
                     _closeTimer?.Stop();
                     _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(seconds) };
                     _closeTimer.Tick += (_, _) =>
@@ -89,6 +106,38 @@ public sealed class WpfToastNotificationService : INotificationService
             },
             DispatcherPriority.Normal,
             cancellationToken).Task;
+    }
+
+    private string ApplyWarningDedup(string title, string message)
+    {
+        string t = title.Trim();
+        string m = message.Trim();
+        DateTime now = DateTime.UtcNow;
+        if (_lastWarningDedupTitle is not null
+            && string.Equals(_lastWarningDedupTitle, t, StringComparison.Ordinal)
+            && string.Equals(_lastWarningDedupMessage, m, StringComparison.Ordinal)
+            && (now - _lastWarningDedupUtc) <= WarningDedupWindow)
+        {
+            _warningDedupRepeat++;
+        }
+        else
+        {
+            _warningDedupRepeat = 1;
+        }
+
+        _lastWarningDedupTitle = t;
+        _lastWarningDedupMessage = m;
+        _lastWarningDedupUtc = now;
+        return _warningDedupRepeat > 1
+            ? m + Environment.NewLine + "(x" + _warningDedupRepeat.ToString(System.Globalization.CultureInfo.InvariantCulture) + ")"
+            : m;
+    }
+
+    private void ResetWarningDedup()
+    {
+        _lastWarningDedupTitle = null;
+        _lastWarningDedupMessage = null;
+        _warningDedupRepeat = 1;
     }
 
     private Panel? ResolveToastPanel()

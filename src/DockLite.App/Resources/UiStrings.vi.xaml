@@ -20,10 +20,13 @@
     <sys:String x:Key="Ui_Nav_Images">Image</sys:String>
     <sys:String x:Key="Ui_Nav_NetworkVolume">Mạng và volume</sys:String>
     <sys:String x:Key="Ui_Nav_Cleanup">Dọn dẹp</sys:String>
+    <sys:String x:Key="Ui_Nav_DockerEvents">Sự kiện Docker</sys:String>
     <sys:String x:Key="Ui_Nav_AppLog">Nhật ký ứng dụng</sys:String>
     <sys:String x:Key="Ui_Nav_Settings">Cài đặt</sys:String>
 
     <sys:String x:Key="Ui_Shell_ServiceDisconnectedBanner">Mất kết nối tới service DockLite. Kiểm tra WSL hoặc địa chỉ trong Cài đặt.</sys:String>
+    <sys:String x:Key="Ui_Shell_ServiceDisconnectedBannerHint" xml:space="preserve">Dùng «Cài đặt (Kết nối)» để xem checklist và nút «Chạy kiểm tra API + WSL»; «Thử lại» gọi lại health + Docker như thanh trên.</sys:String>
+    <sys:String x:Key="Ui_Shell_OpenSettingsConnection">Cài đặt (Kết nối)</sys:String>
     <sys:String x:Key="Ui_Shell_RetryServiceConnection">Thử lại</sys:String>
 
     <sys:String x:Key="Ui_Dashboard_ServiceHealth_NotChecked">Chưa kiểm tra</sys:String>
@@ -59,14 +62,64 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Toast_ApiErrorTitle">Lỗi API hoặc mạng</sys:String>
     <sys:String x:Key="Ui_Toast_PostSaveHealthTitle">Cài đặt</sys:String>
     <sys:String x:Key="Ui_Settings_Status_PostSaveHealthFail">Không nhận được /api/health sau khi Lưu. Kiểm tra service WSL hoặc dùng «Kiểm tra kết nối».</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_PostSaveConnectivityFail">Sau khi Lưu: chưa đạt kết nối đầy đủ (health + Docker Engine). Kiểm tra service WSL hoặc «Kiểm tra kết nối».</sys:String>
     <sys:String x:Key="Ui_Containers_EmptyListHint" xml:space="preserve">Chưa có container (hoặc chưa tải). Dùng nút «Làm mới» phía trên hoặc phím F5.</sys:String>
     <sys:String x:Key="Ui_Containers_FilterEmptyHint">Không có dòng nào khớp lọc hoặc ô tìm — đổi bộ lọc hoặc xóa từ khóa tìm.</sys:String>
+    <sys:String x:Key="Ui_Containers_PageTitle">Container</sys:String>
+    <sys:String x:Key="Ui_Containers_Filter_All">Tất cả</sys:String>
+    <sys:String x:Key="Ui_Containers_Filter_Running">Đang chạy</sys:String>
+    <sys:String x:Key="Ui_Containers_Filter_Stopped">Đã dừng</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScope_All">Mọi trường</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScope_Name">Tên / ID</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScope_Image">Image</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScope_Status">Trạng thái</sys:String>
+    <sys:String x:Key="Ui_Containers_FilterLabel">Lọc:</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchScopeLabel">Phạm vi tìm:</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchLabel">Tìm:</sys:String>
+    <sys:String x:Key="Ui_Containers_SearchTextTooltip" xml:space="preserve">Theo «Phạm vi tìm»: Mọi trường — tên, image, ID, trạng thái, cổng, lệnh, nhãn (khóa hoặc giá trị). Tên/ID — chỉ tên và ID. Image — chỉ image. Trạng thái — chỉ chuỗi trạng thái.</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Select">Chọn</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Id">ID</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Name">Tên</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Image">Image</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Status">Trạng thái</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Ports">Cổng</sys:String>
+    <sys:String x:Key="Ui_Containers_Grid_Labels">Nhãn</sys:String>
+    <sys:String x:Key="Ui_Containers_BatchOperationsHint" xml:space="preserve">Thao tác hàng loạt: Start / Stop / Xóa gọi API lần lượt từng container đã chọn (không song song); đóng hộp thoại xác nhận để hủy trước khi gửi lệnh. Stats batch: cần chọn từ 2 đến 32 container; nếu chọn hơn 32 thì chỉ lấy tối đa 32 id đầu. Timeout mỗi lệnh theo Cài đặt (HTTP).</sys:String>
+    <sys:String x:Key="Ui_Containers_BatchStatsButton">Stats batch (chọn)</sys:String>
+    <sys:String x:Key="Ui_Containers_BatchStatsTooltip" xml:space="preserve">POST /api/containers/stats-batch — chọn từ 2 đến 32 hàng; nếu chọn hơn 32 thì chỉ dùng 32 id đầu. Hiển thị CPU/RAM trong ô trạng thái.</sys:String>
     <sys:String x:Key="Ui_Images_EmptyListHint" xml:space="preserve">Chưa có image (hoặc chưa tải). Dùng «Làm mới» hoặc phím F5.</sys:String>
-    <sys:String x:Key="Ui_Images_FilterEmptyHint">Không có image nào khớp ô tìm — thử bỏ bớt ký tự.</sys:String>
+    <sys:String x:Key="Ui_Images_FilterEmptyHint">Không có image nào khớp lọc hoặc ô tìm — đổi bộ lọc hoặc xóa từ khóa.</sys:String>
+    <sys:String x:Key="Ui_Images_PageTitle">Image</sys:String>
+    <sys:String x:Key="Ui_Images_Filter_All">Tất cả</sys:String>
+    <sys:String x:Key="Ui_Images_Filter_Tagged">Có tag</sys:String>
+    <sys:String x:Key="Ui_Images_Filter_Dangling">Dangling</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScope_All">Mọi trường</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScope_Repository">Repository</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScope_Tag">Tag</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScope_Id">Id</sys:String>
+    <sys:String x:Key="Ui_Images_FilterLabel">Lọc:</sys:String>
+    <sys:String x:Key="Ui_Images_SearchScopeLabel">Phạm vi tìm:</sys:String>
+    <sys:String x:Key="Ui_Images_SearchLabel">Tìm:</sys:String>
+    <sys:String x:Key="Ui_Images_RefreshButton">Làm mới</sys:String>
+    <sys:String x:Key="Ui_Images_SearchTextTooltip" xml:space="preserve">Theo «Phạm vi tìm»: Mọi trường — repository, tag, id, kích thước, thời điểm tạo (chuỗi). Repository / Tag / Id — chỉ cột tương ứng. Lọc «Dangling»: các dòng repository «none» (image không tag theo API).</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Select">Chọn</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Repository">Repository</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Tag">Tag</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Id">Id</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Size">Kích thước</sys:String>
+    <sys:String x:Key="Ui_Images_Grid_Created">Tạo</sys:String>
+    <sys:String x:Key="Ui_Images_Summary_Empty">Chưa có dữ liệu image.</sys:String>
+    <sys:String x:Key="Ui_Images_Summary_LineFormat">Danh sách sau lọc: {0} dòng, {1} image ID — ước tổng {2} (gộp theo ID, không trùng tag).</sys:String>
+    <sys:String x:Key="Ui_Images_Summary_TotalUnknown">—</sys:String>
+    <sys:String x:Key="Ui_Images_PruneHintFormat">Toàn máy: {0} image dangling (ước ~{1}). Prune dangling chỉ xóa dangling; Prune -a xóa mọi image không được container dùng — đọc kỹ trước khi nhấn.</sys:String>
+    <sys:String x:Key="Ui_Images_PruneDanglingConfirmFormat">Chạy docker image prune (dangling)? Đếm được {0} dòng dangling trong danh sách, ước ~{1} có thể được reclaim.</sys:String>
+    <sys:String x:Key="Ui_Images_PruneConfirmTitle">Xác nhận prune image</sys:String>
+    <sys:String x:Key="Ui_Images_PullProgressStarting">Đang kéo image…</sys:String>
     <sys:String x:Key="Ui_Compose_EmptyProjectsHint" xml:space="preserve">Chưa có project Compose. Thêm thư mục project phía trên hoặc «Làm mới danh sách» / F5.</sys:String>
     <sys:String x:Key="Ui_Logs_EmptyContainerOptionsHint" xml:space="preserve">Chưa có container trong danh sách. Nhấn «Tải container» hoặc F5.</sys:String>
     <sys:String x:Key="Ui_NetVol_EmptyNetworksHint">Không có network (hoặc chưa tải). «Làm mới» hoặc F5.</sys:String>
     <sys:String x:Key="Ui_NetVol_EmptyVolumesHint">Không có volume (hoặc chưa tải). «Làm mới» hoặc F5.</sys:String>
+    <sys:String x:Key="Ui_Cleanup_Status_ServiceDisconnected" xml:space="preserve">Service hoặc Docker Engine chưa sẵn sàng (cùng điều kiện với banner trên). Dùng «Thử lại» hoặc tab Cài đặt.</sys:String>
 
     <sys:String x:Key="Ui_Tooltip_Header_Start">Khởi động service Go trong WSL (run-server.sh); thời gian chờ /api/health theo Cài đặt — tab Chờ và health.</sys:String>
     <sys:String x:Key="Ui_Tooltip_Header_Stop">Dừng tiến trình docklite-wsl (scripts/stop-server.sh).</sys:String>
@@ -86,7 +139,8 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Display_ThemeLabel">Chủ đề giao diện</sys:String>
     <sys:String x:Key="Ui_Settings_Theme_Light">Sáng</sys:String>
     <sys:String x:Key="Ui_Settings_Theme_Dark">Tối</sys:String>
-    <sys:String x:Key="Ui_Settings_Display_ThemeTooltip">Sáng (Light) hoặc Tối (Dark). Lưu để ghi file và áp dụng từ điển tài nguyên; nếu một số màn hình chưa đổi, khởi động lại ứng dụng.</sys:String>
+    <sys:String x:Key="Ui_Settings_Theme_System">Theo Windows</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_ThemeTooltip">Sáng, Tối hoặc Theo Windows (dùng chế độ sáng/tối ứng dụng của Windows). Lưu để ghi file và áp dụng từ điển tài nguyên; nếu một số màn hình chưa đổi, khởi động lại ứng dụng.</sys:String>
     <sys:String x:Key="Ui_Settings_Display_TimeZoneLabel">Múi giờ hiển thị (ứng dụng)</sys:String>
     <sys:String x:Key="Ui_Settings_Display_TimeZoneTooltip">Chọn «Giờ máy» để dùng múi giờ Windows hiện tại.</sys:String>
     <sys:String x:Key="Ui_Settings_Display_DateFormatLabel">Định dạng ngày giờ (chuỗi .NET)</sys:String>
@@ -94,7 +148,16 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Display_PresetsLabel">Gợi ý nhanh</sys:String>
     <sys:String x:Key="Ui_Settings_Display_PreviewLabel">Xem trước</sys:String>
     <sys:String x:Key="Ui_Settings_Display_DatePreviewPrefix">UTC hiện tại → </sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsAlertTitle">Cảnh báo tài nguyên (màn Container)</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsAlertIntro">Khi bật stats realtime cho một container, nếu CPU hoặc RAM % (dùng/giới hạn) vượt ngưỡng thì hiển thị khối cảnh báo phía trên sparkline. Đặt 0 để tắt từng loại.</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsCpuWarnLabel">Ngưỡng CPU % (0 = tắt)</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsCpuWarnTooltip">Số nguyên 0–100. So với % CPU trong snapshot stats.</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsMemWarnLabel">Ngưỡng RAM % (0 = tắt)</sys:String>
+    <sys:String x:Key="Ui_Settings_Display_StatsMemWarnTooltip">Số nguyên 0–100. RAM % = dùng / giới hạn từ stats; nếu giới hạn = 0 thì không áp dụng cảnh báo RAM.</sys:String>
 
+    <sys:String x:Key="Ui_Settings_Conn_LanSecurityBanner">Kết nối HTTP tới service không dùng TLS: trên LAN hoặc khi dùng IP, lưu lượng có thể bị nghe lén. Nếu trên WSL bật DOCKLITE_API_TOKEN, nhập cùng giá trị ở ô Token API bên dưới. Chi tiết: tài liệu «Bảo mật LAN» trong repo (docs/docklite-lan-security.md) hoặc nút mở tệp khi có trong thư mục source.</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_LanSecurityOpenDoc">Mở tài liệu bảo mật LAN…</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_LanSecurityOpenDocTooltip">Mở tệp docklite-lan-security.md bằng ứng dụng mặc định (khi tệp có trong cây repo so với thư mục chạy).</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_BaseUrlLabel">Địa chỉ base URL service (WSL)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_BaseUrlTooltip">Mặc định http://127.0.0.1:17890/. Nếu Windows không kết nối được dù service đã chạy trong WSL, dùng nút bên phải để điền IP WSL.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApplyWslIp">Điền IP WSL</sys:String>
@@ -102,11 +165,15 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_TimeoutTooltip">Áp dụng cho mọi lệnh gọi REST (compose, prune có thể chạy lâu).</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_CheckHint">Kiểm tra nhanh API + WSL (uname, wslpath) dùng khối bên dưới; hoặc nút «Kiểm tra kết nối» ở hàng dưới cùng (health + Docker).</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckTitle">Kiểm tra môi trường (API + WSL)</sys:String>
-    <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckIntro">Một lần chạy: health, Docker Engine, uname trong distro, wslpath cho các đường dẫn đã nhập (giống tab WSL — chưa Lưu vẫn dùng giá trị ô).</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckIntro">Một lần chạy: checklist khôi phục kết nối, health, Docker Engine, uname trong distro, wslpath cho các đường dẫn đã nhập (giống tab WSL — chưa Lưu vẫn dùng giá trị ô).</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckButton">Chạy kiểm tra API + WSL</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckTooltip">Gọi cùng lệnh «Chẩn đoán nhanh» ở tab WSL; kết quả hiển thị ở đây và tab đó.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApiTokenLabel">Token API (tùy chọn, Bearer)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApiTokenTooltip">Nếu trên WSL đặt biến DOCKLITE_API_TOKEN cho docklite-wsl, nhập cùng giá trị ở đây rồi Lưu. Để trống khi không bật xác thực. Lưu trong file cài đặt cục bộ; không ghi nhật ký chẩn đoán.</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ConfigFileTitle">File cài đặt cục bộ (sao lưu)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ConfigFilePathTooltip">Đường dẫn tuyệt đối tới settings.json trong %LocalAppData%\DockLite\</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ExportSettingsButton">Sao lưu file cài đặt ra…</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ExportSettingsTooltip">Chọn nơi lưu bản sao JSON (cùng định dạng với file cài đặt). Hữu ích trước khi đổi máy hoặc thử cấu hình.</sys:String>
 
     <sys:String x:Key="Ui_Settings_Wsl_AutoStartLabel">Tự khởi động service trong WSL</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_AutoStartCheck">Khi mở DockLite, nếu chưa có phản hồi thì chạy wsl-docker-service (bash scripts/run-server.sh, không cần chmod +x file .sh)</sys:String>
@@ -124,12 +191,23 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_SyncVersionEnforce">Chỉ đồng bộ khi version nguồn (file VERSION trên Windows) lớn hơn hoặc bằng version trên đích (WSL); cần file VERSION một dòng (ví dụ 0.1.0) ở thư mục nguồn.</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_SyncButton">Đồng bộ mã nguồn vào WSL</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_SyncButtonTooltip">Chạy rsync hoặc cp trong WSL từ «Nguồn trong Windows» (wslpath) tới «Đích trong WSL». Dùng ô hiện tại (không bắt buộc Lưu trước).</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_ResourcesTitle">Tài nguyên máy phía WSL (qua API)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_ResourcesIntro" xml:space="preserve">Đọc từ distro chạy wsl-docker-service: RAM, load trung bình, đĩa gốc. Cần service đang chạy và địa chỉ base URL đúng (tab Kết nối).</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_ResourcesRefreshButton">Làm mới tài nguyên</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_StatusOk">Đã cập nhật tài nguyên phía WSL.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_StatusError">Không đọc được tài nguyên WSL.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineHostname">Tên máy: {0}</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineCpu">CPU (số lõi process): {0}</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineMemory">RAM: {0} / {1} đã dùng (ước {2:F1}%)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineLoad">Load trung bình (1 / 5 / 15 phút): {0:F2} / {1:F2} / {2:F2}</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineDisk">Ổ đĩa gốc ({0}): còn {1} / tổng {2} (ước {3:F1}% đã dùng)</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_Resources_LineTime">Thu thập (UTC): {0}</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_UnameTitle">Thử distro (uname -a)</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_UnameButton">Chạy uname -a trong distro</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_PathSummaryTitle">Tóm tắt đường dẫn WSL hiệu dụng</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_PathSummaryRefresh">Cập nhật tóm tắt</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_QuickDiagTitle">Kiểm tra nhanh (API + wslpath)</sys:String>
-    <sys:String x:Key="Ui_Settings_Wsl_QuickDiagIntro">Gọi health và Docker info theo ô Địa chỉ base URL (tab Cài đặt chung), rồi thử wslpath cho các ô Thư mục dịch vụ, Nguồn đồng bộ và hiển thị đích Unix; không bắt buộc Lưu trước.</sys:String>
+    <sys:String x:Key="Ui_Settings_Wsl_QuickDiagIntro">Kèm checklist khôi phục kết nối; gọi health và Docker info theo ô Địa chỉ base URL (tab Kết nối), rồi thử wslpath cho các ô Thư mục dịch vụ, Nguồn đồng bộ và đích Unix; không bắt buộc Lưu trước.</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_QuickDiagButton">Chạy kiểm tra nhanh</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_QuickDiagTooltip">Health + Docker + wslpath cho giá trị ô hiện tại (tab WSL và URL ở tab trên).</sys:String>
     <sys:String x:Key="Ui_Settings_Wsl_WslpathTitle">Thử wslpath (Windows → Unix)</sys:String>
@@ -165,6 +243,14 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Status_QuickDiagDone">Đã chạy kiểm tra nhanh (xem khối kết quả bên dưới).</sys:String>
     <sys:String x:Key="Ui_Settings_Status_CancelledAppExit">Đã hủy (đóng ứng dụng).</sys:String>
     <sys:String x:Key="Ui_Settings_Status_QuickDiagError">Kiểm tra nhanh gặp lỗi (xem khối kết quả).</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ExportSettingsDone">Đã sao lưu file cài đặt.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ExportSettingsErrorFormat">Không sao lưu được: {0}</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistTitle">=== Checklist khi mất kết nối ===</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine1">1. Địa chỉ: base URL đúng (tab này — thử «Điền IP WSL» nếu 127.0.0.1 không ổn trên WSL2).</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine2">2. Token API: nếu service dùng DOCKLITE_API_TOKEN, ô token khớp rồi Lưu.</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine3">3. Service Go + Docker Engine: khối «API» bên dưới phải có health và Docker (cùng điều kiện với thanh trên header).</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine4">4. WSL: distro đúng; uname và wslpath ở các khối dưới.</sys:String>
+    <sys:String x:Key="Ui_Settings_Diag_ChecklistLine5">5. Docker Engine: trong WSL (distro chạy service), daemon Docker phải sẵn sàng (Docker Desktop bật hoặc dockerd/socket đã cấu hình); có thể thử «docker info» trong distro đó.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_WslIpFilledFormat">Đã điền địa chỉ theo IP WSL ({0}). Nhấn Lưu để áp dụng cho toàn bộ ứng dụng.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_WslIpLookupFailed">Không lấy được IP WSL (wsl hostname -I). Kiểm tra WSL đã bật; nếu có nhiều distro, điền tên Distro WSL rồi thử lại.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_ValidationHttpTimeout">Timeout phải là số nguyên từ 30 đến 600 giây.</sys:String>
@@ -173,6 +259,8 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Status_ValidationHealthProbe">Timeout một lần gọi /api/health: từ 1 đến 60 giây.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_ValidationHealthPollMs">Khoảng cách poll health: từ 100 đến 5000 ms.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_ValidationDateFormatEmpty">Định dạng ngày giờ không được để trống.</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationStatsCpuWarn">Ngưỡng cảnh báo CPU phải là số nguyên từ 0 đến 100 (0 = tắt).</sys:String>
+    <sys:String x:Key="Ui_Settings_Status_ValidationStatsMemWarn">Ngưỡng cảnh báo RAM phải là số nguyên từ 0 đến 100 (0 = tắt).</sys:String>
     <sys:String x:Key="Ui_Settings_Status_SelectTheme">Chọn chủ đề (Sáng hoặc Tối).</sys:String>
     <sys:String x:Key="Ui_Settings_Status_SelectLanguage">Chọn ngôn ngữ giao diện.</sys:String>
     <sys:String x:Key="Ui_Settings_Status_SavedApply">Đã lưu. Địa chỉ, timeout, hiển thị thời gian, chủ đề, ngôn ngữ vỏ cửa sổ và chờ health đã áp dụng.</sys:String>
@@ -237,11 +325,59 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Compose_Status_EnterExecCommand">Nhập lệnh (ví dụ: uname -a).</sys:String>
     <sys:String x:Key="Ui_Compose_Status_ExecRan">Đã chạy exec (không TTY).</sys:String>
     <sys:String x:Key="Ui_Compose_Status_Done">Xong.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_ConfigValidateOk">Config compose hợp lệ (docker compose config -q).</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_ConfigValidateFailedBeforeUp">Config compose không hợp lệ — đã hủy compose up.</sys:String>
+    <sys:String x:Key="Ui_Compose_Button_ConfigValidate">Kiểm tra config (-q)</sys:String>
+    <sys:String x:Key="Ui_Compose_Tooltip_ComposeUp" xml:space="preserve">Trước tiên chạy docker compose config -q; chỉ khi hợp lệ mới compose up -d.</sys:String>
     <sys:String x:Key="Ui_Compose_HintComposeFilesNewProject" xml:space="preserve">File compose tùy chọn (mỗi dòng một đường dẫn tương đối trong thư mục project; tối đa 16 file -f, ví dụ docker-compose.yml rồi compose.override.yml). Để trống: Docker tự tìm compose mặc định.</sys:String>
     <sys:String x:Key="Ui_Compose_HintComposeFilesSelected" xml:space="preserve">Mỗi dòng một file tương đối trong thư mục project (tối đa 16 file -f). Để trống và Lưu: dùng lại compose mặc định trong thư mục.</sys:String>
+    <sys:String x:Key="Ui_Compose_ProfilesLabel">Profile compose (tùy chọn)</sys:String>
+    <sys:String x:Key="Ui_Compose_ProfilesHint">Danh sách profile cách nhau bằng dấu phẩy hoặc xuống dòng (docker compose --profile). Áp dụng cho up/down/ps, kiểm tra config, thao tác service và logs.</sys:String>
+    <sys:String x:Key="Ui_Compose_ProfilesTooltip">Ví dụ: dev, staging</sys:String>
+    <sys:String x:Key="Ui_Compose_TemplateLabel">Mẫu compose</sys:String>
+    <sys:String x:Key="Ui_Compose_Template_Nginx">Nginx (tối thiểu)</sys:String>
+    <sys:String x:Key="Ui_Compose_Template_Laravel">Laravel / PHP + MySQL (gợi ý)</sys:String>
+    <sys:String x:Key="Ui_Compose_Template_Node">Node.js (gợi ý)</sys:String>
+    <sys:String x:Key="Ui_Compose_Template_Java">Java JAR (gợi ý)</sys:String>
+    <sys:String x:Key="Ui_Compose_CreateTemplateButton">Lưu mẫu…</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_TemplateWritten">Đã ghi file compose mẫu.</sys:String>
+    <sys:String x:Key="Ui_Compose_Status_TemplateUnknown">Không có mẫu compose cho lựa chọn này.</sys:String>
 
+    <sys:String x:Key="Ui_DockerEvents_PageTitle">Sự kiện Docker</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Start">Bắt đầu</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Stop">Dừng</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Clear">Xóa màn hình</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Hint">Luồng GET /api/docker/events/stream (NDJSON). Dừng khi không cần gỡ lỗi. Lưu lượng lớn có thể tải giao diện.</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Status_Streaming">Đang nhận sự kiện…</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Status_Ended">Luồng kết thúc.</sys:String>
+    <sys:String x:Key="Ui_DockerEvents_Status_Stopped">Đã dừng.</sys:String>
+
+    <sys:String x:Key="Ui_Images_TrivyTitle">Quét CVE (Trivy, tùy chọn)</sys:String>
+    <sys:String x:Key="Ui_Images_TrivyHint">Cần cài trivy trong PATH trên WSL. Nhập đủ image reference (ví dụ nginx:alpine). Có thể chọn định dạng table/json và (tùy chọn) đường dẫn policy Rego tuyệt đối trên WSL.</sys:String>
+    <sys:String x:Key="Ui_Images_TrivyScanButton">Quét bằng Trivy</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_Status_NeedRef">Nhập image reference (ví dụ nginx:alpine).</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_Status_Done">Quét Trivy xong (xem khối kết quả).</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_FormatLabel">Định dạng</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_Format_Table">Bảng (table)</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_Format_Json">JSON</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_PolicyPathLabel">Policy (WSL)</sys:String>
+    <sys:String x:Key="Ui_Images_Trivy_PolicyPathTooltip">Đường dẫn tuyệt đối trong WSL tới thư mục/file policy Rego (tùy chọn). Để trống nếu không dùng.</sys:String>
+
+    <sys:String x:Key="Ui_Help_DockerEvents_Title">Sự kiện Docker</sys:String>
+    <sys:String x:Key="Ui_Help_DockerEvents_Body" xml:space="preserve">Luồng sự kiện Docker Engine để gỡ lỗi. Dùng GET /api/docker/events/stream. Dừng luồng khi không cần.</sys:String>
+
+    <sys:String x:Key="Ui_Containers_AttachTtySectionTitle">Gợi ý lệnh terminal (docker và WSL)</sys:String>
+    <sys:String x:Key="Ui_Containers_AttachTtySectionHint" xml:space="preserve">Hai cột: lệnh docker thuần (PowerShell/CMD nếu Docker Desktop; hoặc trong terminal đã trỏ vào cùng engine) và một dòng wsl.exe chạy docker trong distro (Distro WSL trong Cài đặt — tab WSL). Dán vào terminal rồi Enter. exec mặc định shell sh — đổi thành bash hoặc cmd nếu image không có sh. attach cần container đang chạy và thường cần TTY đã bật khi tạo container.</sys:String>
+    <sys:String x:Key="Ui_Containers_AttachTtyStoppedWarning">Container đang dừng: hãy Start trước khi exec hoặc attach (trừ khi bạn chỉ kiểm tra lệnh).</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalDockerExecLabel">docker exec -it …</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalWslExecLabel">wsl … docker exec … (trong distro)</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalDockerAttachLabel">docker attach …</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalWslAttachLabel">wsl … docker attach … (trong distro)</sys:String>
+    <sys:String x:Key="Ui_Containers_TerminalCopyButton">Sao chép</sys:String>
     <sys:String x:Key="Ui_Containers_Status_CopyExecDone">Đã sao chép lệnh docker exec.</sys:String>
     <sys:String x:Key="Ui_Containers_Status_CopyAttachDone">Đã sao chép lệnh docker attach.</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_CopyWslExecDone">Đã sao chép lệnh WSL (docker exec).</sys:String>
+    <sys:String x:Key="Ui_Containers_Status_CopyWslAttachDone">Đã sao chép lệnh WSL (docker attach).</sys:String>
     <sys:String x:Key="Ui_Containers_BatchCopyIds">Sao chép ID đã chọn</sys:String>
     <sys:String x:Key="Ui_Containers_Status_CopyIdsDoneFormat">Đã sao chép {0} ID container vào clipboard.</sys:String>
     <sys:String x:Key="Ui_Containers_Status_LoadedContainersCountFormat">Đã tải {0} container.</sys:String>
@@ -265,6 +401,8 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Containers_SparklineCpuAxisLabel">CPU %</sys:String>
     <sys:String x:Key="Ui_Containers_SparklineMemAxisLabel">RAM % (dùng/giới hạn)</sys:String>
     <sys:String x:Key="Ui_Containers_StatsWsIntervalHint" xml:space="preserve">Interval WebSocket cao hơn giảm tần suất mẫu khi nhiều container hoặc mạng chậm (mặc định có thêm 3000 ms và 5000 ms).</sys:String>
+    <sys:String x:Key="Ui_Containers_StatsWarnCpuPart">CPU {0:F1}% (ngưỡng {1}%)</sys:String>
+    <sys:String x:Key="Ui_Containers_StatsWarnMemPart">RAM {0:F1}% dùng/giới hạn (ngưỡng {1}%)</sys:String>
 
     <sys:String x:Key="Ui_Logs_Status_LoadingContainers">Đang tải danh sách container...</sys:String>
     <sys:String x:Key="Ui_Logs_Status_ListRequestTimeout">Hết thời gian chờ khi tải danh sách container. Kiểm tra service hoặc mạng.</sys:String>
@@ -323,6 +461,7 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Help_CloseButton">Đóng</sys:String>
     <sys:String x:Key="Ui_Help_Link_OpenApi">Schema API (OpenAPI JSON)</sys:String>
     <sys:String x:Key="Ui_Help_Link_WslDocs">Tài liệu WSL (Microsoft)</sys:String>
+    <sys:String x:Key="Ui_Help_Link_LanSecurityDoc">Bảo mật LAN (tài liệu)</sys:String>
     <sys:String x:Key="Ui_Help_Link_DockerContainerRef">Tham chiếu lệnh docker container</sys:String>
     <sys:String x:Key="Ui_Help_Link_ComposeDocs">Tài liệu Docker Compose</sys:String>
     <sys:String x:Key="Ui_Help_Link_DockerImagesRef">Tham chiếu lệnh docker image</sys:String>
@@ -351,6 +490,10 @@ Dòng highlight (một dòng): Start, Stop, Restart, Xóa, Tải chi tiết (ins
 Sparkline CPU và RAM %: cập nhật khi realtime bật (hoặc một điểm sau «Tải chi tiết»); trục ngang là thời gian (mới nhất bên phải), tối đa 90 điểm.
 
 Top RAM / Top CPU: xem snapshot từ server (không phải danh sách đầy đủ).
+
+Ngưỡng cảnh báo CPU/RAM: Cài đặt — tab Hiển thị; khi vượt ngưỡng, khối cảnh báo hiện phía trên sparkline.
+
+Gợi ý lệnh terminal (exec / attach): sao chép lệnh docker hoặc một dòng wsl.exe chạy docker trong distro (theo Distro WSL trong Cài đặt); dùng khi cần shell tương tác ngoài DockLite.
 
 Phím F5 làm mới danh sách container (và nội dung trang) khi đang ở màn Container.</sys:String>
     <sys:String x:Key="Ui_Help_Logs_Title">Log container</sys:String>

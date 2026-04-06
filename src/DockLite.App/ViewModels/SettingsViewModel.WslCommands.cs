@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using CommunityToolkit.Mvvm.Input;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
@@ -209,9 +211,21 @@ public partial class SettingsViewModel
         AppSettings snapshot = CreateSettingsSnapshotForWsl();
         try
         {
-            var health = await _systemDiagnosticsApi.GetHealthAsync(_shutdownToken.Token).ConfigureAwait(true);
-            _healthCache.SetFromHealthResponse(health, forceNotify: true);
-            ApiResult<DockerInfoData> docker = await _systemDiagnosticsApi.GetDockerInfoAsync(_shutdownToken.Token).ConfigureAwait(true);
+            Task<HealthResponse?> healthTask = _systemDiagnosticsApi.GetHealthAsync(_shutdownToken.Token);
+            Task<ApiResult<DockerInfoData>> dockerTask = _systemDiagnosticsApi.GetDockerInfoAsync(_shutdownToken.Token);
+            await Task.WhenAll(healthTask, dockerTask).ConfigureAwait(true);
+            HealthResponse? health = await healthTask.ConfigureAwait(true);
+            ApiResult<DockerInfoData> docker = await dockerTask.ConfigureAwait(true);
+            bool connectivityOk = health is not null && docker.Success && docker.Data is not null;
+            if (connectivityOk)
+            {
+                _healthCache.SetFromHealthResponse(health!, forceNotify: true);
+            }
+            else
+            {
+                _healthCache.SetFromHealthResponse(null, forceNotify: true);
+            }
+
             string h = health is null ? "—" : $"{health.Service} ({health.Status})";
             string d;
             if (docker.Success && docker.Data is not null)
@@ -226,7 +240,7 @@ public partial class SettingsViewModel
             }
 
             StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent("Ui_Settings_Status_TestConnectionOkFormat", "Service: {0} | {1}", h, d);
-            DiagnosticTelemetry.WriteTestConnection(snapshot, true, null);
+            DiagnosticTelemetry.WriteTestConnection(snapshot, connectivityOk, connectivityOk ? null : "health_or_docker");
         }
         catch (OperationCanceledException)
         {
@@ -252,5 +266,127 @@ public partial class SettingsViewModel
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Gọi GET /api/wsl/host-resources (ô địa chỉ hiện tại; không bắt buộc đã Lưu).
+    /// </summary>
+    [RelayCommand]
+    private async Task RefreshWslResourcesAsync()
+    {
+        IsWslResourcesBusy = true;
+        WslResourcesText = string.Empty;
+        try
+        {
+            AppSettings snapshot = CreateSettingsSnapshotForWsl();
+            _httpSession.Reconfigure(snapshot);
+            ApiResult<WslHostResourcesData> res = await _systemDiagnosticsApi
+                .GetWslHostResourcesAsync(_shutdownToken.Token)
+                .ConfigureAwait(true);
+            if (!res.Success || res.Data is null)
+            {
+                string err = res.Error?.Message
+                    ?? UiLanguageManager.TryLocalizeCurrent("Ui_Status_Common_ErrorShort", "Lỗi.");
+                string details = res.Error?.Details ?? string.Empty;
+                WslResourcesText = string.IsNullOrEmpty(details) ? err : details + "\n---\n" + err;
+                StatusMessage = err;
+                return;
+            }
+
+            WslResourcesText = FormatWslHostResourcesSummary(res.Data);
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Settings_Wsl_Resources_StatusOk",
+                "Đã cập nhật tài nguyên phía WSL.");
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Settings_Status_CancelledAppExit", "Đã hủy (đóng ứng dụng).");
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.WriteException("WSL host resources", ex);
+            WslResourcesText = NetworkErrorMessageMapper.FormatForUser(ex);
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Settings_Wsl_Resources_StatusError",
+                "Không đọc được tài nguyên WSL.");
+        }
+        finally
+        {
+            IsWslResourcesBusy = false;
+        }
+    }
+
+    private static string FormatWslHostResourcesSummary(WslHostResourcesData d)
+    {
+        var sb = new StringBuilder();
+        string host = string.IsNullOrWhiteSpace(d.Hostname) ? "—" : d.Hostname.Trim();
+        sb.AppendLine(UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Settings_Wsl_Resources_LineHostname",
+            "Tên máy: {0}",
+            host));
+        sb.AppendLine(UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Settings_Wsl_Resources_LineCpu",
+            "CPU (số lõi process): {0}",
+            d.CpuCoresOnline));
+
+        long totalKb = d.MemoryTotalKb;
+        long availKb = d.MemoryAvailableKb;
+        long usedKb = totalKb - availKb;
+        if (usedKb < 0)
+        {
+            usedKb = 0;
+        }
+
+        string usedMem = FormatBytesCompact(usedKb * 1024L);
+        string totalMem = FormatBytesCompact(totalKb * 1024L);
+        sb.AppendLine(UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Settings_Wsl_Resources_LineMemory",
+            "RAM: {0} / {1} đã dùng (ước {2:F1}%)",
+            usedMem,
+            totalMem,
+            d.MemoryUsedPercent));
+
+        sb.AppendLine(UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Settings_Wsl_Resources_LineLoad",
+            "Load trung bình (1 / 5 / 15 phút): {0:F2} / {1:F2} / {2:F2}",
+            d.LoadAvg1,
+            d.LoadAvg5,
+            d.LoadAvg15));
+
+        string mount = string.IsNullOrEmpty(d.RootMountPath) ? "/" : d.RootMountPath;
+        string diskTotal = FormatBytesCompact(d.DiskRootTotalBytes);
+        string diskAvail = FormatBytesCompact(d.DiskRootAvailableBytes);
+        sb.AppendLine(UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Settings_Wsl_Resources_LineDisk",
+            "Ổ đĩa gốc ({0}): còn {1} / tổng {2} (ước {3:F1}% đã dùng)",
+            mount,
+            diskAvail,
+            diskTotal,
+            d.DiskRootUsedPercent));
+
+        sb.Append(UiLanguageManager.TryLocalizeFormatCurrent(
+            "Ui_Settings_Wsl_Resources_LineTime",
+            "Thu thập (UTC): {0}",
+            d.CollectedAtUtcIso));
+        return sb.ToString();
+    }
+
+    private static string FormatBytesCompact(long bytes)
+    {
+        if (bytes < 0)
+        {
+            bytes = 0;
+        }
+
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double v = bytes;
+        int i = 0;
+        while (v >= 1024 && i < units.Length - 1)
+        {
+            v /= 1024;
+            i++;
+        }
+
+        return string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", v, units[i]);
     }
 }

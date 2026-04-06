@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DockLite.Contracts.Api;
 using DockLite.Core.Services;
 
@@ -45,39 +46,63 @@ public sealed class ComposeScreenApi : IComposeScreenApi
     }
 
     /// <inheritdoc />
-    public Task<ApiResult<ComposeCommandData>> ComposeUpAsync(string projectId, CancellationToken cancellationToken = default)
+    public Task<ApiResult<ComposeCommandData>> ComposeUpAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
     {
         ApiErrorBody? err = ScreenApiInputValidation.ProjectIdError(projectId);
         return err is not null
             ? Task.FromResult(ApiResult<ComposeCommandData>.Fail(err))
-            : _client.ComposeUpAsync(projectId, cancellationToken);
+            : _client.ComposeUpAsync(projectId, composeProfiles, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<ApiResult<ComposeCommandData>> ComposeDownAsync(string projectId, CancellationToken cancellationToken = default)
+    public Task<ApiResult<ComposeCommandData>> ComposeDownAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
     {
         ApiErrorBody? err = ScreenApiInputValidation.ProjectIdError(projectId);
         return err is not null
             ? Task.FromResult(ApiResult<ComposeCommandData>.Fail(err))
-            : _client.ComposeDownAsync(projectId, cancellationToken);
+            : _client.ComposeDownAsync(projectId, composeProfiles, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<ApiResult<ComposeCommandData>> ComposePsAsync(string projectId, CancellationToken cancellationToken = default)
+    public Task<ApiResult<ComposeCommandData>> ComposePsAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
     {
         ApiErrorBody? err = ScreenApiInputValidation.ProjectIdError(projectId);
         return err is not null
             ? Task.FromResult(ApiResult<ComposeCommandData>.Fail(err))
-            : _client.ComposePsAsync(projectId, cancellationToken);
+            : _client.ComposePsAsync(projectId, composeProfiles, cancellationToken);
     }
 
     /// <inheritdoc />
-    public Task<ApiResult<ComposeServiceListData>> ListComposeServicesAsync(string projectId, CancellationToken cancellationToken = default)
+    public Task<ApiResult<ComposeCommandData>> ComposeConfigValidateAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
+    {
+        ApiErrorBody? err = ScreenApiInputValidation.ProjectIdError(projectId);
+        return err is not null
+            ? Task.FromResult(ApiResult<ComposeCommandData>.Fail(err))
+            : _client.ComposeConfigValidateAsync(projectId, composeProfiles, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<ComposeServiceListData>> ListComposeServicesAsync(
+        string projectId,
+        IReadOnlyList<string>? composeProfiles = null,
+        CancellationToken cancellationToken = default)
     {
         ApiErrorBody? err = ScreenApiInputValidation.ProjectIdError(projectId);
         return err is not null
             ? Task.FromResult(ApiResult<ComposeServiceListData>.Fail(err))
-            : _client.ListComposeServicesAsync(projectId, cancellationToken);
+            : _client.ListComposeServicesAsync(projectId, composeProfiles, cancellationToken);
     }
 
     /// <inheritdoc />

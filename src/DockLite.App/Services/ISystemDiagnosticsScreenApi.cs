@@ -10,4 +10,9 @@ public interface ISystemDiagnosticsScreenApi
     Task<HealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default);
 
     Task<ApiResult<DockerInfoData>> GetDockerInfoAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// GET /api/wsl/host-resources — tài nguyên máy phía distro chạy service.
+    /// </summary>
+    Task<ApiResult<WslHostResourcesData>> GetWslHostResourcesAsync(CancellationToken cancellationToken = default);
 }

@@ -1,10 +1,15 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows;
+using Microsoft.Win32;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DockLite.App.Help;
 using DockLite.App.Services;
 using DockLite.Contracts.Api;
 using DockLite.Core;
@@ -29,6 +34,11 @@ public partial class SettingsViewModel : ObservableObject
     private readonly WslServiceHealthCache _healthCache;
     private readonly AppUiDisplaySettings _uiDisplay;
     private readonly INotificationService _notificationService;
+
+    /// <summary>
+    /// Đường dẫn tới <c>docs/docklite-lan-security.md</c> khi có trong tree (dev); null nếu không tìm thấy.
+    /// </summary>
+    private readonly string? _lanSecurityMarkdownPath;
 
     /// <summary>
     /// Giá trị chủ đề đã lưu lần cuối (file), dùng khi Lưu để biết có đổi chủ đề không.
@@ -63,6 +73,7 @@ public partial class SettingsViewModel : ObservableObject
         _healthCache = healthCache;
         _uiDisplay = uiDisplay;
         _notificationService = notificationService;
+        _lanSecurityMarkdownPath = LanSecurityDocPaths.TryResolve(_appBaseDirectory);
         _healthCache.Changed += (_, _) => NotifyWslServiceButtonStates();
         _loadedUiTheme = initialSettings.UiTheme ?? "Light";
         ServiceBaseUrl = initialSettings.ServiceBaseUrl;
@@ -79,6 +90,8 @@ public partial class SettingsViewModel : ObservableObject
         UiDateTimeFormat = string.IsNullOrWhiteSpace(initialSettings.UiDateTimeFormat)
             ? "yyyy/MM/dd HH:mm:ss"
             : initialSettings.UiDateTimeFormat;
+        ContainerStatsCpuWarnPercentText = initialSettings.ContainerStatsCpuWarnPercent.ToString(CultureInfo.InvariantCulture);
+        ContainerStatsMemoryWarnPercentText = initialSettings.ContainerStatsMemoryWarnPercent.ToString(CultureInfo.InvariantCulture);
         WslAutoStartHealthWaitSecondsText = initialSettings.WslAutoStartHealthWaitSeconds.ToString();
         WslManualHealthWaitSecondsText = initialSettings.WslManualHealthWaitSeconds.ToString();
         HealthProbeSingleRequestSecondsText = initialSettings.HealthProbeSingleRequestSeconds.ToString();
@@ -100,6 +113,7 @@ public partial class SettingsViewModel : ObservableObject
         _loadedUiLanguage = langProbe.UiLanguage;
         RebuildUiLanguageList(_loadedUiLanguage);
 
+        SettingsFilePathDisplay = _store.SettingsFilePath;
         EffectiveWslPathSummary = BuildEffectiveWslPathSummary();
         UpdateDatePreview();
     }
@@ -127,9 +141,21 @@ public partial class SettingsViewModel : ObservableObject
     public bool CanRestartWslServiceButton => !IsBusy && _healthCache.LastHealthy == true;
 
     /// <summary>
+    /// Có tệp <c>docs/docklite-lan-security.md</c> trên đĩa (thường gặp khi build từ source).
+    /// </summary>
+    public bool LanSecurityDocOpenEnabled =>
+        !string.IsNullOrEmpty(_lanSecurityMarkdownPath) && File.Exists(_lanSecurityMarkdownPath);
+
+    /// <summary>
     /// Ảnh chụp cấu hình từ ô hiện tại (Start/Stop/Restart từ header và Cài đặt).
     /// </summary>
     public AppSettings GetSettingsSnapshotForWslCommands() => CreateSettingsSnapshotForWsl();
+
+    /// <summary>
+    /// Tab Cài đặt đang chọn (0 = Kết nối). Dùng khi mở từ banner mất kết nối.
+    /// </summary>
+    [ObservableProperty]
+    private int _selectedTabIndex;
 
     [ObservableProperty]
     private string _serviceBaseUrl = string.Empty;
@@ -151,6 +177,12 @@ public partial class SettingsViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string _serviceBaseUrlPortHint = string.Empty;
+
+    /// <summary>
+    /// Đường dẫn file <c>settings.json</c> trong %LocalAppData% (hiển thị và sao lưu).
+    /// </summary>
+    [ObservableProperty]
+    private string _settingsFilePathDisplay = string.Empty;
 
     [ObservableProperty]
     private bool _autoStartWslService = true;
@@ -221,6 +253,20 @@ public partial class SettingsViewModel : ObservableObject
     private string _wslQuickDiagnosticsText = string.Empty;
 
     /// <summary>
+    /// Snapshot tài nguyên Linux phía service (GET /api/wsl/host-resources).
+    /// </summary>
+    [ObservableProperty]
+    private string _wslResourcesText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isWslResourcesBusy;
+
+    /// <summary>
+    /// Nút làm mới tài nguyên WSL: không trùng với thao tác Lưu đang bận.
+    /// </summary>
+    public bool CanRefreshWslResources => CanInteractFooter && !IsWslResourcesBusy;
+
+    /// <summary>
     /// Giá trị <see cref="TimeZoneInfo.Id"/>; chuỗi rỗng = giờ máy.
     /// </summary>
     [ObservableProperty]
@@ -240,6 +286,18 @@ public partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     private string _wslHealthPollIntervalMillisecondsText = "500";
+
+    /// <summary>
+    /// Ngưỡng CPU % cảnh báo trên màn Container (0–100, 0 = tắt); parse khi Lưu.
+    /// </summary>
+    [ObservableProperty]
+    private string _containerStatsCpuWarnPercentText = "0";
+
+    /// <summary>
+    /// Ngưỡng RAM % (dùng/giới hạn) cảnh báo (0–100, 0 = tắt); parse khi Lưu.
+    /// </summary>
+    [ObservableProperty]
+    private string _containerStatsMemoryWarnPercentText = "0";
 
     /// <summary>
     /// Đường dẫn Unix đích khi đồng bộ mã wsl-docker-service từ Windows vào filesystem Linux (WSL).
@@ -339,15 +397,18 @@ public partial class SettingsViewModel : ObservableObject
         Application? app = Application.Current;
         string lightTitle = "Sáng";
         string darkTitle = "Tối";
+        string systemTitle = "Theo hệ thống";
         if (app is not null)
         {
             lightTitle = UiLanguageManager.FindString(app, "Ui_Settings_Theme_Light");
             darkTitle = UiLanguageManager.FindString(app, "Ui_Settings_Theme_Dark");
+            systemTitle = UiLanguageManager.FindString(app, "Ui_Settings_Theme_System");
         }
 
         UiThemeList.Clear();
         UiThemeList.Add(new UiThemeListItem { Id = "Light", Title = lightTitle });
         UiThemeList.Add(new UiThemeListItem { Id = "Dark", Title = darkTitle });
+        UiThemeList.Add(new UiThemeListItem { Id = "System", Title = systemTitle });
         SelectedUiThemeItem = UiThemeList.FirstOrDefault(x => x.Id == _loadedUiTheme) ?? UiThemeList[0];
     }
 
@@ -364,11 +425,18 @@ public partial class SettingsViewModel : ObservableObject
     {
         NotifyWslServiceButtonStates();
         OnPropertyChanged(nameof(CanInteractFooter));
+        OnPropertyChanged(nameof(CanRefreshWslResources));
     }
 
     partial void OnIsSavingSettingsChanged(bool value)
     {
         OnPropertyChanged(nameof(CanInteractFooter));
+        OnPropertyChanged(nameof(CanRefreshWslResources));
+    }
+
+    partial void OnIsWslResourcesBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanRefreshWslResources));
     }
 
     private void NotifyWslServiceButtonStates()
@@ -430,6 +498,66 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Sao chép file cài đặt (hoặc ghi JSON mặc định nếu chưa từng Lưu) ra file do người dùng chọn.
+    /// </summary>
+    [RelayCommand]
+    private void ExportSettingsToFile()
+    {
+        var dlg = new SaveFileDialog
+        {
+            Filter = "JSON (*.json)|*.json|All files (*.*)|*.*",
+            DefaultExt = ".json",
+            FileName = "docklite-settings-backup.json",
+            AddExtension = true,
+        };
+
+        if (dlg.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            _store.ExportToCopy(dlg.FileName);
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Settings_Status_ExportSettingsDone",
+                "Đã sao lưu file cài đặt.");
+            AppFileLog.Write("Cài đặt", "Export settings → " + dlg.FileName);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
+                "Ui_Settings_Status_ExportSettingsErrorFormat",
+                "Không sao lưu được: {0}",
+                ex.Message);
+            AppFileLog.WriteException("Export settings", ex);
+        }
+    }
+
+    /// <summary>
+    /// Mở tài liệu bảo mật LAN (Markdown) bằng ứng dụng mặc định của hệ thống.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanOpenLanSecurityDoc))]
+    private void OpenLanSecurityDoc()
+    {
+        if (string.IsNullOrWhiteSpace(_lanSecurityMarkdownPath) || !File.Exists(_lanSecurityMarkdownPath))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(_lanSecurityMarkdownPath) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppFileLog.WriteException("Mở docklite-lan-security.md", ex);
+        }
+    }
+
+    private bool CanOpenLanSecurityDoc() => LanSecurityDocOpenEnabled;
+
+    /// <summary>
     /// Gọi health + Docker info và thử wslpath cho các ô đường dẫn WSL (không bắt buộc Lưu trước).
     /// </summary>
     [RelayCommand]
@@ -440,10 +568,20 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             var sb = new StringBuilder();
+            sb.AppendLine(BuildRecoveryChecklistPreamble());
+            sb.AppendLine();
             sb.AppendLine("=== API (ô Địa chỉ base URL phía trên) ===");
             HealthResponse? health = await _systemDiagnosticsApi.GetHealthAsync(_shutdownToken.Token).ConfigureAwait(true);
-            _healthCache.SetFromHealthResponse(health, forceNotify: true);
             ApiResult<DockerInfoData> docker = await _systemDiagnosticsApi.GetDockerInfoAsync(_shutdownToken.Token).ConfigureAwait(true);
+            bool connectivityOk = health is not null && docker.Success && docker.Data is not null;
+            if (connectivityOk)
+            {
+                _healthCache.SetFromHealthResponse(health!, forceNotify: true);
+            }
+            else
+            {
+                _healthCache.SetFromHealthResponse(null, forceNotify: true);
+            }
             string h = health is null
                 ? "—"
                 : $"{health.Service} ({health.Status}) — version {health.Version}";
@@ -507,6 +645,33 @@ public partial class SettingsViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Checklist khôi phục kết nối (đồng bộ với header / Tổng quan: cần health + Docker).
+    /// </summary>
+    private static string BuildRecoveryChecklistPreamble()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine(UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Settings_Diag_ChecklistTitle",
+            "=== Checklist khi mất kết nối ==="));
+        sb.AppendLine(UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Settings_Diag_ChecklistLine1",
+            "1. Địa chỉ: base URL đúng (tab này — thử «Điền IP WSL» nếu 127.0.0.1 không ổn trên WSL2)."));
+        sb.AppendLine(UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Settings_Diag_ChecklistLine2",
+            "2. Token API: nếu service dùng DOCKLITE_API_TOKEN, ô token khớp rồi Lưu."));
+        sb.AppendLine(UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Settings_Diag_ChecklistLine3",
+            "3. Service Go + Docker Engine: khối «API» bên dưới phải có health và Docker (cùng điều kiện với thanh trên header)."));
+        sb.AppendLine(UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Settings_Diag_ChecklistLine4",
+            "4. WSL: distro đúng; uname và wslpath ở các khối dưới."));
+        sb.AppendLine(UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Settings_Diag_ChecklistLine5",
+            "5. Docker Engine: trong WSL (distro chạy service), daemon Docker phải sẵn sàng (Docker Desktop bật hoặc dockerd/socket đã cấu hình); có thể thử «docker info» trong distro đó."));
+        return sb.ToString().TrimEnd();
     }
 
     private static void AppendDiagnosticsPath(StringBuilder sb, string label, string path, string? distro, bool unixOnly)
@@ -660,6 +825,22 @@ public partial class SettingsViewModel : ObservableObject
                 return;
             }
 
+            if (!int.TryParse(ContainerStatsCpuWarnPercentText.Trim(), out int cpuWarnPct) || cpuWarnPct < 0 || cpuWarnPct > 100)
+            {
+                StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Settings_Status_ValidationStatsCpuWarn",
+                    "Ngưỡng cảnh báo CPU phải là số nguyên từ 0 đến 100 (0 = tắt).");
+                return;
+            }
+
+            if (!int.TryParse(ContainerStatsMemoryWarnPercentText.Trim(), out int memWarnPct) || memWarnPct < 0 || memWarnPct > 100)
+            {
+                StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Settings_Status_ValidationStatsMemWarn",
+                    "Ngưỡng cảnh báo RAM phải là số nguyên từ 0 đến 100 (0 = tắt).");
+                return;
+            }
+
             if (SelectedUiThemeItem is null)
             {
                 StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Settings_Status_SelectTheme", "Chọn chủ đề (Sáng hoặc Tối).");
@@ -701,6 +882,8 @@ public partial class SettingsViewModel : ObservableObject
                 WslDockerServiceSyncDeleteExtra = WslDockerServiceSyncDeleteExtra,
                 WslDockerServiceSyncEnforceVersionGe = WslDockerServiceSyncEnforceVersionGe,
                 DiagnosticLocalTelemetryEnabled = DiagnosticLocalTelemetryEnabled,
+                ContainerStatsCpuWarnPercent = cpuWarnPct,
+                ContainerStatsMemoryWarnPercent = memWarnPct,
             };
             AppSettingsDefaults.Normalize(settings);
             _store.Save(settings);
@@ -754,22 +937,28 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Một lần gọi /api/health sau khi Lưu (HttpClient đã Reconfigure) — toast nếu không phản hồi.
+    /// Một lần gọi health + Docker sau khi Lưu (HttpClient đã Reconfigure) — cùng tiêu chí với header; toast nếu chưa đạt.
     /// </summary>
     private async Task PostSaveHealthProbeAsync()
     {
         try
         {
-            HealthResponse? health = await _systemDiagnosticsApi.GetHealthAsync(_shutdownToken.Token).ConfigureAwait(true);
-            _healthCache.SetFromHealthResponse(health, forceNotify: true);
-            if (health is not null)
+            Task<HealthResponse?> healthTask = _systemDiagnosticsApi.GetHealthAsync(_shutdownToken.Token);
+            Task<ApiResult<DockerInfoData>> dockerTask = _systemDiagnosticsApi.GetDockerInfoAsync(_shutdownToken.Token);
+            await Task.WhenAll(healthTask, dockerTask).ConfigureAwait(true);
+            HealthResponse? health = await healthTask.ConfigureAwait(true);
+            ApiResult<DockerInfoData> docker = await dockerTask.ConfigureAwait(true);
+            bool connectivityOk = health is not null && docker.Success && docker.Data is not null;
+            if (connectivityOk)
             {
+                _healthCache.SetFromHealthResponse(health!, forceNotify: true);
                 return;
             }
 
+            _healthCache.SetFromHealthResponse(null, forceNotify: true);
             string body = UiLanguageManager.TryLocalizeCurrent(
-                "Ui_Settings_Status_PostSaveHealthFail",
-                "Không nhận được /api/health sau khi Lưu. Kiểm tra service WSL hoặc dùng «Kiểm tra kết nối».");
+                "Ui_Settings_Status_PostSaveConnectivityFail",
+                "Sau khi Lưu: chưa đạt kết nối đầy đủ (health + Docker Engine). Kiểm tra service WSL hoặc «Kiểm tra kết nối».");
             StatusMessage = string.IsNullOrWhiteSpace(StatusMessage) ? body : StatusMessage + " " + body;
             await _notificationService
                 .ShowAsync(
@@ -787,8 +976,8 @@ public partial class SettingsViewModel : ObservableObject
         {
             _healthCache.SetFromHealthResponse(null, forceNotify: true);
             string body = UiLanguageManager.TryLocalizeCurrent(
-                "Ui_Settings_Status_PostSaveHealthFail",
-                "Không nhận được /api/health sau khi Lưu. Kiểm tra service WSL hoặc dùng «Kiểm tra kết nối».");
+                "Ui_Settings_Status_PostSaveConnectivityFail",
+                "Sau khi Lưu: chưa đạt kết nối đầy đủ (health + Docker Engine). Kiểm tra service WSL hoặc «Kiểm tra kết nối».");
             StatusMessage = string.IsNullOrWhiteSpace(StatusMessage)
                 ? body + " " + NetworkErrorMessageMapper.FormatForUser(ex)
                 : StatusMessage + " " + body;
@@ -860,6 +1049,12 @@ public partial class SettingsViewModel : ObservableObject
             WslDockerServiceSyncDeleteExtra = WslDockerServiceSyncDeleteExtra,
             WslDockerServiceSyncEnforceVersionGe = WslDockerServiceSyncEnforceVersionGe,
             DiagnosticLocalTelemetryEnabled = DiagnosticLocalTelemetryEnabled,
+            ContainerStatsCpuWarnPercent = int.TryParse(ContainerStatsCpuWarnPercentText.Trim(), out int cw) && cw is >= 0 and <= 100
+                ? cw
+                : 0,
+            ContainerStatsMemoryWarnPercent = int.TryParse(ContainerStatsMemoryWarnPercentText.Trim(), out int memWarn) && memWarn is >= 0 and <= 100
+                ? memWarn
+                : 0,
         };
         AppSettingsDefaults.Normalize(snapshot);
         return snapshot;
