@@ -33,23 +33,6 @@
     "max_concurrent_agents": 3,
     "min_plans_for_parallel": 2
   },
-  "gates": {
-    "confirm_project": false,
-    "confirm_phases": false,
-    "confirm_roadmap": false,
-    "confirm_breakdown": false,
-    "confirm_plan": false,
-    "execute_next_plan": false,
-    "issues_review": false,
-    "confirm_transition": false
-  },
-  "safety": {
-    "always_confirm_destructive": true,
-    "always_confirm_external_services": true
-  },
-  "hooks": {
-    "context_warnings": true
-  },
   "project_code": "DOCKLITE",
   "agent_skills": {},
   "claude_md_path": "./CLAUDE.md"
