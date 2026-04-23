@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: milestone
-status: ready_to_execute
-stopped_at: Hoàn tất lập kế hoạch Phase 1 (01-01-PLAN, 01-02-PLAN, RESEARCH, UI-SPEC)
-last_updated: "2026-04-23T15:00:00.000Z"
-last_activity: 2026-04-23 — Lập kế hoạch Phase 1 (Network Surface Reduction)
+status: ready_to_plan_or_execute
+stopped_at: Hoàn tất thực thi Phase 1 (01-SUMMARY); bước kế: `/gsd-plan-phase 2` hoặc `/gsd-execute-phase 2`
+last_updated: "2026-04-23T16:00:00.000Z"
+last_activity: 2026-04-23 — Thực thi Phase 1 (Network Surface Reduction) — 2/2 kế hoạch
 progress:
-  percent: 0
+  percent: 15
 ---
 
 # Project State
@@ -17,22 +17,22 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-04-23)
 
 **Core value:** DockLite chạy an toàn mặc định theo Zero-Trust; IPC WPF ↔ Go service là kênh tin cậy ngay cả khi opt-in mở LAN.
-**Current focus:** v2.0 IPC Hardening — Phase 1 Network Surface Reduction
+**Current focus:** v2.0 IPC Hardening — Phase 2 Secrets at Rest (bước kế theo ROADMAP)
 
 ## Current Position
 
-Phase: 1 of 5 (Network Surface Reduction)
-Plan: 0 of 2 in current phase
-Status: Sẵn sàng thực thi (chưa chạy implement)
-Last activity: 2026-04-23 — Lập kế hoạch Phase 1: `01-01-PLAN`, `01-02-PLAN`, `01-RESEARCH`, `01-UI-SPEC`
+Phase: 2 of 5 (Secrets at Rest) — chưa bắt đầu
+Plan: 0 of 3 in current phase
+Status: Phase 1 đã giao; sẵn sàng lập kế hoạch / thực thi Phase 2
+Last activity: 2026-04-23 — Giao Phase 1 (Go listen policy, CheckOrigin, WPF cảnh báo, .env, docs). Xem `01-SUMMARY.md`.
 
-Progress: 0% (0/13 plans)
+Progress: khoảng 15% (2/13 kế hoạch từ roadmap — Phase 1 xong)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 2
 - Average duration: — min
 - Total execution time: 0 hours
 
@@ -40,13 +40,13 @@ Progress: 0% (0/13 plans)
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1. Network Surface Reduction | 0 | 2 | — |
+| 1. Network Surface Reduction | 2 | 2 | n/a |
 | 2. Secrets at Rest | 0 | 3 | — |
 | 3. Abuse Prevention and Audit | 0 | 2 | — |
 | 4. TLS Opt-in TOFU | 0 | 3 | — |
 | 5. Process Hardening | 0 | 3 | — |
 
-**Recent Trend:** N/A (chưa có plan hoàn thành)
+**Recent Trend:** Phase 1 hoàn tất trong một phiên
 
 ## Accumulated Context
 
@@ -80,7 +80,5 @@ Không có. Đã gỡ các blocker về scope trong Deep Questioning trước kh
 ## Session Continuity
 
 Last session: 2026-04-23
-Stopped at: Đã tạo plan Phase 1 — chạy `/gsd-execute-phase 1` (hoặc mở từng `*-PLAN.md` để thực thi thủ công).
+Stopped at: Phase 1 giao mã, `01-SUMMARY.md` ghi lại. Tiếp theo: Phase 2.
 Resume file: None
-
-**Planned Phase:** 1 (Network Surface Reduction) — 2 kế hoạch — wave 1 — 2026-04-23

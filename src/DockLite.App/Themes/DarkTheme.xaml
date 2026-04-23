@@ -31,6 +31,7 @@
     <SolidColorBrush x:Key="ThemeInputDisabledBackgroundBrush" Color="#0F172A" />
     <SolidColorBrush x:Key="ThemeMutedForegroundBrush" Color="#94A3B8" />
     <SolidColorBrush x:Key="ThemeWarningForegroundBrush" Color="#FBBF24" />
+    <SolidColorBrush x:Key="ThemeDangerForegroundBrush" Color="#F87171" />
     <SolidColorBrush x:Key="ThemeCodeBlockForegroundBrush" Color="#CBD5E1" />
 
     <SolidColorBrush x:Key="ThemeTabInactiveBackgroundBrush" Color="#1E293B" />

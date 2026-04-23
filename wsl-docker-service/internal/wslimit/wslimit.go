@@ -3,8 +3,10 @@ package wslimit
 
 import (
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/websocket"
 )
@@ -29,9 +31,77 @@ func init() {
 
 // Upgrader dùng chung cho luồng log và stats (buffer cố định, tránh chiến động bộ nhớ mặc định quá lớn trên mỗi kết nối).
 var Upgrader = websocket.Upgrader{
-	CheckOrigin:     func(r *http.Request) bool { return true },
+	CheckOrigin:     buildCheckOriginFunc(),
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
+}
+
+func buildCheckOriginFunc() func(*http.Request) bool {
+	allowedCanon := parseAllowedOrigins(os.Getenv("DOCKLITE_ALLOWED_ORIGINS"))
+	return func(r *http.Request) bool {
+		return checkOriginRequest(r, allowedCanon)
+	}
+}
+
+func parseAllowedOrigins(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		u, err := url.Parse(p)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			continue
+		}
+		out = append(out, canonicalOriginURL(u))
+	}
+	return out
+}
+
+func canonicalOriginURL(u *url.URL) string {
+	return strings.ToLower(u.Scheme) + "://" + strings.ToLower(u.Host)
+}
+
+func originHostAllowed(host string) bool {
+	h := strings.ToLower(strings.TrimSpace(host))
+	switch h {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
+	}
+}
+
+// checkOriginRequest áp dụng cùng logic với Upgrader.CheckOrigin (dùng trong test).
+func checkOriginRequest(r *http.Request, allowedCanon []string) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	if originHostAllowed(u.Hostname()) {
+		return true
+	}
+	canon := canonicalOriginURL(u)
+	for _, a := range allowedCanon {
+		if canon == a {
+			return true
+		}
+	}
+	return false
+}
+
+// CheckOriginRequest xuất ra cho test: trả về true nếu Origin được phép nâng cấp WebSocket.
+func CheckOriginRequest(r *http.Request) bool {
+	return checkOriginRequest(r, parseAllowedOrigins(os.Getenv("DOCKLITE_ALLOWED_ORIGINS")))
 }
 
 // TryAcquireWebSocket trả về false khi đã đạt giới hạn kết nối WebSocket đồng thời (HTTP 503 trước Upgrade).

@@ -78,7 +78,7 @@ public partial class SettingsViewModel : ObservableObject
         _loadedUiTheme = initialSettings.UiTheme ?? "Light";
         ServiceBaseUrl = initialSettings.ServiceBaseUrl;
         ServiceApiToken = initialSettings.ServiceApiToken ?? string.Empty;
-        ServiceBaseUrlSecurityHint = BuildNonLocalhostServiceUrlWarning(ServiceBaseUrl);
+        ApplyServiceBaseUrlSecurity(ServiceBaseUrl);
         ServiceBaseUrlPortHint = BuildServiceBaseUrlPortHint(ServiceBaseUrl);
         int sec = initialSettings.HttpTimeoutSeconds >= 30 ? initialSettings.HttpTimeoutSeconds : 120;
         HttpTimeoutSecondsText = sec.ToString();
@@ -167,10 +167,16 @@ public partial class SettingsViewModel : ObservableObject
     private string _serviceApiToken = string.Empty;
 
     /// <summary>
-    /// Cảnh báo khi host base URL không phải localhost (HTTP không mã hóa trên LAN).
+    /// Cảnh báo khi host base URL không phải loopback (theo mức độ: cleartext so với TLS trên LAN).
     /// </summary>
     [ObservableProperty]
     private string _serviceBaseUrlSecurityHint = string.Empty;
+
+    /// <summary>
+    /// Mức độ cảnh báo tương ứng <see cref="ServiceBaseUrlSecurityHint"/> (ràng buộc UI / màu chữ).
+    /// </summary>
+    [ObservableProperty]
+    private ServiceBaseUrlSecuritySeverity _serviceBaseUrlSecuritySeverity;
 
     /// <summary>
     /// Gợi ý khi cổng trong URL khác cổng mặc định của DockLite.
@@ -343,8 +349,15 @@ public partial class SettingsViewModel : ObservableObject
 
     partial void OnServiceBaseUrlChanged(string value)
     {
-        ServiceBaseUrlSecurityHint = BuildNonLocalhostServiceUrlWarning(value);
+        ApplyServiceBaseUrlSecurity(value);
         ServiceBaseUrlPortHint = BuildServiceBaseUrlPortHint(value);
+    }
+
+    private void ApplyServiceBaseUrlSecurity(string? serviceBaseUrl)
+    {
+        (ServiceBaseUrlSecuritySeverity sev, string msg) = ServiceBaseUrlSecurityAnalyzer.Analyze(serviceBaseUrl);
+        ServiceBaseUrlSecuritySeverity = sev;
+        ServiceBaseUrlSecurityHint = msg;
     }
 
     partial void OnUiDateTimeFormatChanged(string value)
@@ -1058,30 +1071,6 @@ public partial class SettingsViewModel : ObservableObject
         };
         AppSettingsDefaults.Normalize(snapshot);
         return snapshot;
-    }
-
-    private static string BuildNonLocalhostServiceUrlWarning(string? serviceBaseUrl)
-    {
-        if (string.IsNullOrWhiteSpace(serviceBaseUrl))
-        {
-            return string.Empty;
-        }
-
-        if (!Uri.TryCreate(serviceBaseUrl.Trim(), UriKind.Absolute, out Uri? u))
-        {
-            return string.Empty;
-        }
-
-        string host = u.Host;
-        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
-            || host == "127.0.0.1"
-            || host == "::1"
-            || host.StartsWith("[::1]", StringComparison.OrdinalIgnoreCase))
-        {
-            return string.Empty;
-        }
-
-        return "Host không phải localhost (127.0.0.1 / ::1): HTTP trên mạng LAN có thể bị nghe lén (MITM). Chỉ dùng khi bạn tin cậy mạng hoặc có bảo vệ tương đương.";
     }
 
     private static string BuildServiceBaseUrlPortHint(string? serviceBaseUrl)

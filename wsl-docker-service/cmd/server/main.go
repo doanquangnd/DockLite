@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -12,18 +13,29 @@ import (
 )
 
 func main() {
-	// 0.0.0.0 giúp Windows (localhost:17890) forward vào WSL ổn định hơn so với chỉ 127.0.0.1 trong một số cấu hình WSL2.
-	addr := "0.0.0.0:17890"
+	// Mặc định chỉ lắng nghe trên loopback (127.0.0.1). Để lắng nghe trên LAN / mọi giao diện, đặt DOCKLITE_ADDR
+	// (ví dụ 0.0.0.0:17890) và bắt buộc DOCKLITE_API_TOKEN (xem .env.example).
+	addr := "127.0.0.1:17890"
 	if v := os.Getenv("DOCKLITE_ADDR"); v != "" {
 		addr = v
+	}
+
+	token := strings.TrimSpace(os.Getenv("DOCKLITE_API_TOKEN"))
+	if token == "" {
+		if need, reason := httpserver.ListenRequiresToken(addr); need {
+			slog.Error("docklite-wsl_refuse_start", "addr", addr, "reason", reason)
+			fmt.Fprintln(os.Stderr, "docklite-wsl: không thể khởi động — thiếu DOCKLITE_API_TOKEN nhưng địa chỉ lắng nghe mở ra ngoài loopback.")
+			fmt.Fprintln(os.Stderr, reason)
+			os.Exit(2)
+		}
 	}
 
 	mux := http.NewServeMux()
 	httpserver.Register(mux)
 
 	inner := http.Handler(mux)
-	if t := strings.TrimSpace(os.Getenv("DOCKLITE_API_TOKEN")); t != "" {
-		inner = httpserver.RequireBearerToken(t, inner)
+	if token != "" {
+		inner = httpserver.RequireBearerToken(token, inner)
 	}
 
 	handler := httpserver.LogRequests(httpserver.RequestContextTimeout(httpserver.LimitRequestBody(inner)))

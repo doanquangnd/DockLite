@@ -9,11 +9,11 @@ Mỗi requirement v2.0 có **ASVS Control** map tới OWASP ASVS 4.0.3 L2. `SECU
 
 ### Network Surface Reduction (NET)
 
-- [ ] **NET-01**: Service Go mặc định bind `127.0.0.1:17890` thay cho `0.0.0.0:17890`. (ASVS V14.1.4, V1.14.3)
-- [ ] **NET-02**: Service Go fail-closed — từ chối khởi động nếu `DOCKLITE_ADDR` non-loopback VÀ `DOCKLITE_API_TOKEN` trống. Log lý do vào stderr trước khi exit code 2. (ASVS V14.2.1, V14.1.1)
-- [ ] **NET-03**: WebSocket `CheckOrigin` mặc định chỉ accept `localhost`, `127.0.0.1`, `[::1]`. Env `DOCKLITE_ALLOWED_ORIGINS` mở rộng whitelist khi user opt-in LAN mode. (ASVS V13.2.6, V9.3.1)
-- [ ] **NET-04**: UI Settings hiển thị warning banner khi `ServiceBaseUrl` non-loopback hoặc scheme không phải HTTPS. Text warning ở light/dark đều đạt contrast AA. (ASVS V14.4.1)
-- [ ] **NET-05**: `.env.example` và docs cập nhật: mặc định loopback, nêu rõ LAN mode là opt-in và cần token + TLS. (ASVS V14.1.1)
+- [x] **NET-01**: Service Go mặc định bind `127.0.0.1:17890` thay cho `0.0.0.0:17890`. (ASVS V14.1.4, V1.14.3)
+- [x] **NET-02**: Service Go fail-closed — từ chối khởi động nếu `DOCKLITE_ADDR` non-loopback VÀ `DOCKLITE_API_TOKEN` trống. Log lý do vào stderr trước khi exit code 2. (ASVS V14.2.1, V14.1.1)
+- [x] **NET-03**: WebSocket `CheckOrigin` mặc định chỉ accept `localhost`, `127.0.0.1`, `[::1]`. Env `DOCKLITE_ALLOWED_ORIGINS` mở rộng whitelist khi user opt-in LAN mode. (ASVS V13.2.6, V9.3.1)
+- [x] **NET-04**: UI Settings hiển thị warning banner khi `ServiceBaseUrl` non-loopback hoặc scheme không phải HTTPS. Text warning ở light/dark đều đạt contrast AA. (ASVS V14.4.1)
+- [x] **NET-05**: `.env.example` và docs cập nhật: mặc định loopback, nêu rõ LAN mode là opt-in và cần token + TLS. (ASVS V14.1.1)
 
 ### Secrets at Rest (SEC)
 
@@ -85,11 +85,11 @@ Mapping requirement ↔ phase. Cập nhật khi roadmap đổi.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| NET-01 | Phase 1 | Pending |
-| NET-02 | Phase 1 | Pending |
-| NET-03 | Phase 1 | Pending |
-| NET-04 | Phase 1 | Pending |
-| NET-05 | Phase 1 | Pending |
+| NET-01 | Phase 1 | Complete |
+| NET-02 | Phase 1 | Complete |
+| NET-03 | Phase 1 | Complete |
+| NET-04 | Phase 1 | Complete |
+| NET-05 | Phase 1 | Complete |
 | SEC-01 | Phase 2 | Pending |
 | SEC-02 | Phase 2 | Pending |
 | SEC-03 | Phase 2 | Pending |

@@ -37,6 +37,8 @@
     <SolidColorBrush x:Key="ThemeInputDisabledBackgroundBrush" Color="#F1F5F9" />
     <SolidColorBrush x:Key="ThemeMutedForegroundBrush" Color="#64748B" />
     <SolidColorBrush x:Key="ThemeWarningForegroundBrush" Color="#B45309" />
+    <!-- Cảnh báo nghiêm trọng (cleartext trên LAN); tương phản với nền sáng -->
+    <SolidColorBrush x:Key="ThemeDangerForegroundBrush" Color="#B91C1C" />
     <SolidColorBrush x:Key="ThemeCodeBlockForegroundBrush" Color="#334155" />
 
     <SolidColorBrush x:Key="ThemeTabInactiveBackgroundBrush" Color="#F1F5F9" />

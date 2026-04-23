@@ -18,7 +18,7 @@ Sau v2.0 ship, roadmap sẽ có v2.1 bổ sung kênh IPC pipe/socket local-only 
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (sẽ đánh dấu INSERTED)
 
-- [ ] **Phase 1: Network Surface Reduction** — Bind loopback mặc định, fail-closed LAN mode, WebSocket CheckOrigin an toàn, UI warning cho non-loopback
+- [x] **Phase 1: Network Surface Reduction** — Bind loopback mặc định, fail-closed LAN mode, WebSocket CheckOrigin an toàn, UI warning cho non-loopback
 - [ ] **Phase 2: Secrets at Rest** — Token chuyển từ settings.json plaintext sang Windows Credential Manager, migration tự động, endpoint rotate token
 - [ ] **Phase 3: Abuse Prevention and Audit** — Rate-limit per-IP REST+WS, giảm timeout mặc định, audit log structured cho endpoint nhạy cảm, log rotating file
 - [ ] **Phase 4: TLS Opt-in với TOFU** — Tự sinh self-signed cert ECDSA, trust-on-first-use fingerprint dialog, pin fingerprint vào Credential Manager, cert change warning
@@ -44,8 +44,8 @@ Sau v2.0 ship, roadmap sẽ có v2.1 bổ sung kênh IPC pipe/socket local-only 
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Service Go — bind default loopback, fail-closed LAN không token, WebSocket CheckOrigin whitelist (Go code + tests)
-- [ ] 01-02: WPF — UI Settings banner cảnh báo non-loopback/non-HTTPS, cập nhật `.env.example` và docs (WPF + docs)
+- [x] 01-01: Service Go — bind default loopback, fail-closed LAN không token, WebSocket CheckOrigin whitelist (Go code + tests)
+- [x] 01-02: WPF — UI Settings banner cảnh báo non-loopback/non-HTTPS, cập nhật `.env.example` và docs (WPF + docs)
 
 ### Phase 2: Secrets at Rest
 
@@ -143,7 +143,7 @@ Phases 1 → 2 → 3 → 4 → 5 (có thể chạy song song trong giới hạn 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Network Surface Reduction | 0/2 | Not started | - |
+| 1. Network Surface Reduction | 2/2 | Complete | 2026-04-23 |
 | 2. Secrets at Rest | 0/3 | Not started | - |
 | 3. Abuse Prevention and Audit | 0/2 | Not started | - |
 | 4. TLS Opt-in với TOFU | 0/3 | Not started | - |
