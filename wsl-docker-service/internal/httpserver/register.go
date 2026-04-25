@@ -14,8 +14,8 @@ import (
 // ReadHeaderTimeout giá trị mặc định cho http.Server.ReadHeaderTimeout.
 const ReadHeaderTimeout = 5 * time.Second
 
-// Register gắn mọi handler REST + WebSocket vào mux.
-func Register(mux *http.ServeMux) {
+// Register gắn mọi handler REST + WebSocket vào mux. state dùng cho POST /api/auth/rotate (chỉ khi mật khẩu bật lúc khởi động).
+func Register(mux *http.ServeMux, state *MutableToken) {
 	mux.HandleFunc("/api/openapi.json", OpenAPI)
 	mux.HandleFunc("/api/metrics", Metrics)
 	mux.HandleFunc("/api/health", docker.Health)
@@ -41,4 +41,7 @@ func Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/images", docker.ImagesRoot)
 	mux.HandleFunc("/api/images/", docker.ImagesPath)
 	mux.HandleFunc("/api/system/prune", docker.SystemPrune)
+	if state != nil && !state.IsEmpty() {
+		mux.Handle("POST /api/auth/rotate", HandleAuthRotate(state))
+	}
 }

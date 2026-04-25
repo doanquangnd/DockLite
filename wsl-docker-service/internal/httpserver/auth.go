@@ -6,15 +6,19 @@ import (
 	"strings"
 )
 
-// RequireBearerToken bọc middleware khi token đã được trim và khác rỗng (từ DOCKLITE_API_TOKEN).
-func RequireBearerToken(token string, next http.Handler) http.Handler {
-	expected := strings.TrimSpace(token)
-	if expected == "" {
+// RequireBearerToken bọc middleware khi token đang bật (từ biến môi trường lúc khởi động, có thể cập nhật sau khi xoay).
+func RequireBearerToken(m *MutableToken, next http.Handler) http.Handler {
+	if m == nil || m.IsEmpty() {
 		return next
 	}
 
-	exp := []byte(expected)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		exp := m.BytesCopy()
+		if exp == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		if !matchBearerOrHeader(r, exp) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="docklite"`)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)

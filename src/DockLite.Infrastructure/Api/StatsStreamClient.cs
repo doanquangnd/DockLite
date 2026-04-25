@@ -34,6 +34,7 @@ public sealed class StatsStreamClient : IStatsStreamClient
     {
         Uri wsUri = BuildWebSocketUri(containerId, intervalMs);
         using var ws = new ClientWebSocket();
+        _session.ApplyTlsToClientWebSocketIfNeeded(ws);
         HttpClientAppSettings.CopyAuthorizationToWebSocket(ws, _session.Client);
         await ws.ConnectAsync(wsUri, cancellationToken).ConfigureAwait(false);
 

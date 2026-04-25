@@ -45,6 +45,17 @@ public sealed class DockLiteApiClient : IDockLiteApiClient
     }
 
     /// <inheritdoc />
+    public async Task<ApiResult<AuthRotateData>> RotateServiceApiTokenAsync(
+        AuthRotateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _session.Client
+            .PostAsJsonAsync("api/auth/rotate", request, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+        return await ReadEnvelopeAsync<AuthRotateData>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<ApiResult<DockerInfoData>> GetDockerInfoAsync(CancellationToken cancellationToken = default)
     {
         return await HttpReadRetry.ExecuteAsync(

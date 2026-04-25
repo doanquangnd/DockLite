@@ -103,13 +103,62 @@
                                    Foreground="{DynamicResource ThemeMutedForegroundBrush}"
                                    FontSize="12"
                                    Text="{Binding ServiceBaseUrlPortHint}" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Conn_TlsToggleLabel}"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6" />
+                        <CheckBox Content="{DynamicResource Ui_Settings_Conn_TlsToggleText}"
+                                  IsChecked="{Binding ServiceTlsConnectionEnabled}"
+                                  IsEnabled="{Binding CanInteractFooter}"
+                                  Margin="0,0,0,8" />
+                        <TextBlock Text="{DynamicResource Ui_Settings_Conn_TlsPinnedLabel}"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Margin="0,0,0,4" />
+                        <TextBlock Text="{Binding TlsPinnedFingerprintDisplay}"
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   Margin="0,0,0,10" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <Button Padding="12,6"
+                                    MinWidth="200"
+                                    Margin="0,0,8,0"
+                                    Content="{DynamicResource Ui_Settings_Conn_TlsProbeButton}"
+                                    Command="{Binding ProbeTlsAndPinCommand}"
+                                    IsEnabled="{Binding CanInteractFooter}" />
+                            <Button Padding="12,6"
+                                    MinWidth="200"
+                                    Content="{DynamicResource Ui_Settings_Conn_TlsForgetButton}"
+                                    Command="{Binding ForgetTlsPinnedFingerprintCommand}"
+                                    IsEnabled="{Binding CanInteractFooter}" />
+                        </StackPanel>
                         <TextBlock Text="{DynamicResource Ui_Settings_Conn_ApiTokenLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />
-                        <TextBox Text="{Binding ServiceApiToken, UpdateSourceTrigger=PropertyChanged}"
-                                 Padding="8"
-                                 Margin="0,0,0,8"
-                                 ToolTip="{DynamicResource Ui_Settings_Conn_ApiTokenTooltip}" />
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     Text="{Binding ServiceApiToken, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8"
+                                     Margin="0,0,8,0"
+                                     VerticalContentAlignment="Center"
+                                     ToolTip="{DynamicResource Ui_Settings_Conn_ApiTokenTooltip}" />
+                            <Button Grid.Column="1"
+                                    MinWidth="140"
+                                    Padding="12,6"
+                                    VerticalAlignment="Center"
+                                    Content="{DynamicResource Ui_Settings_Conn_ApiTokenRotateButton}"
+                                    Command="{Binding RotateServiceApiTokenCommand}"
+                                    ToolTip="{DynamicResource Ui_Settings_Conn_ApiTokenRotateTooltip}" />
+                        </Grid>
+                        <TextBlock Margin="0,0,0,8"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource ThemeMutedForegroundBrush}"
+                                   FontSize="12"
+                                   Text="{Binding ServiceApiTokenCredentialStatus}" />
                         <TextBlock Text="{DynamicResource Ui_Settings_Conn_TimeoutLabel}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,6" />

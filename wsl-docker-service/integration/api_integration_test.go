@@ -17,7 +17,7 @@ import (
 
 func TestAPIHealth(t *testing.T) {
 	mux := http.NewServeMux()
-	httpserver.Register(mux)
+	httpserver.Register(mux, nil)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
@@ -41,7 +41,7 @@ func TestAPIHealth(t *testing.T) {
 
 func TestAPIOpenAPIJSON(t *testing.T) {
 	mux := http.NewServeMux()
-	httpserver.Register(mux)
+	httpserver.Register(mux, nil)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
@@ -74,7 +74,7 @@ func TestAPIDockerInfoWithEngine(t *testing.T) {
 	}
 
 	mux := http.NewServeMux()
-	httpserver.Register(mux)
+	httpserver.Register(mux, nil)
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 

@@ -44,6 +44,17 @@ func validateTrivyPolicyPath(p string) error {
 	return nil
 }
 
+func validateTrivyImageRef(ref string) error {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return fmt.Errorf("thiếu imageRef")
+	}
+	if strings.HasPrefix(ref, "-") {
+		return fmt.Errorf("imageRef không được bắt đầu bằng '-'")
+	}
+	return nil
+}
+
 // ImageTrivyScan xử lý POST /api/images/trivy-scan — gọi `trivy image` nếu có trong PATH (tùy chọn, công cụ ngoài).
 func ImageTrivyScan(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost || r.URL.Path != "/api/images/trivy-scan" {
@@ -56,8 +67,8 @@ func ImageTrivyScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ref := strings.TrimSpace(body.ImageRef)
-	if ref == "" {
-		apiresponse.WriteError(w, apiresponse.CodeValidation, "thiếu imageRef", http.StatusBadRequest)
+	if err := validateTrivyImageRef(ref); err != nil {
+		apiresponse.WriteError(w, apiresponse.CodeValidation, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if len(ref) > 512 {
@@ -79,7 +90,7 @@ func ImageTrivyScan(w http.ResponseWriter, r *http.Request) {
 	if pp := strings.TrimSpace(body.PolicyPath); pp != "" {
 		args = append(args, "--policy", pp)
 	}
-	args = append(args, ref)
+	args = append(args, "--", ref)
 	cmd := exec.CommandContext(ctx, "trivy", args...)
 	out, err := cmd.CombinedOutput()
 	output := string(out)

@@ -1,6 +1,8 @@
 using System.Net.Http;
+using System.Net.WebSockets;
 using DockLite.Core.Configuration;
 using DockLite.Core.Diagnostics;
+using DockLite.Core.Security;
 
 namespace DockLite.Infrastructure.Api;
 
@@ -9,27 +11,87 @@ namespace DockLite.Infrastructure.Api;
 /// </summary>
 public sealed class DockLiteHttpSession
 {
+    private readonly ITrustedFingerprintStore? _fingerprintStore;
     private HttpClient _client;
 
-    public DockLiteHttpSession(AppSettings settings)
+    public DockLiteHttpSession(AppSettings settings, ITrustedFingerprintStore? fingerprintStore = null)
     {
+        _fingerprintStore = fingerprintStore;
         _client = CreateClient(settings);
     }
 
-    private static HttpClient CreateClient(AppSettings settings)
+    private HttpClient CreateClient(AppSettings settings)
     {
-        // Tắt proxy hệ thống: một số môi trường chặn hoặc sai hướng kết nối tới localhost / WSL.
-        var inner = new SocketsHttpHandler { UseProxy = false };
+        HttpMessageHandler inner = CreateInnerHandler(settings, _fingerprintStore);
         var requestIdHandler = new RequestIdDelegatingHandler { InnerHandler = inner };
         var client = new HttpClient(requestIdHandler, disposeHandler: true);
         HttpClientAppSettings.ApplyTo(client, settings);
         return client;
     }
 
+    private static HttpMessageHandler CreateInnerHandler(AppSettings settings, ITrustedFingerprintStore? store)
+    {
+        Uri b = ServiceBaseUriHelper.Normalize(settings.ServiceBaseUrl);
+        if (b.Scheme == Uri.UriSchemeHttps && store is not null)
+        {
+            var h = new HttpClientHandler { UseProxy = false };
+            h.ServerCertificateCustomValidationCallback = (message, cert, chain, e) =>
+            {
+                if (message?.RequestUri is not { } ru || !ru.IsAbsoluteUri)
+                {
+                    return false;
+                }
+
+                return DockLiteTlsClientValidation.ServerCertificateValidatesPin(
+                    store,
+                    ru.Host,
+                    ru.Port,
+                    cert,
+                    chain,
+                    e);
+            };
+            return h;
+        }
+
+        return new SocketsHttpHandler { UseProxy = false };
+    }
+
     /// <summary>
     /// Client hiện dùng cho API và WebSocket base URL.
     /// </summary>
     public HttpClient Client => _client;
+
+    /// <summary>
+    /// Gắn xác thực cert WSS trùng pin với HTTPS (sau khi tạo <see cref="ClientWebSocket"/>, trước <see cref="ClientWebSocket.ConnectAsync"/>).
+    /// </summary>
+    public void ApplyTlsToClientWebSocketIfNeeded(ClientWebSocket webSocket)
+    {
+        if (_fingerprintStore is null)
+        {
+            return;
+        }
+
+        if (Client.BaseAddress?.Scheme != Uri.UriSchemeHttps)
+        {
+            return;
+        }
+
+        webSocket.Options.RemoteCertificateValidationCallback = (uriObj, cert, chain, e) =>
+        {
+            if (uriObj is not Uri uri)
+            {
+                return false;
+            }
+
+            return DockLiteTlsClientValidation.ServerCertificateValidatesPin(
+                _fingerprintStore,
+                uri.Host,
+                uri.Port,
+                cert,
+                chain,
+                e);
+        };
+    }
 
     /// <summary>
     /// Tạo HttpClient mới theo cấu hình (gọi khi người dùng Lưu trong Cài đặt).

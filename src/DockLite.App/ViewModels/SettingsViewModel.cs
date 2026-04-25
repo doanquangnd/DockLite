@@ -15,6 +15,8 @@ using DockLite.Contracts.Api;
 using DockLite.Core;
 using DockLite.Core.Configuration;
 using DockLite.Core.Diagnostics;
+using DockLite.Core.Security;
+using DockLite.Core.Services;
 using DockLite.Infrastructure.Api;
 using DockLite.Infrastructure.Configuration;
 using DockLite.Infrastructure.Wsl;
@@ -29,11 +31,14 @@ public partial class SettingsViewModel : ObservableObject
     private readonly IAppSettingsStore _store;
     private readonly DockLiteHttpSession _httpSession;
     private readonly ISystemDiagnosticsScreenApi _systemDiagnosticsApi;
+    private readonly IDockLiteApiClient _apiClient;
     private readonly string _appBaseDirectory;
     private readonly IAppShutdownToken _shutdownToken;
     private readonly WslServiceHealthCache _healthCache;
     private readonly AppUiDisplaySettings _uiDisplay;
     private readonly INotificationService _notificationService;
+    private readonly ITrustedFingerprintStore _tlsFingerprintStore;
+    private readonly IDialogService _settingsDialogService;
 
     /// <summary>
     /// Đường dẫn tới <c>docs/docklite-lan-security.md</c> khi có trong tree (dev); null nếu không tìm thấy.
@@ -52,32 +57,47 @@ public partial class SettingsViewModel : ObservableObject
 
     private const int ToastMessageMaxChars = 520;
 
+    private readonly string _serviceApiTokenProfile;
+
     private readonly SemaphoreSlim _saveSettingsGate = new(1, 1);
 
     public SettingsViewModel(
         IAppSettingsStore store,
         DockLiteHttpSession httpSession,
         ISystemDiagnosticsScreenApi systemDiagnosticsApi,
+        IDockLiteApiClient apiClient,
         string appBaseDirectory,
         AppSettings initialSettings,
         IAppShutdownToken shutdownToken,
         WslServiceHealthCache healthCache,
         AppUiDisplaySettings uiDisplay,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        ITrustedFingerprintStore tlsFingerprintStore,
+        IDialogService settingsDialogService)
     {
         _store = store;
         _httpSession = httpSession;
         _systemDiagnosticsApi = systemDiagnosticsApi;
+        _apiClient = apiClient;
         _appBaseDirectory = appBaseDirectory;
         _shutdownToken = shutdownToken;
         _healthCache = healthCache;
         _uiDisplay = uiDisplay;
         _notificationService = notificationService;
+        _tlsFingerprintStore = tlsFingerprintStore;
+        _settingsDialogService = settingsDialogService;
         _lanSecurityMarkdownPath = LanSecurityDocPaths.TryResolve(_appBaseDirectory);
         _healthCache.Changed += (_, _) => NotifyWslServiceButtonStates();
         _loadedUiTheme = initialSettings.UiTheme ?? "Light";
+        _serviceApiTokenProfile = (initialSettings.ServiceApiTokenProfile ?? "default").Trim();
+        if (string.IsNullOrEmpty(_serviceApiTokenProfile))
+        {
+            _serviceApiTokenProfile = "default";
+        }
+
         ServiceBaseUrl = initialSettings.ServiceBaseUrl;
         ServiceApiToken = initialSettings.ServiceApiToken ?? string.Empty;
+        ServiceApiTokenCredentialStatus = BuildServiceApiTokenCredentialStatus(_serviceApiTokenProfile);
         ApplyServiceBaseUrlSecurity(ServiceBaseUrl);
         ServiceBaseUrlPortHint = BuildServiceBaseUrlPortHint(ServiceBaseUrl);
         int sec = initialSettings.HttpTimeoutSeconds >= 30 ? initialSettings.HttpTimeoutSeconds : 120;
@@ -116,6 +136,7 @@ public partial class SettingsViewModel : ObservableObject
         SettingsFilePathDisplay = _store.SettingsFilePath;
         EffectiveWslPathSummary = BuildEffectiveWslPathSummary();
         UpdateDatePreview();
+        RefreshTlsPinDisplayFromStore();
     }
 
     /// <summary>
@@ -167,6 +188,15 @@ public partial class SettingsViewModel : ObservableObject
     private string _serviceApiToken = string.Empty;
 
     /// <summary>
+    /// Mô tả nơi lưu mật khẩu API (tiếp Windows Credential, không còn trong settings.json).
+    /// </summary>
+    [ObservableProperty]
+    private string _serviceApiTokenCredentialStatus = string.Empty;
+
+    [ObservableProperty]
+    private bool _isRotatingServiceApiToken;
+
+    /// <summary>
     /// Cảnh báo khi host base URL không phải loopback (theo mức độ: cleartext so với TLS trên LAN).
     /// </summary>
     [ObservableProperty]
@@ -183,6 +213,18 @@ public partial class SettingsViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private string _serviceBaseUrlPortHint = string.Empty;
+
+    /// <summary>
+    /// Khi bật: Base URL dùng <c>https</c>; khi tắt: <c>http</c> (cùng host, cổng, đường dẫn).
+    /// </summary>
+    [ObservableProperty]
+    private bool _serviceTlsConnectionEnabled;
+
+    /// <summary>
+    /// Fingerprint SHA-256 (dạng dấu hai chấm) đang lưu trong Credential cho host:port hiện tại, hoặc chuỗi gợi ý.
+    /// </summary>
+    [ObservableProperty]
+    private string _tlsPinnedFingerprintDisplay = string.Empty;
 
     /// <summary>
     /// Đường dẫn file <c>settings.json</c> trong %LocalAppData% (hiển thị và sao lưu).
@@ -351,6 +393,37 @@ public partial class SettingsViewModel : ObservableObject
     {
         ApplyServiceBaseUrlSecurity(value);
         ServiceBaseUrlPortHint = BuildServiceBaseUrlPortHint(value);
+        if (Uri.TryCreate(value, UriKind.Absolute, out Uri? uu))
+        {
+            bool wantHttps = uu.Scheme == Uri.UriSchemeHttps;
+            if (_serviceTlsConnectionEnabled != wantHttps)
+            {
+                _serviceTlsConnectionEnabled = wantHttps;
+                OnPropertyChanged(nameof(ServiceTlsConnectionEnabled));
+            }
+        }
+
+        RefreshTlsPinDisplayFromStore();
+    }
+
+    partial void OnServiceTlsConnectionEnabledChanged(bool value)
+    {
+        if (!Uri.TryCreate(ServiceBaseUrl, UriKind.Absolute, out Uri? u))
+        {
+            return;
+        }
+
+        bool curHttps = u.Scheme == Uri.UriSchemeHttps;
+        if (curHttps == value)
+        {
+            return;
+        }
+
+        var b = new UriBuilder(u)
+        {
+            Scheme = value ? Uri.UriSchemeHttps : Uri.UriSchemeHttp,
+        };
+        ServiceBaseUrl = b.Uri.ToString();
     }
 
     private void ApplyServiceBaseUrlSecurity(string? serviceBaseUrl)
@@ -368,6 +441,16 @@ public partial class SettingsViewModel : ObservableObject
     partial void OnSelectedUiTimeZoneIdChanged(string value)
     {
         UpdateDatePreview();
+    }
+
+    partial void OnServiceApiTokenChanged(string value)
+    {
+        RotateServiceApiTokenCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsRotatingServiceApiTokenChanged(bool value)
+    {
+        RotateServiceApiTokenCommand.NotifyCanExecuteChanged();
     }
 
     private void UpdateDatePreview()
@@ -439,12 +522,14 @@ public partial class SettingsViewModel : ObservableObject
         NotifyWslServiceButtonStates();
         OnPropertyChanged(nameof(CanInteractFooter));
         OnPropertyChanged(nameof(CanRefreshWslResources));
+        RotateServiceApiTokenCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsSavingSettingsChanged(bool value)
     {
         OnPropertyChanged(nameof(CanInteractFooter));
         OnPropertyChanged(nameof(CanRefreshWslResources));
+        RotateServiceApiTokenCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnIsWslResourcesBusyChanged(bool value)
@@ -778,7 +863,8 @@ public partial class SettingsViewModel : ObservableObject
     {
         if (WslHostAddressResolver.TryGetFirstIpv4(WslDistribution, out string ip))
         {
-            ServiceBaseUrl = $"http://{ip}:{DockLiteApiDefaults.DefaultPort}/";
+            string scheme = ServiceTlsConnectionEnabled ? "https" : "http";
+            ServiceBaseUrl = $"{scheme}://{ip}:{DockLiteApiDefaults.DefaultPort}/";
             StatusMessage = UiLanguageManager.TryLocalizeFormatCurrent(
                 "Ui_Settings_Status_WslIpFilledFormat",
                 "Đã điền địa chỉ theo IP WSL ({0}). Nhấn Lưu để áp dụng cho toàn bộ ứng dụng.",
@@ -789,6 +875,225 @@ public partial class SettingsViewModel : ObservableObject
         StatusMessage = UiLanguageManager.TryLocalizeCurrent(
             "Ui_Settings_Status_WslIpLookupFailed",
             "Không lấy được IP WSL (wsl hostname -I). Kiểm tra WSL đã bật; nếu có nhiều distro, điền tên Distro WSL rồi thử lại.");
+    }
+
+    [RelayCommand]
+    private void ForgetTlsPinnedFingerprint()
+    {
+        if (!Uri.TryCreate(ServiceBaseUrl, UriKind.Absolute, out Uri? u) || u.Scheme != Uri.UriSchemeHttps)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Settings_Tls_ForgetNeedHttps",
+                "Chỉ áp dụng khi Base URL dùng https://.");
+            return;
+        }
+
+        _tlsFingerprintStore.Remove(u.Host, u.Port);
+        _httpSession.Reconfigure(CreateSettingsSnapshotForWsl());
+        RefreshTlsPinDisplayFromStore();
+        StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+            "Ui_Settings_Tls_ForgetOk",
+            "Đã xóa fingerprint TLS đã pin (Credential Manager) cho host hiện tại. Kết nối HTTPS tới sẽ cần xác thực lại.");
+    }
+
+    [RelayCommand]
+    private async Task ProbeTlsAndPinAsync()
+    {
+        if (!Uri.TryCreate(ServiceBaseUrl, UriKind.Absolute, out Uri? u) || u.Scheme != Uri.UriSchemeHttps)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Settings_Tls_ProbeNeedHttps",
+                "Đặt Base URL dùng https:// (hoặc bật «Bật TLS») rồi thử lại.");
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            TlsCertificateDisplayInfo? info = await TlsServerCertificateProber.ProbeAsync(
+                u.Host,
+                u.Port,
+                _shutdownToken.Token).ConfigureAwait(true);
+            if (info is null)
+            {
+                StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Settings_Tls_ProbeFailed",
+                    "Không lấy được chứng thư từ server (TLS). Kiểm tra service đang chạy, DOCKLITE_TLS_ENABLED và cổng.");
+                return;
+            }
+
+            string? existing = _tlsFingerprintStore.Read(u.Host, u.Port);
+            string titleFirst = UiLanguageManager.TryLocalizeCurrent("Ui_Dialog_TlsTofu_Title", "DockLite — TLS lần đầu");
+            string titleChange = UiLanguageManager.TryLocalizeCurrent("Ui_Dialog_TlsChange_Title", "DockLite — Chứng thư đổi");
+
+            if (string.IsNullOrEmpty(existing))
+            {
+                string body = BuildTlsFirstTrustBody(info);
+                bool trust = await _settingsDialogService
+                    .TlsFirstTrustFromDialogAsync(body, titleFirst)
+                    .ConfigureAwait(true);
+                if (!trust)
+                {
+                    return;
+                }
+
+                _tlsFingerprintStore.Write(u.Host, u.Port, info.Sha256FingerprintColon);
+            }
+            else if (!TlsCertificateFingerprint.EqualsNormalized(existing, info.Sha256FingerprintColon))
+            {
+                string body = BuildTlsChangedBody(existing, info);
+                bool trustNew = await _settingsDialogService
+                    .TlsCertificateChangedFromDialogAsync(body, titleChange)
+                    .ConfigureAwait(true);
+                if (!trustNew)
+                {
+                    return;
+                }
+
+                _tlsFingerprintStore.Write(u.Host, u.Port, info.Sha256FingerprintColon);
+            }
+            else
+            {
+                string ok = UiLanguageManager.TryLocalizeCurrent(
+                    "Ui_Settings_Tls_PinnedMatches",
+                    "Fingerprint hiện tại trùng với cert trên server — không cần đổi pin.");
+                await _settingsDialogService.ShowInfoAsync(
+                    ok,
+                    UiLanguageManager.TryLocalizeCurrent("Ui_Dialog_TlsInfo_Title", "DockLite — TLS"))
+                    .ConfigureAwait(true);
+            }
+
+            _httpSession.Reconfigure(CreateSettingsSnapshotForWsl());
+            RefreshTlsPinDisplayFromStore();
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Settings_Tls_PinSaved", "Đã cập nhật pin TLS và HttpClient.");
+        }
+        catch (OperationCanceledException)
+        {
+            // đóng app
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent("Ui_Settings_Tls_ProbeError", "Lỗi probe TLS: ") + ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void RefreshTlsPinDisplayFromStore()
+    {
+        if (string.IsNullOrWhiteSpace(ServiceBaseUrl) || !Uri.TryCreate(ServiceBaseUrl, UriKind.Absolute, out Uri? u))
+        {
+            TlsPinnedFingerprintDisplay = string.Empty;
+            return;
+        }
+
+        if (u.Scheme != Uri.UriSchemeHttps)
+        {
+            TlsPinnedFingerprintDisplay = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Settings_Tls_DisplayNoTls",
+                "— (kết nối hiện dùng http)");
+            return;
+        }
+
+        string? pin = _tlsFingerprintStore.Read(u.Host, u.Port);
+        TlsPinnedFingerprintDisplay = string.IsNullOrEmpty(pin)
+            ? UiLanguageManager.TryLocalizeCurrent("Ui_Settings_Tls_NoPinYet", "Chưa pin — dùng «Kết nối và lưu pin TLS»")
+            : pin;
+    }
+
+    private static string BuildTlsFirstTrustBody(TlsCertificateDisplayInfo i)
+    {
+        var sb = new StringBuilder(512);
+        sb.AppendLine("Hệ thống chưa lưu fingerprint cho dịch vụ này.");
+        sb.AppendLine("SHA-256 (public cert): " + i.Sha256FingerprintColon);
+        sb.AppendLine("Chủ thể: " + i.Subject);
+        sb.Append("Hiệu lực: ").Append(i.NotBeforeLocal).Append(" — ").AppendLine(i.NotAfterLocal);
+        sb.AppendLine("Chọn «Có» để lưu tin cậy (Credential), «Không» để từ chối.");
+        return sb.ToString();
+    }
+
+    private static string BuildTlsChangedBody(string oldFp, TlsCertificateDisplayInfo i)
+    {
+        var sb = new StringBuilder(600);
+        sb.AppendLine("Cảnh báo: certificate đổi (có thể do MITM hoặc tạo lại cert trên server).");
+        sb.AppendLine("Pin cũ: " + oldFp);
+        sb.AppendLine("Pin mới: " + i.Sha256FingerprintColon);
+        sb.AppendLine("Chủ thể: " + i.Subject);
+        sb.Append("Hiệu lực: ").Append(i.NotBeforeLocal).Append(" — ").AppendLine(i.NotAfterLocal);
+        sb.AppendLine("«Có» = tin chứng mới; «Không» = hủy kết nối (không lưu).");
+        return sb.ToString();
+    }
+
+    private bool CanRotateServiceApiToken() =>
+        !IsBusy
+        && !IsSavingSettings
+        && !IsRotatingServiceApiToken
+        && !string.IsNullOrWhiteSpace(ServiceApiToken);
+
+    [RelayCommand(CanExecute = nameof(CanRotateServiceApiToken))]
+    private async Task RotateServiceApiToken()
+    {
+        if (string.IsNullOrWhiteSpace(ServiceApiToken))
+        {
+            StatusMessage = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Settings_Status_RotateTokenNeedCurrent",
+                "Nhập token API hiện tại (ô phía trên) rồi thử xoay lại.");
+            return;
+        }
+
+        IsRotatingServiceApiToken = true;
+        try
+        {
+            var req = new AuthRotateRequest { CurrentToken = ServiceApiToken.Trim() };
+            ApiResult<AuthRotateData> res = await _apiClient
+                .RotateServiceApiTokenAsync(req, _shutdownToken.Token)
+                .ConfigureAwait(true);
+            if (!res.Success)
+            {
+                string msg = res.Error?.Message ?? "Không xoay được token.";
+                StatusMessage = msg;
+                await _notificationService
+                    .ShowAsync("DockLite", msg, NotificationDisplayKind.Warning, _shutdownToken.Token)
+                    .ConfigureAwait(true);
+                return;
+            }
+
+            if (res.Data is null || string.IsNullOrWhiteSpace(res.Data.NewToken))
+            {
+                string emptyMsg = "Phản hồi từ service không có new_token hợp lệ.";
+                StatusMessage = emptyMsg;
+                await _notificationService
+                    .ShowAsync("DockLite", emptyMsg, NotificationDisplayKind.Warning, _shutdownToken.Token)
+                    .ConfigureAwait(true);
+                return;
+            }
+
+            ServiceApiToken = res.Data.NewToken.Trim();
+            AppSettings snap = CreateSettingsSnapshotForWsl();
+            _store.Save(snap);
+            _httpSession.Reconfigure(snap);
+            string ok = UiLanguageManager.TryLocalizeCurrent(
+                "Ui_Settings_Status_RotateTokenOk",
+                "Đã xoay token API và cập nhật lưu trong Credential Manager (kèm cấu hình kết nối hiện tại trên màn hình này).");
+            StatusMessage = ok;
+            await _notificationService
+                .ShowAsync("DockLite", ok, NotificationDisplayKind.Success, _shutdownToken.Token)
+                .ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            string err = "Lỗi khi gọi xoay token: " + ex.Message;
+            StatusMessage = err;
+            await _notificationService
+                .ShowAsync("DockLite", err, NotificationDisplayKind.Warning, _shutdownToken.Token)
+                .ConfigureAwait(true);
+        }
+        finally
+        {
+            IsRotatingServiceApiToken = false;
+        }
     }
 
     [RelayCommand]
@@ -871,6 +1176,7 @@ public partial class SettingsViewModel : ObservableObject
             var settings = new AppSettings
             {
                 ServiceBaseUrl = ServiceBaseUrl.Trim(),
+                ServiceApiTokenProfile = _serviceApiTokenProfile,
                 ServiceApiToken = string.IsNullOrWhiteSpace(ServiceApiToken) ? null : ServiceApiToken.Trim(),
                 HttpTimeoutSeconds = sec,
                 AutoStartWslService = AutoStartWslService,
@@ -940,6 +1246,7 @@ public partial class SettingsViewModel : ObservableObject
 
             EffectiveWslPathSummary = BuildEffectiveWslPathSummary();
             UpdateDatePreview();
+            RefreshTlsPinDisplayFromStore();
             await PostSaveHealthProbeAsync().ConfigureAwait(true);
         }
         finally
@@ -1038,6 +1345,7 @@ public partial class SettingsViewModel : ObservableObject
         var snapshot = new AppSettings
         {
             ServiceBaseUrl = ServiceBaseUrl.Trim(),
+            ServiceApiTokenProfile = _serviceApiTokenProfile,
             ServiceApiToken = string.IsNullOrWhiteSpace(ServiceApiToken) ? null : ServiceApiToken.Trim(),
             HttpTimeoutSeconds = sec,
             AutoStartWslService = AutoStartWslService,
@@ -1092,6 +1400,14 @@ public partial class SettingsViewModel : ObservableObject
         }
 
         return $"Cổng trong URL là {port} (mặc định DockLite là {DockLiteApiDefaults.DefaultPort}). Đảm bảo tiến trình wsl-docker-service trong WSL đang lắng nghe đúng cổng này.";
+    }
+
+    private static string BuildServiceApiTokenCredentialStatus(string profile)
+    {
+        return
+            "Mật khẩu API được lưu tại Kho mật khẩu Windows (resource DockLite:ServiceApiToken:"
+            + profile
+            + ") — không lưu trong file settings.json.";
     }
 }
 

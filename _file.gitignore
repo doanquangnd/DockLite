@@ -1,0 +1,31 @@
+# Build
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+*.cache
+*.log
+
+# NuGet
+packages/
+*.nupkg
+
+# Phát hành / publish
+artifacts/
+
+# Go
+wsl-docker-service/.env
+wsl-docker-service/bin/
+wsl-docker-service/dist/
+*.exe
+*.test
+*.out
+
+# IDE
+.vs/
+.idea/
+*.DotSettings.user
+
+docs/*.md

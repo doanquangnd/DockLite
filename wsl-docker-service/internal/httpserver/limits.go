@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-// Timeout đọc/ghi toàn bộ request/response (image load, compose dài). WebSocket sau Upgrade không dùng giới hạn này.
+// ReadTimeout/WriteTimeout mặc định 60s (AUD-02). Route dài (compose, image, ws, v.v.) được nới bằng ExtendLongLivedRequestDeadlines.
 // Số kết nối WebSocket đồng thời: biến môi trường DOCKLITE_WS_MAX_CONNECTIONS (mặc định 64, tối đa 4096), gói internal/wslimit.
 const (
-	ReadTimeout  = 30 * time.Minute
-	WriteTimeout = 30 * time.Minute
+	ReadTimeout  = 60 * time.Second
+	WriteTimeout = 60 * time.Second
 	IdleTimeout  = 2 * time.Minute
 	// MaxBodyBytesPOST giới hạn thân POST/PATCH/PUT (trừ /api/images/load — đã có MaxBytesReader riêng).
 	MaxBodyBytesPOST = 64 << 20

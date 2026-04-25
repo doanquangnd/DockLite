@@ -16,6 +16,8 @@ const (
 	CodeInternal            = "INTERNAL"
 	CodeBadGateway          = "BAD_GATEWAY"
 	CodeComposeCommand      = "COMPOSE_COMMAND"
+	CodeAuth                = "AUTH"
+	CodeRateLimit           = "RATE_LIMIT"
 )
 
 // ErrorBody là phần error khi success = false.

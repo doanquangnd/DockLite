@@ -161,6 +161,11 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_BaseUrlLabel">Service base URL (WSL)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_BaseUrlTooltip">Default http://127.0.0.1:17890/. If Windows cannot reach the service even though it runs in WSL, use the button on the right to fill WSL IP.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApplyWslIp">Fill WSL IP</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsToggleLabel">TLS (https)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsToggleText">Use TLS (switch Base URL to https://, same host and port)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsPinnedLabel">Trusted fingerprint (SHA-256)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsProbeButton">Connect and save TLS pin</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsForgetButton">Forget TLS pin</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_TimeoutLabel">HTTP timeout (seconds, 30–600)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_TimeoutTooltip">Applies to all REST calls (compose and prune may take longer).</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_CheckHint">Quick API + WSL check (uname, wslpath) below; or use the bottom-row button for health + Docker only.</sys:String>
@@ -169,7 +174,9 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckButton">Run API + WSL check</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckTooltip">Same as «Quick diagnostics» on the WSL tab; output appears here and there.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApiTokenLabel">API token (optional, Bearer)</sys:String>
-    <sys:String x:Key="Ui_Settings_Conn_ApiTokenTooltip">If docklite-wsl uses DOCKLITE_API_TOKEN in WSL, enter the same value here and Save. Leave empty when auth is off. Stored in local settings; not written to diagnostic logs.</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ApiTokenTooltip">If docklite-wsl uses DOCKLITE_API_TOKEN in WSL, enter the same value here and Save. Leave empty when auth is off. The secret is stored in Windows Credential Manager (resource DockLite:ServiceApiToken), not in settings.json. Not written to diagnostic logs.</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ApiTokenRotateButton">Rotate token on service</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ApiTokenRotateTooltip">Calls POST /api/auth/rotate with the current Bearer secret. Updates the in-app store and WSL in-memory until the Go process restarts; set DOCKLITE_API_TOKEN in WSL if you need the new value after a restart.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ConfigFileTitle">Local settings file (backup)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ConfigFilePathTooltip">Absolute path to settings.json under %LocalAppData%\DockLite\</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ExportSettingsButton">Back up settings to file…</sys:String>

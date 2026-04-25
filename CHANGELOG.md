@@ -2,6 +2,24 @@
 
 Định dạng dựa trên [Keep a Changelog](https://keepachangelog.com/vi/1.0.0/).
 
+## [2.0.0] — 2026-04-25 (phát hành nội bộ)
+
+Milestone **v2.0 IPC Hardening (Zero-Trust)**: 5 phase, 27 yêu cầu trong `REQUIREMENTS.md`; self-attest trong `.planning/SECURITY-ATTESTATION.md`.
+
+### Bảo mật và vận hành
+
+- **Mạng (Go):** mặc định lắng nghe loopback; chế độ LAN fail-closed khi thiếu token; giới hạn tốc độ theo IP; timeout HTTP chuẩn + nới deadline cho luồng dài; audit JSON (stdout + file xoay).
+- **Bí mật (WPF + Go):** token API trong Windows Credential Manager; xoay token qua `POST /api/auth/rotate` và nút Cài đặt.
+- **TLS tùy chọn (Go + WPF):** khi `DOCKLITE_TLS_ENABLED=true`, service tự sinh cert ECDSA trong `~/.docklite/tls/`; client HTTPS/WSS với TOFU và pin fingerprint trong Credential Manager; UI Cài đặt (bật https, probe, quên pin).
+- **Process hardening:** spawn lifecycle WSL qua `wsl.exe --cd <unixPath> -- bash <script>` (không nội suy `bash -lc` cho đường dẫn dự án); kiểm tra ký tự cấm trên đường dẫn Unix; script `run/stop/restart` dùng PID file `~/.docklite/run/docklite-wsl.pid` thay `pkill -f`; `--` trước tham số user-controlled cho `trivy` và `docker compose` (service/exec/logs).
+
+### Kiểm thử
+
+- `dotnet test` (DockLite.Tests).
+- `go vet ./...` và `go test ./...` trong `wsl-docker-service` (môi trường có Go).
+
+Các mục dưới **[Chưa phát hành]** vẫn là nhật ký chi tiết theo từng hạng mục phát triển trước khi gắn nhãn 2.0.0.
+
 ## [Chưa phát hành]
 
 ### Thêm / đổi (Quan sát — mục 2.5 tài liệu mở rộng)
@@ -312,7 +330,7 @@
 
 - `docker compose exec -it` / terminal tương tác nhúng trong UI (ConPTY); đã có nút mở terminal WSL trong thư mục project và khối gợi ý lệnh / sao chép.
 - Rà thêm ViewModel hoặc lệnh chạy lâu khi bổ sung tính năng mới: gắn `IAppShutdownToken` / `CancellationToken` nhất quán.
-- Tuỳ chọn: API batch stats một lần nhiều container; TLS khi expose service ra LAN/WAN.
+- Tuỳ chọn: API batch stats một lần nhiều container (TLS tùy chọn và pin TOFU đã gộp vào phát hành 2.0.0).
 
 ### Tài liệu
 

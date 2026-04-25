@@ -161,6 +161,11 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_BaseUrlLabel">Địa chỉ base URL service (WSL)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_BaseUrlTooltip">Mặc định http://127.0.0.1:17890/. Nếu Windows không kết nối được dù service đã chạy trong WSL, dùng nút bên phải để điền IP WSL.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApplyWslIp">Điền IP WSL</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsToggleLabel">TLS (https)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsToggleText">Bật TLS (chuyển Base URL sang https://, cùng host và cổng)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsPinnedLabel">Fingerprint đang tin cậy (SHA-256)</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsProbeButton">Kết nối và lưu pin TLS</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_TlsForgetButton">Quên pin TLS</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_TimeoutLabel">Timeout HTTP (giây, 30–600)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_TimeoutTooltip">Áp dụng cho mọi lệnh gọi REST (compose, prune có thể chạy lâu).</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_CheckHint">Kiểm tra nhanh API + WSL (uname, wslpath) dùng khối bên dưới; hoặc nút «Kiểm tra kết nối» ở hàng dưới cùng (health + Docker).</sys:String>
@@ -169,7 +174,9 @@ Image: {6}</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckButton">Chạy kiểm tra API + WSL</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_EnvironmentCheckTooltip">Gọi cùng lệnh «Chẩn đoán nhanh» ở tab WSL; kết quả hiển thị ở đây và tab đó.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ApiTokenLabel">Token API (tùy chọn, Bearer)</sys:String>
-    <sys:String x:Key="Ui_Settings_Conn_ApiTokenTooltip">Nếu trên WSL đặt biến DOCKLITE_API_TOKEN cho docklite-wsl, nhập cùng giá trị ở đây rồi Lưu. Để trống khi không bật xác thực. Lưu trong file cài đặt cục bộ; không ghi nhật ký chẩn đoán.</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ApiTokenTooltip">Nếu trên WSL đặt biến DOCKLITE_API_TOKEN cho docklite-wsl, nhập cùng giá trị ở đây rồi Lưu. Để trống khi không bật xác thực. Mật khẩu được lưu trong Trình quản lý thông tin xác thực Windows (resource DockLite:ServiceApiToken), không còn trong file settings.json. Không ghi nhật ký chẩn đoán.</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ApiTokenRotateButton">Xoay token trên service</sys:String>
+    <sys:String x:Key="Ui_Settings_Conn_ApiTokenRotateTooltip">Gọi POST /api/auth/rotate (cùng mật khẩu Bearer hiện tại). Cập nhật mật khẩu trong app và kho; cần đồng bộ DOCKLITE_API_TOKEN ở WSL nếu khởi động lại process Go.</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ConfigFileTitle">File cài đặt cục bộ (sao lưu)</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ConfigFilePathTooltip">Đường dẫn tuyệt đối tới settings.json trong %LocalAppData%\DockLite\</sys:String>
     <sys:String x:Key="Ui_Settings_Conn_ExportSettingsButton">Sao lưu file cài đặt ra…</sys:String>

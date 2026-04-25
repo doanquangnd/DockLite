@@ -123,6 +123,26 @@
           "cpuCoresOnline": { "type": "integer" },
           "collectedAtUtcIso": { "type": "string" }
         }
+      },
+      "AuthRotateRequest": {
+        "type": "object",
+        "required": ["current_token"],
+        "properties": {
+          "current_token": {
+            "type": "string",
+            "description": "Mật khẩu Bearer hiện tại (phải khớp với token trên server)"
+          }
+        }
+      },
+      "AuthRotateData": {
+        "type": "object",
+        "required": ["new_token"],
+        "properties": {
+          "new_token": {
+            "type": "string",
+            "description": "Mật khẩu mới (process cập nhật RAM; đồng bộ DOCKLITE_API_TOKEN/DockLite khi khởi động lại service)"
+          }
+        }
       }
     },
     "responses": {
@@ -168,6 +188,28 @@
         "tags": ["system"],
         "summary": "Health và phiên bản service",
         "responses": { "200": { "$ref": "#/components/responses/OkEnvelope" } }
+      }
+    },
+    "/api/auth/rotate": {
+      "post": {
+        "tags": ["system"],
+        "summary": "Xoay mật khẩu API (Bearer)",
+        "description": "Chỉ đăng ký khi DOCKLITE_API_TOKEN khác rỗng lúc khởi động. Giới hạn khoảng 5 yêu cầu/phút theo IP.",
+        "security": [{ "bearerAuth": [] }, { "dockLiteToken": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthRotateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/OkEnvelope" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "description": "Xác thực API chưa bật trên service" },
+          "429": { "description": "Quá nhiều yêu cầu xoay token" }
+        }
       }
     },
     "/api/wsl/host-resources": {

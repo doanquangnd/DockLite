@@ -3,9 +3,10 @@ using DockLite.App.Services;
 using DockLite.App.ViewModels;
 using DockLite.Core.Configuration;
 using DockLite.Core.Diagnostics;
+using DockLite.Infrastructure.Configuration;
+using DockLite.Core.Security;
 using DockLite.Core.Services;
 using DockLite.Infrastructure.Api;
-using DockLite.Infrastructure.Configuration;
 
 namespace DockLite.App;
 
@@ -39,7 +40,9 @@ public sealed class AppShellFactory : IAppShellFactory
     /// </summary>
     public ShellCompositionResult Create(string appBaseDirectory)
     {
-        var store = new AppSettingsStore();
+        IServiceApiTokenStore apiTokenStore = new WindowsServiceApiTokenStore();
+        ITrustedFingerprintStore tlsPinStore = new WindowsTrustedFingerprintStore();
+        var store = new AppSettingsStore(apiTokenStore);
         AppSettings loaded = store.Load();
         DiagnosticTelemetry.SetEnabled(loaded.DiagnosticLocalTelemetryEnabled);
         _uiDisplay.Apply(loaded);
@@ -50,7 +53,7 @@ public sealed class AppShellFactory : IAppShellFactory
             UiLanguageManager.Apply(Application.Current, loaded);
         }
 
-        var httpSession = new DockLiteHttpSession(loaded);
+        var httpSession = new DockLiteHttpSession(loaded, tlsPinStore);
 
         IDockLiteApiClient apiClient = new DockLiteApiClient(httpSession);
         IContainerScreenApi containerScreenApi = new ContainerScreenApi(apiClient);
@@ -66,7 +69,19 @@ public sealed class AppShellFactory : IAppShellFactory
         var healthCache = new WslServiceHealthCache();
         _shellActivity.AttachHealthCache(healthCache);
         var dashboardVm = new DashboardViewModel(systemDiagnosticsApi, _notificationService, _shellActivity, _shutdownToken, healthCache);
-        var settingsVm = new SettingsViewModel(store, httpSession, systemDiagnosticsApi, appBaseDirectory, loaded, _shutdownToken, healthCache, _uiDisplay, _notificationService);
+        var settingsVm = new SettingsViewModel(
+            store,
+            httpSession,
+            systemDiagnosticsApi,
+            apiClient,
+            appBaseDirectory,
+            loaded,
+            _shutdownToken,
+            healthCache,
+            _uiDisplay,
+            _notificationService,
+            tlsPinStore,
+            _dialogService);
         var containersLazy = new Lazy<ContainersViewModel>(() =>
             new ContainersViewModel(
                 containerScreenApi,

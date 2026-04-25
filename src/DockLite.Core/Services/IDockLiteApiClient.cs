@@ -16,6 +16,13 @@ public interface IDockLiteApiClient
     Task<HealthResponse?> GetHealthAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// POST /api/auth/rotate — xoay mật khẩu API (Bearer) khi service đang bật xác thực.
+    /// </summary>
+    Task<ApiResult<AuthRotateData>> RotateServiceApiTokenAsync(
+        AuthRotateRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gọi GET /api/docker/info để kiểm tra Docker Engine trong WSL.
     /// </summary>
     Task<ApiResult<DockerInfoData>> GetDockerInfoAsync(CancellationToken cancellationToken = default);

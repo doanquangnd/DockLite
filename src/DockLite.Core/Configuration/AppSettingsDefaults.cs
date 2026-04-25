@@ -12,6 +12,13 @@ public static class AppSettingsDefaults
             s.ServiceBaseUrl = DockLiteDefaults.ServiceBaseUrl;
         }
 
+        string p = (s.ServiceApiTokenProfile ?? string.Empty).Trim();
+        s.ServiceApiTokenProfile = string.IsNullOrEmpty(p) ? "default" : p;
+        if (s.ServiceApiTokenProfile.Length > 128)
+        {
+            s.ServiceApiTokenProfile = s.ServiceApiTokenProfile.Substring(0, 128);
+        }
+
         if (string.IsNullOrWhiteSpace(s.ServiceApiToken))
         {
             s.ServiceApiToken = null;

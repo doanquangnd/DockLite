@@ -26,6 +26,6 @@ wsl-docker-service/dist/
 # IDE
 .vs/
 .idea/
-*.DotSettings.user
 
 docs/*.md
+.cursor/

@@ -17,4 +17,6 @@ public static class DockLiteErrorCodes
     public const string ComposeCommand = "COMPOSE_COMMAND";
     public const string Parse = "PARSE";
     public const string Unknown = "UNKNOWN";
+    public const string RateLimit = "RATE_LIMIT";
+    public const string Auth = "AUTH";
 }

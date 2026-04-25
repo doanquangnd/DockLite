@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"log/slog"
@@ -8,6 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"docklite-wsl/internal/audit"
+	"docklite-wsl/internal/docklitetls"
 	"docklite-wsl/internal/httpserver"
 	_ "docklite-wsl/internal/settings" // gói dành cho cấu hình server sau này
 )
@@ -30,15 +33,23 @@ func main() {
 		}
 	}
 
-	mux := http.NewServeMux()
-	httpserver.Register(mux)
-
-	inner := http.Handler(mux)
-	if token != "" {
-		inner = httpserver.RequireBearerToken(token, inner)
+	if err := audit.Init(); err != nil {
+		slog.Warn("audit_file_init_ignored", "err", err)
 	}
 
-	handler := httpserver.LogRequests(httpserver.RequestContextTimeout(httpserver.LimitRequestBody(inner)))
+	mux := http.NewServeMux()
+	state := httpserver.NewMutableToken(token)
+	httpserver.Register(mux, state)
+
+	inner := http.Handler(mux)
+	inner = httpserver.RequireBearerToken(state, inner)
+	inner = httpserver.ExtendLongLivedRequestDeadlines(inner)
+	inner = httpserver.LimitRequestBody(inner)
+	inner = httpserver.RequestContextTimeout(inner)
+	inner = httpserver.AuditSecuritySensitive(state, inner)
+	inner = httpserver.PerIPRateLimit(inner)
+	handler := httpserver.LogRequests(inner)
+
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -48,7 +59,23 @@ func main() {
 		IdleTimeout:       httpserver.IdleTimeout,
 	}
 
-	slog.Info("docklite-wsl_listen", "addr", addr)
+	tlsOn := strings.EqualFold(strings.TrimSpace(os.Getenv("DOCKLITE_TLS_ENABLED")), "true")
+	if tlsOn {
+		certFile, keyFile, err := docklitetls.EnsurePaths()
+		if err != nil {
+			slog.Error("docklite-wsl_tls_cert_failed", "err", err)
+			fmt.Fprintln(os.Stderr, "docklite-wsl: không tạo/đọc cert TLS tại ~/.docklite/tls:", err)
+			os.Exit(2)
+		}
+		srv.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		slog.Info("docklite-wsl_listen", "addr", addr, "tls", true, "cert_pem", certFile)
+		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil && err != http.ErrServerClosed {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	slog.Info("docklite-wsl_listen", "addr", addr, "tls", false)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}

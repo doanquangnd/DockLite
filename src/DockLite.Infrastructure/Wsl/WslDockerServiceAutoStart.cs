@@ -897,12 +897,41 @@ public static class WslDockerServiceAutoStart
         return WslPathProbe.TryWindowsToUnix(windowsDirectory, wslDistribution, out wslPath, out wslpathError);
     }
 
+    /// <summary>
+    /// Kiểm tra đường dẫn Unix trước khi đưa vào đối số `wsl.exe --cd`.
+    /// Chặn các ký tự có thể gây chèn lệnh qua shell tương tác hoặc script wrapper.
+    /// </summary>
+    /// <exception cref="ArgumentException">Ném ra khi phát hiện ký tự cấm.</exception>
+    public static void ValidateWslUnixPathForSpawn(string wslUnixPath)
+    {
+        if (string.IsNullOrWhiteSpace(wslUnixPath))
+        {
+            throw new ArgumentException("Đường dẫn WSL không được để trống.", nameof(wslUnixPath));
+        }
+
+        foreach (char bad in new[] { '\'', '"', '`', '$', '\n', '\r', ';', '|', '&', '<', '>' })
+        {
+            if (!wslUnixPath.Contains(bad))
+            {
+                continue;
+            }
+
+            string printable = bad switch
+            {
+                '\n' => "\\n",
+                '\r' => "\\r",
+                _ => bad.ToString()
+            };
+            throw new ArgumentException(
+                "Đường dẫn WSL chứa ký tự không hợp lệ: " + printable,
+                nameof(wslUnixPath));
+        }
+    }
+
     /// <param name="scriptRelativeFromRoot">Ví dụ scripts/run-server.sh, scripts/stop-server.sh, scripts/restart-server.sh.</param>
     private static void SpawnWslLifecycleScript(string wslUnixPath, string? distribution, string scriptRelativeFromRoot)
     {
-        // Gọi qua bash thay vì ./script.sh để không phụ thuộc chmod +x (tránh Permission denied trên clone/NTFS).
-        // Dùng -lc (login shell): bash -c không nạp .profile/.bashrc — go thường nằm trong PATH chỉ sau login/interactive.
-        string inner = $"cd '{wslUnixPath}' && exec bash {scriptRelativeFromRoot}";
+        ValidateWslUnixPathForSpawn(wslUnixPath);
         var psi = new ProcessStartInfo
         {
             FileName = "wsl.exe",
@@ -914,25 +943,21 @@ public static class WslDockerServiceAutoStart
             StandardErrorEncoding = Encoding.UTF8,
         };
 
-        if (string.IsNullOrWhiteSpace(distribution))
-        {
-            psi.ArgumentList.Add("bash");
-            psi.ArgumentList.Add("-lc");
-            psi.ArgumentList.Add(inner);
-        }
-        else
+        if (!string.IsNullOrWhiteSpace(distribution))
         {
             psi.ArgumentList.Add("-d");
             psi.ArgumentList.Add(distribution.Trim());
-            psi.ArgumentList.Add("bash");
-            psi.ArgumentList.Add("-lc");
-            psi.ArgumentList.Add(inner);
         }
+        psi.ArgumentList.Add("--cd");
+        psi.ArgumentList.Add(wslUnixPath);
+        psi.ArgumentList.Add("--");
+        psi.ArgumentList.Add("bash");
+        psi.ArgumentList.Add(scriptRelativeFromRoot);
 
         string distroLabel = string.IsNullOrWhiteSpace(distribution) ? "(mặc định)" : distribution.Trim();
         string cmdSummary = string.IsNullOrWhiteSpace(distribution)
-            ? $"wsl.exe bash -lc \"cd '{wslUnixPath}' && exec bash {scriptRelativeFromRoot}\""
-            : $"wsl.exe -d {distribution.Trim()} bash -lc \"cd '{wslUnixPath}' && exec bash {scriptRelativeFromRoot}\"";
+            ? $"wsl.exe --cd {wslUnixPath} -- bash {scriptRelativeFromRoot}"
+            : $"wsl.exe -d {distribution.Trim()} --cd {wslUnixPath} -- bash {scriptRelativeFromRoot}";
 
         lock (WslRecentOutputLock)
         {

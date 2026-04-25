@@ -22,4 +22,14 @@ public interface IDialogService
     /// Trợ giúp: nội dung văn bản và (tuỳ chọn) liên kết mở bằng trình duyệt.
     /// </summary>
     Task ShowHelpAsync(string body, string title, IReadOnlyList<HelpHyperlink>? links = null);
+
+    /// <summary>
+    /// Hộp thoại kết nối TLS lần đầu (fingerprint, subject, hiệu lực). Trả về true nếu người dùng chọn «Tin cậy».
+    /// </summary>
+    Task<bool> TlsFirstTrustFromDialogAsync(string message, string title);
+
+    /// <summary>
+    /// Hộp thoại cảnh báo khi cert đổi so với pin đã lưu. Trả về true nếu ghi lại pin mới («Tin chứng mới»).
+    /// </summary>
+    Task<bool> TlsCertificateChangedFromDialogAsync(string message, string title);
 }

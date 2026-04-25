@@ -36,6 +36,9 @@ func validateComposeServiceName(s string) error {
 	if s == "" {
 		return fmt.Errorf("thiếu tên service")
 	}
+	if strings.HasPrefix(s, "-") {
+		return fmt.Errorf("tên service không được bắt đầu bằng '-'")
+	}
 	if strings.Contains(s, "..") {
 		return fmt.Errorf("tên service không hợp lệ")
 	}
@@ -192,7 +195,7 @@ func composeServiceExec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	svc := strings.TrimSpace(body.Service)
-	args := dockerComposeArgs(proj, profiles, append([]string{"exec", "-T", svc}, parts...)...)
+	args := dockerComposeArgs(proj, profiles, append([]string{"exec", "-T", "--", svc}, parts...)...)
 	execComposeInDir(w, r, proj, args)
 }
 
@@ -249,7 +252,7 @@ func composeServiceLogs(w http.ResponseWriter, r *http.Request) {
 	if tail <= 0 || tail > 10000 {
 		tail = 200
 	}
-	args := dockerComposeArgs(proj, profiles, "logs", "--tail", strconv.Itoa(tail), strings.TrimSpace(body.Service))
+	args := dockerComposeArgs(proj, profiles, "logs", "--tail", strconv.Itoa(tail), "--", strings.TrimSpace(body.Service))
 	execComposeInDir(w, r, proj, args)
 }
 
@@ -277,7 +280,7 @@ func runComposeServiceAction(w http.ResponseWriter, r *http.Request, action stri
 		return
 	}
 	svc := strings.TrimSpace(body.Service)
-	args := dockerComposeArgs(proj, profiles, action, svc)
+	args := dockerComposeArgs(proj, profiles, action, "--", svc)
 	execComposeInDir(w, r, proj, args)
 }
 

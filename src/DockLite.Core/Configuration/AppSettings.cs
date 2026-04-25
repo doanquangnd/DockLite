@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace DockLite.Core.Configuration;
 
 /// <summary>
@@ -11,8 +13,14 @@ public sealed class AppSettings
     public string ServiceBaseUrl { get; set; } = DockLiteDefaults.ServiceBaseUrl;
 
     /// <summary>
-    /// Token tùy chọn gửi kèm <c>Authorization: Bearer</c> tới service Go khi biến môi trường <c>DOCKLITE_API_TOKEN</c> được đặt phía WSL. Để trống = không gửi (tương thích cấu hình cũ).
+    /// Hồ sơ dùng khi tạo tên bản ghi Windows Credential (resource kèm hậu tố hồ sơ; xem tài liệu triển khai).
     /// </summary>
+    public string ServiceApiTokenProfile { get; set; } = "default";
+
+    /// <summary>
+    /// Token tùy chọn gửi kèm <c>Authorization: Bearer</c> tới service Go khi bật xác thực. Không ghi xuống <c>settings.json</c>; nguồn đọc từ <see cref="IServiceApiTokenStore"/>.
+    /// </summary>
+    [JsonIgnore]
     public string? ServiceApiToken { get; set; }
 
     /// <summary>

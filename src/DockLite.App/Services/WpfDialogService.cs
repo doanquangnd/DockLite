@@ -20,6 +20,20 @@ public sealed class WpfDialogService : IDialogService
     }
 
     /// <inheritdoc />
+    public Task<bool> TlsFirstTrustFromDialogAsync(string message, string title)
+    {
+        MessageBoxResult r = MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.None);
+        return Task.FromResult(r == MessageBoxResult.Yes);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> TlsCertificateChangedFromDialogAsync(string message, string title)
+    {
+        MessageBoxResult r = MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.None);
+        return Task.FromResult(r == MessageBoxResult.Yes);
+    }
+
+    /// <inheritdoc />
     public Task ShowInfoAsync(string message, string title)
     {
         MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
