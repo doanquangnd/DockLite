@@ -1,38 +1,38 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: milestone
-status: ready_to_plan_or_execute
-stopped_at: Hoàn tất thực thi Phase 1 (01-SUMMARY); bước kế: `/gsd-plan-phase 2` hoặc `/gsd-execute-phase 2`
-last_updated: "2026-04-23T16:00:00.000Z"
-last_activity: 2026-04-23 — Thực thi Phase 1 (Network Surface Reduction) — 2/2 kế hoạch
+milestone: v2.1
+milestone_name: Local-only Channel
+status: planning_next_milestone
+stopped_at: Đã archive v2.0; chờ /gsd-new-milestone để tạo REQUIREMENTS.md và roadmap chi tiết v2.1
+last_updated: "2026-04-25T15:00:00.000Z"
+last_activity: 2026-04-25 — /gsd-complete-milestone (archive + tag v2.0.0)
 progress:
-  percent: 15
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: `.planning/PROJECT.md` (updated 2026-04-23)
+See: `.planning/PROJECT.md` (updated 2026-04-25)
 
 **Core value:** DockLite chạy an toàn mặc định theo Zero-Trust; IPC WPF ↔ Go service là kênh tin cậy ngay cả khi opt-in mở LAN.
-**Current focus:** v2.0 IPC Hardening — Phase 2 Secrets at Rest (bước kế theo ROADMAP)
+**Current focus:** v2.1 Local-only Channel — chạy `/gsd-new-milestone` để tạo `REQUIREMENTS.md` và phase; xem seed LCH trong `milestones/v2.0-REQUIREMENTS.md`
 
 ## Current Position
 
-Phase: 2 of 5 (Secrets at Rest) — chưa bắt đầu
-Plan: 0 of 3 in current phase
-Status: Phase 1 đã giao; sẵn sàng lập kế hoạch / thực thi Phase 2
-Last activity: 2026-04-23 — Giao Phase 1 (Go listen policy, CheckOrigin, WPF cảnh báo, .env, docs). Xem `01-SUMMARY.md`.
+Phase: v2.0 đã ship và archive; v2.1 chưa bắt đầu
+Plan: —
+Status: Milestone v2.0 đóng (`MILESTONES.md`, `milestones/v2.0-*`, tag `v2.0.0`)
+Last activity: 2026-04-25 — Hoàn tất `/gsd-complete-milestone`
 
-Progress: khoảng 15% (2/13 kế hoạch từ roadmap — Phase 1 xong)
+Progress: 0% v2.1 (chờ khởi tạo milestone)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 2
+- Total plans completed: 13
 - Average duration: — min
 - Total execution time: 0 hours
 
@@ -41,12 +41,12 @@ Progress: khoảng 15% (2/13 kế hoạch từ roadmap — Phase 1 xong)
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1. Network Surface Reduction | 2 | 2 | n/a |
-| 2. Secrets at Rest | 0 | 3 | — |
-| 3. Abuse Prevention and Audit | 0 | 2 | — |
-| 4. TLS Opt-in TOFU | 0 | 3 | — |
-| 5. Process Hardening | 0 | 3 | — |
+| 2. Secrets at Rest | 3 | 3 | n/a |
+| 3. Abuse Prevention and Audit | 2 | 2 | n/a |
+| 4. TLS Opt-in TOFU | 3 | 3 | n/a |
+| 5. Process Hardening | 3 | 3 | n/a |
 
-**Recent Trend:** Phase 1 hoàn tất trong một phiên
+**Recent Trend:** Phases 1–2 giao trong cùng milestone
 
 ## Accumulated Context
 
@@ -64,7 +64,7 @@ Full decision log trong `PROJECT.md` Key Decisions table. Recent decisions ảnh
 
 ### Pending Todos
 
-Không có (chưa khởi động phase).
+Không có.
 
 ### Blockers/Concerns
 
@@ -79,6 +79,6 @@ Không có. Đã gỡ các blocker về scope trong Deep Questioning trước kh
 
 ## Session Continuity
 
-Last session: 2026-04-23
-Stopped at: Phase 1 giao mã, `01-SUMMARY.md` ghi lại. Tiếp theo: Phase 2.
+Last session: 2026-04-25
+Stopped at: Archive milestone v2.0, `git rm` REQUIREMENTS.md, tag v2.0.0.
 Resume file: None
